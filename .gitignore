@@ -1,0 +1,15 @@
+.gocache/
+data/
+*.db
+.DS_Store
+web/node_modules/
+node_modules/
+scripts/cli/node_modules/
+scripts/cli/build/
+web/dist/
+release/
+.idea/
+.vscode/
+temp
+internal/bin/
+bin

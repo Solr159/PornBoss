@@ -1,0 +1,69 @@
+export default function JavVideoPickerModal({
+  open,
+  title,
+  onClose,
+  item,
+  choices,
+  emptyText,
+  action,
+  buildVideoFullPath,
+  isVideoOpenable,
+  onSelectVideo,
+}) {
+  if (!open) return null
+
+  const list = Array.isArray(choices) ? choices : []
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+      <div className="w-full max-w-2xl rounded-lg bg-white p-4 shadow-xl">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-base font-semibold">{title}</h2>
+          <button
+            onClick={onClose}
+            className="rounded px-2 py-1 text-gray-500 hover:bg-gray-100"
+            aria-label="关闭选择"
+          >
+            ✕
+          </button>
+        </div>
+        {item && (
+          <div className="mb-2 text-xs text-gray-500">
+            {item.code || '未知番号'}
+            {item.title ? ` · ${item.title}` : ''}
+          </div>
+        )}
+        <div className="max-h-72 overflow-y-auto rounded border">
+          {list.length === 0 ? (
+            <div className="p-3 text-sm text-gray-500">{emptyText}</div>
+          ) : (
+            list.map((video) => {
+              const fullPath = buildVideoFullPath ? buildVideoFullPath(video) : ''
+              const label = fullPath || video?.filename || video?.path || '未命名文件'
+              const canSelect = action === 'play' ? true : isVideoOpenable?.(video)
+              return (
+                <button
+                  key={video?.id || label}
+                  type="button"
+                  onClick={() => onSelectVideo?.(video)}
+                  disabled={!canSelect}
+                  className={`flex w-full items-center gap-3 border-b px-3 py-2 text-left text-sm last:border-b-0 ${
+                    canSelect ? 'hover:bg-gray-50' : 'cursor-not-allowed text-gray-400'
+                  }`}
+                  title={label}
+                >
+                  <span className="truncate">{label}</span>
+                </button>
+              )
+            })
+          )}
+        </div>
+        <div className="mt-3 flex justify-end">
+          <button onClick={onClose} className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50">
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

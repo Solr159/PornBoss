@@ -1,0 +1,287 @@
+package main
+
+import (
+	"bufio"
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"log"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"runtime"
+	"syscall"
+	"time"
+
+	"pornboss/internal/common"
+	"pornboss/internal/common/logging"
+	"pornboss/internal/db"
+	"pornboss/internal/models"
+	"pornboss/internal/server"
+	"pornboss/internal/service"
+	"pornboss/internal/util"
+
+	"pornboss/internal/manager"
+
+	"github.com/gin-gonic/gin"
+	"gopkg.in/natefinch/lumberjack.v2"
+)
+
+var buildMode = "development"
+
+func main() {
+	addr := flag.String("addr", ":8080", "HTTP address to listen on")
+	staticDir := flag.String("static", "web/dist", "Path to built frontend assets")
+	flag.Parse()
+
+	if buildMode == "release" && os.Getenv("GIN_MODE") == "" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
+	baseDir, err := resolveBaseDir()
+	if err != nil {
+		fallback := log.New(os.Stderr, "", log.LstdFlags|log.Lmicroseconds)
+		fallback.Fatalf("resolve base dir: %v", err)
+	}
+
+	logger, closeLogs, err := buildLogger(baseDir)
+	if err != nil {
+		fallback := log.New(os.Stderr, "", log.LstdFlags|log.Lmicroseconds)
+		fallback.Fatalf("init logger: %v", err)
+	}
+	defer closeLogs()
+
+	cfg, err := common.LoadWithBaseDir(baseDir)
+	if err != nil {
+		logger.Fatalf("load config: %v", err)
+	}
+
+	logging.SetLogger(logger)
+	logging.SetColorEnabled(false)
+
+	if buildMode == "release" {
+		lockPath := filepath.Join(filepath.Dir(cfg.DatabasePath), "pornboss.lock")
+		lock, err := util.AcquireFileLock(lockPath)
+		if err != nil {
+			if errors.Is(err, util.ErrLockHeld) {
+				fmt.Println("Pornboss 已在运行，无法重复启动。")
+				waitForUserExit()
+				return
+			}
+			logger.Fatalf("acquire lock: %v", err)
+		}
+		defer func() {
+			if err := lock.Release(); err != nil {
+				logger.Printf("release lock failed: %v", err)
+			}
+		}()
+
+		clearBundledQuarantine()
+	}
+
+	database, err := db.Open(cfg.DatabasePath)
+	if err != nil {
+		logger.Fatalf("open database: %v", err)
+	}
+	sqlDB, err := database.DB()
+	if err != nil {
+		logger.Fatalf("database handle: %v", err)
+	}
+	defer sqlDB.Close()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	common.DB = database
+	applyProxyPort(ctx)
+
+	var activeDirs []models.Directory
+	if dirs, err := db.ListDirectories(ctx); err == nil {
+		activeDirs = dirs
+		logger.Printf("directories configured: %d (启动时不自动扫描)", len(activeDirs))
+	} else {
+		logger.Printf("list directories on startup failed: %v", err)
+	}
+
+	dataDir := filepath.Dir(cfg.DatabasePath)
+	screenshotManager := manager.NewScreenshotManager(dataDir, db.GetVideo)
+	coverManager := manager.NewCoverManager(cfg.JavCoverDir)
+
+	common.AppConfig = cfg
+	common.ScreenshotManager = screenshotManager
+	common.CoverManager = coverManager
+
+	screenshotManager.Start(ctx)
+	coverManager.Start(ctx)
+	service.StartDirectoryScanner(ctx, time.Minute)
+	service.StartJavScanner(ctx, time.Minute)
+	service.StartIdolProfileScanner(ctx, time.Minute)
+
+	router := server.NewRouter(resolveStaticDir(*staticDir))
+
+	srv := &http.Server{
+		Addr:         *addr,
+		Handler:      router,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			logger.Printf("server shutdown error: %v", err)
+		}
+	}()
+
+	if gin.Mode() == gin.ReleaseMode {
+		listenAddr := releaseListenAddr(*addr)
+		listener, err := net.Listen("tcp", listenAddr)
+		if err != nil {
+			logger.Fatalf("listen on %s: %v", listenAddr, err)
+		}
+		actualPort := listener.Addr().(*net.TCPAddr).Port
+		url := fmt.Sprintf("http://localhost:%d", actualPort)
+		fmt.Printf("Pornboss启动成功，浏览器访问地址：%s\n", url)
+		if err := util.OpenFile(url); err != nil {
+			logger.Printf("open browser failed: %v", err)
+		}
+		logger.Printf("server listening on %s", listener.Addr().String())
+		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
+			logger.Fatalf("server error: %v", err)
+		}
+		return
+	}
+
+	logger.Printf("server listening on %s", *addr)
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		logger.Fatalf("server error: %v", err)
+	}
+}
+
+func applyProxyPort(ctx context.Context) {
+	cfg, err := db.ListConfig(ctx)
+	if err != nil {
+		logging.Error("load proxy config failed: %v", err)
+		return
+	}
+	util.SetProxyPortFromString(cfg["proxy_port"])
+}
+
+func clearBundledQuarantine() {
+	if runtime.GOOS != "darwin" {
+		return
+	}
+
+	var roots []string
+	if wd, err := os.Getwd(); err == nil {
+		roots = append(roots, filepath.Join(wd, "internal", "bin"))
+	}
+	if execPath, err := os.Executable(); err == nil {
+		execDir := filepath.Dir(execPath)
+		roots = append(roots, filepath.Join(execDir, "internal", "bin"))
+	}
+
+	seen := make(map[string]struct{}, len(roots))
+	for _, root := range roots {
+		if _, ok := seen[root]; ok {
+			continue
+		}
+		seen[root] = struct{}{}
+		if _, err := os.Stat(root); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			logging.Error("stat quarantine root failed: %s: %v", root, err)
+			continue
+		}
+		if err := util.ClearQuarantineRecursive(root); err != nil {
+			logging.Error("clear quarantine failed: %s: %v", root, err)
+		}
+	}
+}
+
+func buildLogger(baseDir string) (*log.Logger, func(), error) {
+	if gin.Mode() != gin.ReleaseMode {
+		logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
+		return logger, func() {}, nil
+	}
+
+	logsDir := filepath.Join(baseDir, "logs")
+	if err := os.MkdirAll(logsDir, 0o755); err != nil {
+		return nil, nil, fmt.Errorf("create logs dir: %w", err)
+	}
+
+	rotator := &lumberjack.Logger{
+		Filename:   filepath.Join(logsDir, "pornboss.log"),
+		MaxSize:    20, // megabytes
+		MaxBackups: 7,
+		MaxAge:     14, // days
+		Compress:   true,
+		LocalTime:  true,
+	}
+
+	logger := log.New(rotator, "", log.LstdFlags|log.Lmicroseconds)
+	return logger, func() { _ = rotator.Close() }, nil
+}
+
+func releaseListenAddr(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return ":0"
+	}
+	if host == "" {
+		return ":0"
+	}
+	return net.JoinHostPort(host, "0")
+}
+
+func resolveBaseDir() (string, error) {
+	if buildMode == "release" {
+		if execPath, err := os.Executable(); err == nil {
+			return filepath.Dir(execPath), nil
+		}
+	}
+	if wd, err := os.Getwd(); err == nil {
+		return wd, nil
+	}
+	if execPath, err := os.Executable(); err == nil {
+		return filepath.Dir(execPath), nil
+	}
+	return "", fmt.Errorf("unable to resolve base directory")
+}
+
+func resolveStaticDir(staticDir string) string {
+	if staticDir == "" {
+		return ""
+	}
+	if fi, err := os.Stat(staticDir); err == nil && fi.IsDir() {
+		return staticDir
+	}
+	if filepath.IsAbs(staticDir) {
+		return staticDir
+	}
+	execPath, err := os.Executable()
+	if err != nil {
+		return staticDir
+	}
+	execDir := filepath.Dir(execPath)
+	candidate := filepath.Join(execDir, staticDir)
+	if fi, err := os.Stat(candidate); err == nil && fi.IsDir() {
+		return candidate
+	}
+	return staticDir
+}
+
+func waitForUserExit() {
+	fmt.Println("请手动关闭此窗口，或按回车键退出。")
+	reader := bufio.NewReader(os.Stdin)
+	if _, err := reader.ReadString('\n'); err != nil {
+		select {}
+	}
+}

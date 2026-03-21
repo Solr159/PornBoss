@@ -1,0 +1,125 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"pornboss/internal/common/logging"
+	"pornboss/internal/db"
+	"pornboss/internal/jav"
+	"pornboss/internal/util"
+)
+
+// StartIdolProfileScanner periodically enriches jav_idol profiles using solo works.
+func StartIdolProfileScanner(ctx context.Context, interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			if err := ScanIdolProfiles(ctx); err != nil {
+				logging.Error("idol profile scan failed: %v", err)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+}
+
+// ScanIdolProfiles finds idols missing profile fields and updates them from JavDatabase.
+func ScanIdolProfiles(ctx context.Context) error {
+	idols, err := db.ListIdolsMissingProfile(ctx)
+	if err != nil {
+		return err
+	}
+	logging.Info("found %d idols missing profile info", len(idols))
+	dbLookup := jav.JavDatabaseProvider
+	modelLookup := jav.JavModelProvider
+	for _, idol := range idols {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		var (
+			dbInfo    *jav.ActressInfo
+			modelInfo *jav.ActressInfo
+			code      string
+		)
+		code, err = db.FindIdolSoloCode(ctx, idol.ID)
+		if err != nil {
+			logging.Error("find solo code failed idol=%s err=%v", idol.Name, err)
+		}
+		if code != "" {
+			dbInfo, err = dbLookup.LookupActressByCode(code)
+			if err != nil && !errors.Is(err, jav.ResourceNotFonud) {
+				logging.Error("lookup actress failed idol=%s code=%s err=%v", idol.Name, code, err)
+			}
+		}
+
+		modelInfo, err = modelLookup.LookupActressByJapaneseName(idol.Name)
+		if err != nil && !errors.Is(err, jav.ResourceNotFonud) {
+			logging.Error("lookup actress (javmodel) failed idol=%d name=%s err=%v", idol.ID, idol.Name, err)
+		}
+
+		info := mergeActressInfo(dbInfo, modelInfo)
+		if info == nil {
+			continue
+		}
+		if info.ChineseName != "" {
+			info.ChineseName = util.SimplifyChineseName(info.ChineseName)
+		}
+		if err := db.UpdateIdolProfile(ctx, idol.ID, info); err != nil {
+			logging.Error("update idol profile failed idol=%d name=%s err=%v", idol.ID, idol.Name, err)
+			continue
+		}
+		logging.Info("idol profile updated idol=%d name=%s code=%s", idol.ID, idol.Name, code)
+	}
+	return nil
+}
+
+func mergeActressInfo(primary, secondary *jav.ActressInfo) *jav.ActressInfo {
+	if primary == nil && secondary == nil {
+		return nil
+	}
+	if primary == nil {
+		copied := *secondary
+		return &copied
+	}
+	merged := *primary
+	if secondary == nil {
+		return &merged
+	}
+	if merged.RomanName == "" {
+		merged.RomanName = secondary.RomanName
+	}
+	if merged.JapaneseName == "" {
+		merged.JapaneseName = secondary.JapaneseName
+	}
+	if merged.ChineseName == "" {
+		merged.ChineseName = secondary.ChineseName
+	}
+	if merged.HeightCM == 0 {
+		merged.HeightCM = secondary.HeightCM
+	}
+	if merged.Bust == 0 {
+		merged.Bust = secondary.Bust
+	}
+	if merged.Waist == 0 {
+		merged.Waist = secondary.Waist
+	}
+	if merged.Hips == 0 {
+		merged.Hips = secondary.Hips
+	}
+	if merged.BirthDate == 0 {
+		merged.BirthDate = secondary.BirthDate
+	}
+	if merged.Cup == 0 {
+		merged.Cup = secondary.Cup
+	}
+	if merged.ProfileURL == "" {
+		merged.ProfileURL = secondary.ProfileURL
+	}
+	return &merged
+}

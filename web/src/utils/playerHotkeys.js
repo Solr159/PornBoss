@@ -1,0 +1,112 @@
+export const PLAYER_HOTKEY_ACTIONS = {
+  SEEK: 'seek',
+  VOLUME: 'volume',
+}
+
+export const DEFAULT_PLAYER_HOTKEYS = [
+  { key: 'a', action: PLAYER_HOTKEY_ACTIONS.SEEK, amount: -1 },
+  { key: 'z', action: PLAYER_HOTKEY_ACTIONS.SEEK, amount: 1 },
+  { key: 's', action: PLAYER_HOTKEY_ACTIONS.SEEK, amount: -10 },
+  { key: 'x', action: PLAYER_HOTKEY_ACTIONS.SEEK, amount: 10 },
+  { key: 'd', action: PLAYER_HOTKEY_ACTIONS.SEEK, amount: -300 },
+  { key: 'c', action: PLAYER_HOTKEY_ACTIONS.SEEK, amount: 300 },
+  { key: 'q', action: PLAYER_HOTKEY_ACTIONS.VOLUME, amount: -10 },
+  { key: 'w', action: PLAYER_HOTKEY_ACTIONS.VOLUME, amount: 10 },
+]
+
+const INVALID_SINGLE_KEYS = new Set([''])
+const MODIFIER_KEYS = new Set([
+  'Alt',
+  'AltGraph',
+  'CapsLock',
+  'Control',
+  'Fn',
+  'Meta',
+  'NumLock',
+  'ScrollLock',
+  'Shift',
+  'Symbol',
+  'Tab',
+])
+
+export function normalizePlayerHotkeyKey(raw) {
+  if (raw == null) return ''
+  const text = String(raw)
+  if (text === ' ') return ' '
+  const trimmed = text.trim()
+  if (!trimmed) return ''
+  if (trimmed === 'Spacebar') return ' '
+  if (trimmed === 'Esc') return 'Escape'
+  if (trimmed.length === 1) return trimmed.toLowerCase()
+  return trimmed
+}
+
+export function formatPlayerHotkeyKey(key) {
+  const normalized = normalizePlayerHotkeyKey(key)
+  if (!normalized) return ''
+  if (normalized === ' ') return 'Space'
+  return normalized.length === 1 ? normalized.toUpperCase() : normalized
+}
+
+export function isReservedPlayerHotkeyKey(key) {
+  const normalized = normalizePlayerHotkeyKey(key)
+  return normalized === ' ' || normalized === 'Escape'
+}
+
+export function isSupportedPlayerHotkeyKey(key) {
+  const normalized = normalizePlayerHotkeyKey(key)
+  if (INVALID_SINGLE_KEYS.has(normalized) || MODIFIER_KEYS.has(normalized)) {
+    return false
+  }
+  return normalized !== 'Unidentified' && normalized !== 'Process'
+}
+
+export function normalizePlayerHotkey(entry) {
+  if (!entry || typeof entry !== 'object') return null
+  const key = normalizePlayerHotkeyKey(entry.key)
+  const action =
+    entry.action === PLAYER_HOTKEY_ACTIONS.VOLUME
+      ? PLAYER_HOTKEY_ACTIONS.VOLUME
+      : entry.action === PLAYER_HOTKEY_ACTIONS.SEEK
+        ? PLAYER_HOTKEY_ACTIONS.SEEK
+        : ''
+  const amount = Number(entry.amount)
+  if (!key || !action || !Number.isFinite(amount) || amount === 0) {
+    return null
+  }
+  if (!isSupportedPlayerHotkeyKey(key) || isReservedPlayerHotkeyKey(key)) {
+    return null
+  }
+  if (action === PLAYER_HOTKEY_ACTIONS.VOLUME && Math.abs(amount) > 100) {
+    return null
+  }
+  return { key, action, amount }
+}
+
+export function normalizePlayerHotkeysList(entries) {
+  if (!Array.isArray(entries)) return []
+  const normalized = []
+  const seen = new Set()
+  for (const entry of entries) {
+    const item = normalizePlayerHotkey(entry)
+    if (!item || seen.has(item.key)) continue
+    seen.add(item.key)
+    normalized.push(item)
+  }
+  return normalized
+}
+
+export function parsePlayerHotkeys(rawValue) {
+  if (rawValue == null || String(rawValue).trim() === '') {
+    return DEFAULT_PLAYER_HOTKEYS.map((item) => ({ ...item }))
+  }
+  try {
+    const parsed = JSON.parse(String(rawValue))
+    if (!Array.isArray(parsed)) {
+      return DEFAULT_PLAYER_HOTKEYS.map((item) => ({ ...item }))
+    }
+    return normalizePlayerHotkeysList(parsed)
+  } catch {
+    return DEFAULT_PLAYER_HOTKEYS.map((item) => ({ ...item }))
+  }
+}

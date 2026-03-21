@@ -1,0 +1,14 @@
+{
+  "name": "pornboss-cli",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "inquirer": "^9.2.20"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0"
+  },
+  "scripts": {
+    "build": "esbuild cli.mjs --bundle --platform=node --format=cjs --outfile=build/pornboss-cli.cjs"
+  }
+}
