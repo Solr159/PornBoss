@@ -2,7 +2,8 @@
 
 Pornboss 是一个面向本地成人视频收藏的一站式解决方案，同时覆盖普通成人视频管理和日本 JAV 管理。
 
-它把目录扫描、视频整理、番号识别、作品聚合、女优浏览、封面抓取、标签管理和播放回看整合到一起，让你不用在多个工具之间来回折腾。
+## Keywords
+Porn, Pornhub, PornManager, Jav, JavScraper
 
 ## Why pornboss?
 
