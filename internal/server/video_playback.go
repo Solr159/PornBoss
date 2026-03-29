@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"encoding/hex"
 	"errors"
@@ -30,6 +31,9 @@ const (
 	hlsSegmentMime  = "video/MP2T"
 	hlsWaitTimeout  = 20 * time.Second
 	hlsPollInterval = 200 * time.Millisecond
+	hlsSegmentSecs  = 4
+	hlsBufferCount  = 8
+	hlsRestartGap   = 2
 )
 
 var hlsSegmentNamePattern = regexp.MustCompile(`^\d+\.ts$`)
@@ -49,10 +53,15 @@ type hlsSession struct {
 	inputPath    string
 	dir          string
 	manifestPath string
-	completePath string
+	durationSec  int64
 	mu           sync.Mutex
-	started      bool
+	process      *hlsProcess
+}
+
+type hlsProcess struct {
+	startSegment int
 	done         chan struct{}
+	cancel       context.CancelFunc
 	err          error
 }
 
@@ -104,7 +113,7 @@ func streamVideoManifest(c *gin.Context) {
 		return
 	}
 
-	if _, err := videoHLSManager.sessionForFile(fullPath); err != nil {
+	if _, err := videoHLSManager.sessionForFile(fullPath, video.DurationSec); err != nil {
 		logging.Error("prepare hls session error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "prepare hls stream failed"})
 		return
@@ -123,7 +132,7 @@ func streamVideoManifest(c *gin.Context) {
 }
 
 func streamVideoSegment(c *gin.Context) {
-	_, fullPath, ok := loadVideoByID(c)
+	video, fullPath, ok := loadVideoByID(c)
 	if !ok {
 		return
 	}
@@ -137,15 +146,16 @@ func streamVideoSegment(c *gin.Context) {
 		return
 	}
 
-	session, err := videoHLSManager.sessionForFile(fullPath)
+	session, err := videoHLSManager.sessionForFile(fullPath, video.DurationSec)
 	if err != nil {
 		logging.Error("prepare hls session error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "prepare hls stream failed"})
 		return
 	}
 
+	segmentIndex, _ := strconv.Atoi(strings.TrimSuffix(segment, ".ts"))
 	segmentPath := filepath.Join(session.dir, segment)
-	if err := session.waitForFile(segmentPath, hlsWaitTimeout); err != nil {
+	if err := session.ensureSegment(segmentIndex, segmentPath, hlsWaitTimeout); err != nil {
 		writeHLSError(c, err)
 		return
 	}
@@ -183,7 +193,7 @@ func loadVideoByID(c *gin.Context) (*models.Video, string, bool) {
 	return video, fullPath, true
 }
 
-func (m *hlsManager) sessionForFile(fullPath string) (*hlsSession, error) {
+func (m *hlsManager) sessionForFile(fullPath string, durationSec int64) (*hlsSession, error) {
 	info, err := os.Stat(fullPath)
 	if err != nil {
 		return nil, err
@@ -199,13 +209,15 @@ func (m *hlsManager) sessionForFile(fullPath string) (*hlsSession, error) {
 			inputPath:    fullPath,
 			dir:          baseDir,
 			manifestPath: filepath.Join(baseDir, "manifest.m3u8"),
-			completePath: filepath.Join(baseDir, ".complete"),
+			durationSec:  durationSec,
 		}
 		m.sessions[key] = session
+	} else if durationSec > 0 && session.durationSec != durationSec {
+		session.durationSec = durationSec
 	}
 	m.mu.Unlock()
 
-	if err := session.ensureStarted(); err != nil {
+	if err := os.MkdirAll(session.dir, 0o755); err != nil {
 		return nil, err
 	}
 	return session, nil
@@ -216,133 +228,128 @@ func buildHLSCacheKey(fullPath string, info os.FileInfo) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func (s *hlsSession) ensureStarted() error {
-	if fileExists(s.completePath) && fileExists(s.manifestPath) {
-		return nil
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if fileExists(s.completePath) && fileExists(s.manifestPath) {
-		return nil
-	}
-	if s.started {
-		return nil
-	}
-
-	if err := os.RemoveAll(s.dir); err != nil {
-		return fmt.Errorf("clear hls dir: %w", err)
-	}
-	if err := os.MkdirAll(s.dir, 0o755); err != nil {
-		return fmt.Errorf("create hls dir: %w", err)
-	}
-
-	s.done = make(chan struct{})
-	s.err = nil
-	s.started = true
-	go s.run()
-	return nil
-}
-
-func (s *hlsSession) run() {
-	ffmpegPath, err := util.ResolveFFmpegPath()
-	if err != nil {
-		s.finish(err)
-		return
-	}
-
-	args := []string{
-		"-hide_banner",
-		"-loglevel", "error",
-		"-nostdin",
-		"-i", s.inputPath,
-		"-map", "0:v:0",
-		"-map", "0:a?",
-		"-c:v", "libx264",
-		"-preset", "veryfast",
-		"-crf", "23",
-		"-force_key_frames", "expr:gte(t,n_forced*4)",
-		"-c:a", "aac",
-		"-ac", "2",
-		"-sn",
-		"-f", "hls",
-		"-start_number", "0",
-		"-hls_time", "4",
-		"-hls_list_size", "0",
-		"-hls_playlist_type", "vod",
-		"-hls_base_url", "stream.m3u8/",
-		"-hls_flags", "independent_segments+temp_file",
-		"-hls_segment_filename", filepath.Join(s.dir, "%06d.ts"),
-		s.manifestPath,
-	}
-
-	cmd := exec.Command(ffmpegPath, args...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-
-	if runErr := cmd.Run(); runErr != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if msg != "" {
-			err = fmt.Errorf("ffmpeg hls failed: %w: %s", runErr, msg)
-		} else {
-			err = fmt.Errorf("ffmpeg hls failed: %w", runErr)
-		}
-	} else {
-		err = os.WriteFile(s.completePath, []byte(time.Now().UTC().Format(time.RFC3339)), 0o644)
-		if err != nil {
-			err = fmt.Errorf("write hls complete marker: %w", err)
-		}
-	}
-
-	s.finish(err)
-}
-
-func (s *hlsSession) finish(err error) {
-	s.mu.Lock()
-	done := s.done
-	s.err = err
-	s.started = false
-	s.mu.Unlock()
-
-	if done != nil {
-		close(done)
-	}
-}
-
-func (s *hlsSession) waitForFile(path string, timeout time.Duration) error {
+func (s *hlsSession) ensureSegment(segmentIndex int, path string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
-		if info, err := os.Stat(path); err == nil && info.Size() > 0 {
+		if fileExists(path) {
 			return nil
 		}
 		if time.Now().After(deadline) {
 			return fmt.Errorf("timeout waiting for hls output: %s", filepath.Base(path))
 		}
 
-		done, runErr, started := s.status()
-		if !started && runErr != nil {
+		proc, err := s.ensureProcessForSegment(segmentIndex)
+		if err != nil {
+			return err
+		}
+
+		select {
+		case <-proc.done:
 			if fileExists(path) {
 				return nil
 			}
-			return runErr
+			if proc.err != nil {
+				return proc.err
+			}
+		case <-time.After(hlsPollInterval):
 		}
-		if done != nil {
-			select {
-			case <-done:
-				if info, err := os.Stat(path); err == nil && info.Size() > 0 {
-					return nil
-				}
-				_, runErr, _ = s.status()
-				if runErr != nil {
-					return runErr
-				}
-			default:
+	}
+}
+
+func (s *hlsSession) ensureProcessForSegment(segmentIndex int) (*hlsProcess, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.process != nil {
+		if segmentIndex >= s.process.startSegment && segmentIndex <= s.process.startSegment+hlsRestartGap {
+			return s.process, nil
+		}
+		s.process.cancel()
+		s.process = nil
+	}
+
+	proc, err := s.startProcessLocked(segmentIndex)
+	if err != nil {
+		return nil, err
+	}
+	s.process = proc
+	return proc, nil
+}
+
+func (s *hlsSession) startProcessLocked(segmentIndex int) (*hlsProcess, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	proc := &hlsProcess{
+		startSegment: segmentIndex,
+		done:         make(chan struct{}),
+		cancel:       cancel,
+	}
+
+	ffmpegPath, err := util.ResolveFFmpegPath()
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
+	startOffset := segmentIndex * hlsSegmentSecs
+	bufferSeconds := (hlsBufferCount + 1) * hlsSegmentSecs
+	if s.durationSec > 0 {
+		remaining := int(s.durationSec) - startOffset
+		if remaining > 0 && remaining < bufferSeconds {
+			bufferSeconds = remaining
+		}
+	}
+
+	args := []string{
+		"-hide_banner",
+		"-loglevel", "error",
+		"-nostdin",
+		"-y",
+		"-ss", strconv.Itoa(startOffset),
+		"-i", s.inputPath,
+		"-map", "0:v:0",
+		"-map", "0:a?",
+		"-t", strconv.Itoa(bufferSeconds),
+		"-c:v", "libx264",
+		"-preset", "veryfast",
+		"-crf", "23",
+		"-force_key_frames", fmt.Sprintf("expr:gte(t,n_forced*%d)", hlsSegmentSecs),
+		"-c:a", "aac",
+		"-ac", "2",
+		"-sn",
+		"-f", "hls",
+		"-start_number", strconv.Itoa(segmentIndex),
+		"-hls_time", strconv.Itoa(hlsSegmentSecs),
+		"-hls_list_size", "0",
+		"-hls_playlist_type", "vod",
+		"-hls_base_url", "stream.m3u8/",
+		"-hls_flags", "split_by_time+independent_segments+temp_file",
+		"-hls_segment_filename", filepath.Join(s.dir, "%06d.ts"),
+		s.manifestPath,
+	}
+
+	cmd := exec.CommandContext(ctx, ffmpegPath, args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	go func() {
+		runErr := cmd.Run()
+		if runErr != nil && !errors.Is(runErr, context.Canceled) {
+			msg := strings.TrimSpace(stderr.String())
+			if msg != "" {
+				proc.err = fmt.Errorf("ffmpeg hls failed: %w: %s", runErr, msg)
+			} else {
+				proc.err = fmt.Errorf("ffmpeg hls failed: %w", runErr)
 			}
 		}
 
-		time.Sleep(hlsPollInterval)
-	}
+		s.mu.Lock()
+		if s.process == proc {
+			s.process = nil
+		}
+		s.mu.Unlock()
+		close(proc.done)
+	}()
+
+	return proc, nil
 }
 
 func buildStaticHLSManifest(durationSec int64) (string, error) {
@@ -359,17 +366,17 @@ func buildStaticHLSManifest(durationSec int64) (string, error) {
 	buf.WriteString("#EXTM3U\n")
 	buf.WriteString("#EXT-X-VERSION:3\n")
 	buf.WriteString("#EXT-X-PLAYLIST-TYPE:VOD\n")
-	buf.WriteString("#EXT-X-TARGETDURATION:4\n")
+	buf.WriteString(fmt.Sprintf("#EXT-X-TARGETDURATION:%d\n", hlsSegmentSecs))
 	buf.WriteString("#EXT-X-MEDIA-SEQUENCE:0\n")
 
 	remaining := float64(durationSec)
 	for i := 0; i < segmentCount; i++ {
-		segmentDuration := 4.0
+		segmentDuration := float64(hlsSegmentSecs)
 		if remaining > 0 && remaining < segmentDuration {
 			segmentDuration = remaining
 		}
 		if segmentDuration <= 0 {
-			segmentDuration = 4.0
+			segmentDuration = float64(hlsSegmentSecs)
 		}
 
 		buf.WriteString(fmt.Sprintf("#EXTINF:%.3f,\n", segmentDuration))
@@ -379,12 +386,6 @@ func buildStaticHLSManifest(durationSec int64) (string, error) {
 
 	buf.WriteString("#EXT-X-ENDLIST\n")
 	return buf.String(), nil
-}
-
-func (s *hlsSession) status() (chan struct{}, error, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.done, s.err, s.started
 }
 
 func writeHLSError(c *gin.Context, err error) {
