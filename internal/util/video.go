@@ -19,6 +19,8 @@ import (
 
 type VideoMetadata struct {
 	Codec           string
+	AudioCodec      string
+	Container       string
 	Width           int
 	Height          int
 	FPS             float64
@@ -209,9 +211,10 @@ type ffprobeStream struct {
 type ffprobeResult struct {
 	Streams []ffprobeStream `json:"streams"`
 	Format  struct {
-		Duration string `json:"duration"`
-		Size     string `json:"size"`
-		BitRate  string `json:"bit_rate"`
+		FormatName string `json:"format_name"`
+		Duration   string `json:"duration"`
+		Size       string `json:"size"`
+		BitRate    string `json:"bit_rate"`
 	} `json:"format"`
 }
 
@@ -248,12 +251,14 @@ func parseFFprobeOutput(out []byte) (*VideoMetadata, error) {
 	}
 	meta := &VideoMetadata{
 		Codec:           strings.TrimSpace(video.CodecName),
+		Container:       strings.TrimSpace(res.Format.FormatName),
 		Width:           video.Width,
 		Height:          video.Height,
 		FPS:             fps,
 		DurationSeconds: duration,
 	}
 	if audio != nil {
+		meta.AudioCodec = strings.TrimSpace(audio.CodecName)
 		if sr, err := strconv.Atoi(strings.TrimSpace(audio.SampleRate)); err == nil {
 			meta.SampleRate = sr
 		}

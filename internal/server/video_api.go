@@ -90,10 +90,20 @@ func incrementVideoPlayCount(c *gin.Context) {
 }
 
 func streamVideo(c *gin.Context) {
-	fullPath, err := resolveStreamPathFromQuery(c)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	fullPath := ""
+	if rawPath := strings.TrimSpace(c.Query("path")); rawPath != "" {
+		var err error
+		fullPath, err = resolveStreamPathFromQuery(c)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	} else {
+		_, resolvedPath, ok := loadVideoByID(c)
+		if !ok {
+			return
+		}
+		fullPath = resolvedPath
 	}
 	serveVideoFile(c, fullPath)
 }
