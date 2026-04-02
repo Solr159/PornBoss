@@ -163,6 +163,15 @@ export async function incrementVideoPlayCount(id) {
   }
 }
 
+export async function fetchPlaybackInfo(id) {
+  const res = await fetch(`/videos/${id}/streams`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || '加载播放信息失败')
+  }
+  return res.json()
+}
+
 // Directories
 export async function fetchDirectories() {
   const res = await fetch('/directories')

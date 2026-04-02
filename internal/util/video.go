@@ -19,6 +19,10 @@ import (
 
 type VideoMetadata struct {
 	Codec           string
+	VideoCodec      string
+	AudioCodec      string
+	Container       string
+	FormatName      string
 	Width           int
 	Height          int
 	FPS             float64
@@ -172,7 +176,7 @@ func ProbeVideo(path string) (*VideoMetadata, error) {
 		"-v", "error",
 		"-print_format", "json",
 		"-show_entries", "stream=index,codec_type,codec_name,width,height,avg_frame_rate,r_frame_rate,sample_rate,channels,bit_rate",
-		"-show_entries", "format=duration,size,bit_rate",
+		"-show_entries", "format=duration,size,bit_rate,format_name",
 		path,
 	)
 	var stderr bytes.Buffer
@@ -185,7 +189,7 @@ func ProbeVideo(path string) (*VideoMetadata, error) {
 		}
 		return nil, fmt.Errorf("ffprobe: %w", err)
 	}
-	meta, err := parseFFprobeOutput(out)
+	meta, err := parseFFprobeOutput(out, path)
 	if err != nil {
 		return nil, err
 	}
@@ -209,13 +213,14 @@ type ffprobeStream struct {
 type ffprobeResult struct {
 	Streams []ffprobeStream `json:"streams"`
 	Format  struct {
-		Duration string `json:"duration"`
-		Size     string `json:"size"`
-		BitRate  string `json:"bit_rate"`
+		Duration   string `json:"duration"`
+		Size       string `json:"size"`
+		BitRate    string `json:"bit_rate"`
+		FormatName string `json:"format_name"`
 	} `json:"format"`
 }
 
-func parseFFprobeOutput(out []byte) (*VideoMetadata, error) {
+func parseFFprobeOutput(out []byte, path string) (*VideoMetadata, error) {
 	var res ffprobeResult
 	if err := json.Unmarshal(out, &res); err != nil {
 		return nil, fmt.Errorf("parse ffprobe json: %w", err)
@@ -248,12 +253,16 @@ func parseFFprobeOutput(out []byte) (*VideoMetadata, error) {
 	}
 	meta := &VideoMetadata{
 		Codec:           strings.TrimSpace(video.CodecName),
+		VideoCodec:      strings.TrimSpace(video.CodecName),
+		FormatName:      normalizeFormatName(res.Format.FormatName),
+		Container:       detectContainer(res.Format.FormatName, path),
 		Width:           video.Width,
 		Height:          video.Height,
 		FPS:             fps,
 		DurationSeconds: duration,
 	}
 	if audio != nil {
+		meta.AudioCodec = strings.TrimSpace(audio.CodecName)
 		if sr, err := strconv.Atoi(strings.TrimSpace(audio.SampleRate)); err == nil {
 			meta.SampleRate = sr
 		}
@@ -317,4 +326,39 @@ func parseInt64(raw string) int64 {
 	}
 	v, _ := strconv.ParseInt(raw, 10, 64)
 	return v
+}
+
+func normalizeFormatName(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	part := strings.Split(raw, ",")[0]
+	return strings.ToLower(strings.TrimSpace(part))
+}
+
+func detectContainer(formatName, path string) string {
+	switch strings.ToLower(strings.TrimSpace(filepath.Ext(path))) {
+	case ".mp4", ".m4v":
+		return "mp4"
+	case ".mov":
+		return "mov"
+	case ".webm":
+		return "webm"
+	case ".mkv":
+		return "mkv"
+	case ".avi":
+		return "avi"
+	case ".wmv":
+		return "wmv"
+	case ".flv":
+		return "flv"
+	case ".ts":
+		return "ts"
+	case ".m2ts", ".mts":
+		return "m2ts"
+	case ".mpg", ".mpeg":
+		return "mpeg"
+	}
+	return normalizeFormatName(formatName)
 }
