@@ -15,6 +15,7 @@ import (
 	"pornboss/internal/common/logging"
 	dbpkg "pornboss/internal/db"
 	"pornboss/internal/manager"
+	"pornboss/internal/models"
 	"pornboss/internal/util"
 )
 
@@ -89,13 +90,104 @@ func incrementVideoPlayCount(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-func streamVideo(c *gin.Context) {
-	fullPath, err := resolveStreamPathFromQuery(c)
+type playbackSource struct {
+	Kind     string `json:"kind"`
+	Src      string `json:"src"`
+	MimeType string `json:"mime_type"`
+	Label    string `json:"label"`
+}
+
+type playbackInfo struct {
+	VideoID       int64            `json:"video_id"`
+	PreferredKind string           `json:"preferred_kind"`
+	Sources       []playbackSource `json:"sources"`
+}
+
+func getVideoStreams(c *gin.Context) {
+	video, fullPath, err := resolveVideoStreamTarget(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondPlaybackError(c, err)
+		return
+	}
+
+	probe, err := util.ProbePlaybackSupport(fullPath)
+	if err != nil {
+		logging.Error("probe playback support error: %v", err)
+		respondPlaybackError(c, err)
+		return
+	}
+
+	info := playbackInfo{
+		VideoID:       video.ID,
+		PreferredKind: "hls",
+		Sources:       []playbackSource{},
+	}
+	if probe.SupportsDirect {
+		info.PreferredKind = "direct"
+		info.Sources = append(info.Sources, playbackSource{
+			Kind:     "direct",
+			Src:      "/videos/" + strconv.FormatInt(video.ID, 10) + "/stream",
+			MimeType: directMimeType(probe.Container),
+			Label:    "Direct",
+		})
+	}
+	info.Sources = append(info.Sources, playbackSource{
+		Kind:     "hls",
+		Src:      "/videos/" + strconv.FormatInt(video.ID, 10) + "/stream.m3u8",
+		MimeType: manager.MimeHLS,
+		Label:    "HLS",
+	})
+
+	c.JSON(http.StatusOK, info)
+}
+
+func streamVideo(c *gin.Context) {
+	_, fullPath, err := resolveVideoStreamTarget(c)
+	if err != nil {
+		respondPlaybackError(c, err)
 		return
 	}
 	serveVideoFile(c, fullPath)
+}
+
+func streamHLSManifest(c *gin.Context) {
+	video, fullPath, err := resolveVideoStreamTarget(c)
+	if err != nil {
+		respondPlaybackError(c, err)
+		return
+	}
+	if common.StreamManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "stream manager unavailable"})
+		return
+	}
+
+	resolution := strings.TrimSpace(c.Query("resolution"))
+	c.Header("Cache-Control", "no-cache")
+	common.StreamManager.ServeManifest(c.Writer, c.Request, fullPath, float64(video.DurationSec), resolution)
+}
+
+func streamHLSSegment(c *gin.Context) {
+	video, fullPath, err := resolveVideoStreamTarget(c)
+	if err != nil {
+		respondPlaybackError(c, err)
+		return
+	}
+	if common.StreamManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "stream manager unavailable"})
+		return
+	}
+
+	segment := strings.TrimSpace(c.Param("segment"))
+	resolution := strings.TrimSpace(c.Query("resolution"))
+	c.Header("Cache-Control", "no-cache")
+	common.StreamManager.ServeSegment(c.Writer, c.Request, manager.StreamOptions{
+		StreamType: manager.StreamTypeHLS,
+		SourcePath: fullPath,
+		Duration:   float64(video.DurationSec),
+		Resolution: resolution,
+		Key:        strconv.FormatInt(video.ID, 10),
+		Segment:    segment,
+	})
 }
 
 func resolveStreamPathFromQuery(c *gin.Context) (string, error) {
@@ -103,6 +195,60 @@ func resolveStreamPathFromQuery(c *gin.Context) (string, error) {
 	rawDirPath := strings.TrimSpace(c.Query("dir_path"))
 	fullPath, _, err := resolveVideoPath(rawPath, rawDirPath)
 	return fullPath, err
+}
+
+func resolveVideoStreamTarget(c *gin.Context) (*models.Video, string, error) {
+	id, err := strconv.ParseInt(strings.TrimSpace(c.Param("id")), 10, 64)
+	if err != nil || id <= 0 {
+		return nil, "", errors.New("invalid id")
+	}
+
+	video, err := dbpkg.GetVideo(c.Request.Context(), id)
+	if err != nil {
+		return nil, "", err
+	}
+	if video == nil {
+		return nil, "", os.ErrNotExist
+	}
+
+	fullPath, _, err := resolveVideoPath(video.Path, video.DirectoryRef.Path)
+	if err != nil {
+		return nil, "", err
+	}
+	if _, err := os.Stat(fullPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, "", err
+		}
+		return nil, "", err
+	}
+
+	return video, fullPath, nil
+}
+
+func respondPlaybackError(c *gin.Context, err error) {
+	switch {
+	case err == nil:
+		return
+	case errors.Is(err, os.ErrNotExist):
+		c.Status(http.StatusNotFound)
+	case errors.Is(err, context.Canceled):
+		c.Status(499)
+	case strings.Contains(err.Error(), "ffmpeg not found"), strings.Contains(err.Error(), "ffprobe not found"):
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
+	case strings.Contains(err.Error(), "invalid segment"), strings.Contains(err.Error(), "invalid id"), strings.Contains(err.Error(), "invalid path"):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	default:
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+	}
+}
+
+func directMimeType(container string) string {
+	switch strings.ToLower(strings.TrimSpace(container)) {
+	case "webm":
+		return "video/webm"
+	default:
+		return "video/mp4"
+	}
 }
 
 func serveVideoFile(c *gin.Context, fullPath string) {

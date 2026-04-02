@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react'
-import flvjs from 'flv.js'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import videojs from 'video.js'
 import 'video.js/dist/video-js.css'
-import 'videojs-flvjs'
 import { getVideoDisplayName } from '../utils/display'
+import { fetchPlaybackInfo } from '../api'
 import {
   PLAYER_HOTKEY_ACTIONS,
   normalizePlayerHotkeyKey,
@@ -12,54 +11,69 @@ import {
 
 const VOLUME_STORAGE_KEY = 'pornboss.player.volume'
 
-if (typeof window !== 'undefined' && !window.flvjs) {
-  window.flvjs = flvjs
-}
-
 export default function PlayerModal({ video, onClose, hotkeys = [] }) {
   const videoRef = useRef(null)
   const playerRef = useRef(null)
   const hotkeyMapRef = useRef(new Map())
+  const [playbackInfo, setPlaybackInfo] = useState(null)
+  const [playbackError, setPlaybackError] = useState('')
+  const [loadingPlayback, setLoadingPlayback] = useState(false)
   const normalizedHotkeys = useMemo(() => normalizePlayerHotkeysList(hotkeys), [hotkeys])
-  const isFlv = useMemo(() => {
-    const rawPath = String(video?.path || video?.filename || '')
-    const parts = rawPath.split('.')
-    if (parts.length < 2) return false
-    return parts.at(-1)?.toLowerCase() === 'flv'
-  }, [video])
-  const streamParams = new URLSearchParams()
-  const directoryPath = video?.directory?.path || video?.directory_path || ''
-  if (video?.path && directoryPath) {
-    streamParams.set('path', video.path)
-    streamParams.set('dir_path', directoryPath)
-  }
-  const streamSrc = video
-    ? `/videos/${video.id}/stream${streamParams.toString() ? `?${streamParams.toString()}` : ''}`
-    : ''
+  const selectedSource = useMemo(() => {
+    if (!playbackInfo?.sources?.length) return null
+    return (
+      playbackInfo.sources.find((item) => item.kind === playbackInfo.preferred_kind) ||
+      playbackInfo.sources[0]
+    )
+  }, [playbackInfo])
 
   useEffect(() => {
     hotkeyMapRef.current = new Map(normalizedHotkeys.map((item) => [item.key, item]))
   }, [normalizedHotkeys])
 
   useEffect(() => {
-    if (!video || !videoRef.current) return
+    if (!video?.id) {
+      setPlaybackInfo(null)
+      setPlaybackError('')
+      setLoadingPlayback(false)
+      return
+    }
+
+    let cancelled = false
+    setLoadingPlayback(true)
+    setPlaybackError('')
+    setPlaybackInfo(null)
+
+    fetchPlaybackInfo(video.id)
+      .then((info) => {
+        if (cancelled) return
+        setPlaybackInfo(info)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setPlaybackError(err instanceof Error ? err.message : '加载播放信息失败')
+      })
+      .finally(() => {
+        if (cancelled) return
+        setLoadingPlayback(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [video])
+
+  useEffect(() => {
+    if (!video || !videoRef.current || !selectedSource?.src) return
 
     const player = videojs(videoRef.current, {
       controls: true,
       autoplay: true,
       preload: 'auto',
-      ...(isFlv
-        ? {
-            techOrder: ['html5', 'flvjs'],
-            flvjs: {
-              mediaDataSource: { cors: true },
-            },
-          }
-        : {}),
       sources: [
         {
-          src: streamSrc,
-          type: isFlv ? 'video/x-flv' : 'video/mp4',
+          src: selectedSource.src,
+          type: selectedSource.mime_type || 'video/mp4',
         },
       ],
     })
@@ -171,7 +185,7 @@ export default function PlayerModal({ video, onClose, hotkeys = [] }) {
       playerRef.current?.dispose()
       playerRef.current = null
     }
-  }, [video, onClose, streamSrc, isFlv])
+  }, [video, onClose, selectedSource])
 
   if (!video) return null
 
@@ -192,15 +206,25 @@ export default function PlayerModal({ video, onClose, hotkeys = [] }) {
             {displayName}
           </h2>
           <div className="player-shell relative w-full bg-black">
-            <div data-vjs-player className="h-full w-full">
-              <video
-                ref={videoRef}
-                className="video-js vjs-big-play-centered h-full w-full"
-                playsInline
-              >
-                <track kind="captions" />
-              </video>
-            </div>
+            {loadingPlayback ? (
+              <div className="flex aspect-video items-center justify-center text-sm text-white">
+                加载播放信息中…
+              </div>
+            ) : playbackError ? (
+              <div className="flex aspect-video items-center justify-center px-6 text-center text-sm text-red-200">
+                {playbackError}
+              </div>
+            ) : (
+              <div data-vjs-player className="h-full w-full">
+                <video
+                  ref={videoRef}
+                  className="video-js vjs-big-play-centered h-full w-full"
+                  playsInline
+                >
+                  <track kind="captions" />
+                </video>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -106,13 +106,16 @@ func main() {
 	dataDir := filepath.Dir(cfg.DatabasePath)
 	screenshotManager := manager.NewScreenshotManager(dataDir, db.GetVideo)
 	coverManager := manager.NewCoverManager(cfg.JavCoverDir)
+	streamManager := manager.NewStreamManager(filepath.Join(dataDir, "stream-cache"))
 
 	common.AppConfig = cfg
 	common.ScreenshotManager = screenshotManager
 	common.CoverManager = coverManager
+	common.StreamManager = streamManager
 
 	screenshotManager.Start(ctx)
 	coverManager.Start(ctx)
+	streamManager.Start(ctx)
 	service.StartDirectoryScanner(ctx, time.Minute)
 	service.StartJavScanner(ctx, time.Minute)
 	service.StartIdolProfileScanner(ctx, time.Minute)
