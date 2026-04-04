@@ -82,8 +82,9 @@ jobs:
       - name: Publish draft release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          if gh release view "${{ inputs.tag }}" >/dev/null 2>&1; then
+          if gh release view "${{ inputs.tag }}" --repo "$GH_REPO" >/dev/null 2>&1; then
             echo "release for tag '${{ inputs.tag }}' already exists" >&2
             exit 1
           fi
@@ -95,6 +96,7 @@ jobs:
           fi
 
           gh release create "${{ inputs.tag }}" "${assets[@]}" \
+            --repo "$GH_REPO" \
             --target "${{ github.sha }}" \
             --draft \
             --title "pornboss ${{ inputs.version }}" \
