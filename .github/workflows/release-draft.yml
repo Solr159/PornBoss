@@ -13,6 +13,10 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  NODE_VERSION: "23.11.0"
+
 jobs:
   build:
     strategy:
@@ -26,19 +30,19 @@ jobs:
     runs-on: ${{ fromJson('{"windows-x86_64":"ubuntu-latest","linux-x86_64":"ubuntu-latest","macos-x86_64":"macos-15-intel","macos-arm64":"macos-14"}')[matrix.platform] }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install build deps (Windows target)
         if: ${{ matrix.platform == 'windows-x86_64' }}
@@ -65,7 +69,7 @@ jobs:
         run: bash scripts/cli.sh release "${{ matrix.platform }}" "${{ inputs.version }}"
 
       - name: Upload release asset
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: pornboss-${{ inputs.version }}-${{ matrix.platform }}-zip
           path: release/pornboss-${{ inputs.version }}-${{ matrix.platform }}.zip
@@ -75,15 +79,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download release assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: release-artifacts
 
       - name: Publish draft release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          if gh release view "${{ inputs.tag }}" >/dev/null 2>&1; then
+          if gh release view "${{ inputs.tag }}" --repo "$GH_REPO" >/dev/null 2>&1; then
             echo "release for tag '${{ inputs.tag }}' already exists" >&2
             exit 1
           fi
@@ -95,6 +100,7 @@ jobs:
           fi
 
           gh release create "${{ inputs.tag }}" "${assets[@]}" \
+            --repo "$GH_REPO" \
             --target "${{ github.sha }}" \
             --draft \
             --title "pornboss ${{ inputs.version }}" \
