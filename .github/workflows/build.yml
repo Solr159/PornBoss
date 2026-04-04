@@ -20,25 +20,29 @@ on:
         description: "Release version"
         required: true
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  NODE_VERSION: "23.11.0"
+
 jobs:
   build:
     runs-on: ${{ fromJson('{"windows-x86_64":"ubuntu-latest","linux-x86_64":"ubuntu-latest","macos-x86_64":"macos-15-intel","macos-arm64":"macos-14"}')[inputs.platform] }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           ref: ${{ inputs.branch || github.ref }}
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install build deps (Windows target)
         if: ${{ inputs.platform == 'windows-x86_64' }}
@@ -65,7 +69,7 @@ jobs:
         run: bash scripts/cli.sh release "${{ inputs.platform }}" "${{ inputs.version }}"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: pornboss-${{ inputs.version }}-${{ inputs.platform }}
           path: release/pornboss-${{ inputs.version }}-${{ inputs.platform }}
