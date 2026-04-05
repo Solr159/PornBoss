@@ -8,7 +8,7 @@ import {
   isSupportedPlayerHotkeyKey,
   normalizePlayerHotkey,
   normalizePlayerHotkeyKey,
-} from '../utils/playerHotkeys'
+} from '@/utils/playerHotkeys'
 
 const createRows = (items) =>
   (Array.isArray(items) && items.length ? items : DEFAULT_PLAYER_HOTKEYS).map((item, index) => ({

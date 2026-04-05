@@ -1,5 +1,5 @@
-import Pagination from './Pagination'
-import JavGrid from './JavGrid'
+import JavGrid from '@/components/JavGrid'
+import Pagination from '@/components/Pagination'
 
 export default function JavView({
   javPage,

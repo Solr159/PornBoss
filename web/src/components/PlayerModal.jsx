@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import videojs from 'video.js'
 import 'video.js/dist/video-js.css'
-import { getVideoDisplayName } from '../utils/display'
-import { fetchPlaybackInfo } from '../api'
+import { fetchPlaybackInfo } from '@/api'
+import { getVideoDisplayName } from '@/utils/display'
 import {
   PLAYER_HOTKEY_ACTIONS,
   normalizePlayerHotkeyKey,
   normalizePlayerHotkeysList,
-} from '../utils/playerHotkeys'
+} from '@/utils/playerHotkeys'
 
 const VOLUME_STORAGE_KEY = 'pornboss.player.volume'
 

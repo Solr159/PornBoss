@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined'
 
-import TagBar from './TagBar'
+import TagBar from '@/components/TagBar'
 
 export default function JavTagModal({
   open,

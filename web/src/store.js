@@ -15,7 +15,7 @@ import {
   fetchJavIdols,
   fetchJavTags,
   fetchConfig,
-} from './api'
+} from '@/api'
 
 const VIDEO_PAGE_SIZE = 25
 const JAV_PAGE_SIZE = 24

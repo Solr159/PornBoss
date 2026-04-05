@@ -1,6 +1,6 @@
 import { Button } from '@mui/material'
-import Pagination from './Pagination'
-import VideoGrid from './VideoGrid'
+import Pagination from '@/components/Pagination'
+import VideoGrid from '@/components/VideoGrid'
 
 export default function VideoView({
   selectedCount,

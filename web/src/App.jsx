@@ -4,7 +4,7 @@ import {
   generateRandomSeed,
   normalizeUrlStateFromStore,
   parseUrlState,
-} from './utils/urlState'
+} from '@/utils/urlState'
 import {
   addTagToVideos,
   removeTagFromVideos,
@@ -17,24 +17,24 @@ import {
   renameJavTag,
   deleteJavTag,
   replaceJavTagsForItems,
-} from './api'
-import GlobalSettingsModal from './components/GlobalSettingsModal'
-import JavIdolView from './components/JavIdolView'
-import JavSettingsModal from './components/JavSettingsModal'
-import JavTagModal from './components/JavTagModal'
-import JavVideoPickerModal from './components/JavVideoPickerModal'
-import JavView from './components/JavView'
-import PlayerModal from './components/PlayerModal'
-import SelectionOpsModal from './components/SelectionOpsModal'
-import SelectionTagsModal from './components/SelectionTagsModal'
-import TagPickerModal from './components/TagPickerModal'
-import Toast from './components/Toast'
-import TopBar from './components/TopBar'
-import VideoSettingsModal from './components/VideoSettingsModal'
-import VideoTagModal from './components/VideoTagModal'
-import VideoView from './components/VideoView'
-import { useStore } from './store'
-import { parsePlayerHotkeys } from './utils/playerHotkeys'
+} from '@/api'
+import GlobalSettingsModal from '@/components/GlobalSettingsModal'
+import JavIdolView from '@/components/JavIdolView'
+import JavSettingsModal from '@/components/JavSettingsModal'
+import JavTagModal from '@/components/JavTagModal'
+import JavVideoPickerModal from '@/components/JavVideoPickerModal'
+import JavView from '@/components/JavView'
+import PlayerModal from '@/components/PlayerModal'
+import SelectionOpsModal from '@/components/SelectionOpsModal'
+import SelectionTagsModal from '@/components/SelectionTagsModal'
+import TagPickerModal from '@/components/TagPickerModal'
+import Toast from '@/components/Toast'
+import TopBar from '@/components/TopBar'
+import VideoSettingsModal from '@/components/VideoSettingsModal'
+import VideoTagModal from '@/components/VideoTagModal'
+import VideoView from '@/components/VideoView'
+import { useStore } from '@/store'
+import { parsePlayerHotkeys } from '@/utils/playerHotkeys'
 
 export default function App() {
   const isPoppingRef = useRef(false)

@@ -1,9 +1,9 @@
-import { formatBytes, getVideoDisplayName, parseVideoFingerprint } from '../utils/display'
-import { openVideoFile, revealVideoLocation } from '../api'
 import { IconButton, Tooltip } from '@mui/material'
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
+import { openVideoFile, revealVideoLocation } from '@/api'
+import { formatBytes, getVideoDisplayName, parseVideoFingerprint } from '@/utils/display'
 
 export default function VideoCard({
   video,

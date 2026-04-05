@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { pickDirectory } from '../api'
+import { pickDirectory } from '@/api'
 
 export default function DirectoryManager({ open, directories, onCreate, onUpdate, onDelete }) {
   const [path, setPath] = useState('')
