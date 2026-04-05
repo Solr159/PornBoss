@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
-import DirectoryManager from './DirectoryManager'
-import PlayerSettingsModal from './PlayerSettingsModal'
+import DirectoryManager from '@/components/DirectoryManager'
+import PlayerSettingsModal from '@/components/PlayerSettingsModal'
 
 export default function GlobalSettingsModal({
   open,

@@ -1,5 +1,5 @@
-import Pagination from './Pagination'
-import JavIdolGrid from './JavIdolGrid'
+import JavIdolGrid from '@/components/JavIdolGrid'
+import Pagination from '@/components/Pagination'
 
 export default function JavIdolView({
   page,
