@@ -50,12 +50,12 @@ body {
 }
 
 .video-select-check {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1rem;
+  height: 1rem;
   margin: 0;
   cursor: pointer;
   accent-color: #0284c7;
-  border-radius: 0.375rem;
+  border-radius: 0.25rem;
   background: rgba(255, 255, 255, 0.96);
   box-shadow:
     0 8px 24px rgba(15, 23, 42, 0.18),
