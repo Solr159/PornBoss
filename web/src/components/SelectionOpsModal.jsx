@@ -6,6 +6,7 @@ export default function SelectionOpsModal({
   selectedList,
   selectedCount,
   onOpenTags,
+  onOpenRemoveTags,
 }) {
   if (!open) return null
 
@@ -41,6 +42,15 @@ export default function SelectionOpsModal({
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="outlined" size="small" onClick={onOpenTags} disabled={count === 0}>
             添加标签
+          </Button>
+          <Button
+            variant="outlined"
+            color="error"
+            size="small"
+            onClick={onOpenRemoveTags}
+            disabled={count === 0}
+          >
+            移除标签
           </Button>
           <Button variant="contained" size="small" onClick={onClose} color="primary">
             关闭

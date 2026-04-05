@@ -7,6 +7,7 @@ import {
 } from './utils/urlState'
 import {
   addTagToVideos,
+  removeTagFromVideos,
   replaceTagsForVideos,
   updateConfig,
   openVideoFile,
@@ -137,6 +138,7 @@ export default function App() {
   const [javTagPickerSelected, setJavTagPickerSelected] = useState([])
   const [selectionOpsOpen, setSelectionOpsOpen] = useState(false)
   const [selectionTagsOpen, setSelectionTagsOpen] = useState(false)
+  const [selectionTagAction, setSelectionTagAction] = useState('add')
   const [selectionTagChoices, setSelectionTagChoices] = useState([])
   const [videoPageSizeInput, setVideoPageSizeInput] = useState(pageSize)
   const [videoSortInput, setVideoSortInput] = useState(sortOrder)
@@ -917,6 +919,7 @@ export default function App() {
     if (selectedCount !== 0) return
     setSelectionOpsOpen(false)
     setSelectionTagsOpen(false)
+    setSelectionTagAction('add')
     setSelectionTagChoices([])
   }, [selectedCount])
 
@@ -1085,6 +1088,7 @@ export default function App() {
 
   const handleSelectionTagsClose = () => {
     setSelectionTagsOpen(false)
+    setSelectionTagAction('add')
     setSelectionTagChoices([])
   }
 
@@ -1101,23 +1105,38 @@ export default function App() {
     const ids = selectionTagChoices.map((t) => Number(t)).filter(Boolean)
     const vidIds = Array.from(selectedVideoIds)
     try {
-      await Promise.all(ids.map((tid) => addTagToVideos(tid, vidIds)))
-      const addedTags = tags.filter((t) => ids.includes(t.id))
-      useStore.setState(({ videos }) => {
-        const next = videos.map((v) => {
-          if (!vidIds.includes(v.id)) return v
-          const existing = Array.isArray(v.tags) ? v.tags : []
-          const mergedById = new Map()
-          for (const tag of existing) mergedById.set(tag.id, tag)
-          for (const tag of addedTags) mergedById.set(tag.id, tag)
-          return { ...v, tags: Array.from(mergedById.values()) }
+      if (selectionTagAction === 'remove') {
+        await Promise.all(ids.map((tid) => removeTagFromVideos(tid, vidIds)))
+        const removedIds = new Set(ids)
+        useStore.setState(({ videos }) => {
+          const next = videos.map((v) => {
+            if (!vidIds.includes(v.id)) return v
+            const existing = Array.isArray(v.tags) ? v.tags : []
+            const nextTags = existing.filter((tag) => !removedIds.has(tag.id))
+            return nextTags.length === existing.length ? v : { ...v, tags: nextTags }
+          })
+          return { videos: next }
         })
-        return { videos: next }
-      })
+      } else {
+        await Promise.all(ids.map((tid) => addTagToVideos(tid, vidIds)))
+        const addedTags = tags.filter((t) => ids.includes(t.id))
+        useStore.setState(({ videos }) => {
+          const next = videos.map((v) => {
+            if (!vidIds.includes(v.id)) return v
+            const existing = Array.isArray(v.tags) ? v.tags : []
+            const mergedById = new Map()
+            for (const tag of existing) mergedById.set(tag.id, tag)
+            for (const tag of addedTags) mergedById.set(tag.id, tag)
+            return { ...v, tags: Array.from(mergedById.values()) }
+          })
+          return { videos: next }
+        })
+      }
     } catch (err) {
-      console.error('add tags to selection failed', err)
+      console.error(`${selectionTagAction} tags for selection failed`, err)
     } finally {
       setSelectionTagsOpen(false)
+      setSelectionTagAction('add')
       setSelectionTagChoices([])
       setSelectionOpsOpen(false)
       clearSelection()
@@ -1451,6 +1470,16 @@ export default function App() {
         selectedList={selectedList}
         selectedCount={selectedCount}
         onOpenTags={() => {
+          loadTags()
+          setSelectionTagAction('add')
+          setSelectionTagChoices([])
+          setSelectionOpsOpen(false)
+          setSelectionTagsOpen(true)
+        }}
+        onOpenRemoveTags={() => {
+          loadTags()
+          setSelectionTagAction('remove')
+          setSelectionTagChoices([])
           setSelectionOpsOpen(false)
           setSelectionTagsOpen(true)
         }}
@@ -1460,6 +1489,7 @@ export default function App() {
         open={selectionTagsOpen}
         onClose={handleSelectionTagsClose}
         tags={tags}
+        action={selectionTagAction}
         selectedChoices={selectionTagChoices}
         onToggleChoice={handleSelectionTagChoiceToggle}
         onConfirm={handleApplySelectionTags}
