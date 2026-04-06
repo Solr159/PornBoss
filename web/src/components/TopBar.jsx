@@ -108,7 +108,7 @@ export default function TopBar({
                     <Button
                       component="a"
                       href={javSearchHref}
-                      startIcon={<SearchIcon fontSize="small" />}
+                      aria-label={zh('搜索JAV', 'Search JAV')}
                       variant="contained"
                       size="medium"
                       onClick={(e) => {
@@ -123,7 +123,7 @@ export default function TopBar({
                         px: 2.5,
                       }}
                     >
-                      {zh('搜索', 'Search')}
+                      <SearchIcon fontSize="small" />
                     </Button>
                   </form>
                   <Button
@@ -163,7 +163,7 @@ export default function TopBar({
                     <Button
                       component="a"
                       href={videoSearchHref}
-                      startIcon={<SearchIcon fontSize="small" />}
+                      aria-label={zh('搜索视频', 'Search videos')}
                       variant="contained"
                       size="medium"
                       onClick={(e) => {
@@ -178,7 +178,7 @@ export default function TopBar({
                         px: 2.5,
                       }}
                     >
-                      {zh('搜索', 'Search')}
+                      <SearchIcon fontSize="small" />
                     </Button>
                   </form>
                   <div className="flex items-center gap-2">
