@@ -82,13 +82,13 @@ export default function TopBar({
                     variant={javTab === 'list' ? 'contained' : 'outlined'}
                     onClick={() => onSwitchJavTab('list')}
                   >
-                    {zh('作品', 'Titles')}
+                    {zh('作品', 'JAV')}
                   </Button>
                   <Button
                     variant={javTab === 'idol' ? 'contained' : 'outlined'}
                     onClick={() => onSwitchJavTab('idol')}
                   >
-                    {zh('女优', 'Idols')}
+                    {zh('女优', 'Idol')}
                   </Button>
                   <form
                     onSubmit={onSubmitJavSearch}
@@ -144,7 +144,7 @@ export default function TopBar({
                     variant="outlined"
                     onClick={onOpenJavTagModal}
                   >
-                    {zh('标签', 'Tags')}
+                    {zh('标签', 'Tag')}
                   </Button>
                 </div>
               ) : (
@@ -201,7 +201,7 @@ export default function TopBar({
                     variant="outlined"
                     onClick={onOpenTagModal}
                   >
-                    {zh('标签', 'Tags')}
+                    {zh('标签', 'Tag')}
                   </Button>
                 </>
               )}
@@ -238,7 +238,7 @@ export default function TopBar({
               startIcon={<SwapHorizOutlinedIcon fontSize="small" />}
               onClick={onToggleMode}
             >
-              {isJavMode ? zh('切换到视频', 'Switch to Videos') : zh('切换到 JAV', 'Switch to JAV')}
+              {isJavMode ? zh('切换到视频', 'To Video') : zh('切换到 JAV', 'To JAV')}
             </Button>
           </div>
         </div>
