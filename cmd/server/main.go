@@ -27,6 +27,7 @@ import (
 	"pornboss/internal/manager"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mattn/go-isatty"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -156,8 +157,10 @@ func main() {
 		} else {
 			fmt.Printf("Pornboss started successfully. Open this URL in your browser: %s\n", url)
 		}
-		if err := util.OpenFile(url); err != nil {
-			logger.Printf("open browser failed: %v", err)
+		if os.Getenv("PORNBOSS_LAUNCHER") == "" {
+			if err := util.OpenFile(url); err != nil {
+				logger.Printf("open browser failed: %v", err)
+			}
 		}
 		logger.Printf("server listening on %s", listener.Addr().String())
 		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
@@ -254,6 +257,9 @@ func resolveStaticDir(staticDir string) string {
 }
 
 func waitForUserExit() {
+	if os.Getenv("PORNBOSS_LAUNCHER") != "" || !isatty.IsTerminal(os.Stdin.Fd()) {
+		return
+	}
 	fmt.Println("请手动关闭此窗口，或按回车键退出。")
 	reader := bufio.NewReader(os.Stdin)
 	if _, err := reader.ReadString('\n'); err != nil {

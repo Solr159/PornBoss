@@ -11,7 +11,7 @@ NEED_BUILD=0
 if [[ ! -f "$CLI_BIN" ]]; then
   NEED_BUILD=1
 else
-  if find "$CLI_ROOT" -type f \( -name "*.mjs" -o -name "*.js" -o -name "*.json" \) \
+  if find "$CLI_ROOT" -type f \( -name "*.mjs" -o -name "*.js" -o -name "*.json" -o -name "*.swift" \) \
     ! -path "$CLI_ROOT/node_modules/*" ! -path "$CLI_ROOT/build/*" \
     -newer "$CLI_BIN" -print -quit | grep -q .; then
     NEED_BUILD=1

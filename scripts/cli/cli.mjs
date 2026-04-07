@@ -32,6 +32,7 @@ const ROOT_DIR = findRepoRoot(entryDirFromArgv());
 const WEB_DIR = path.join(ROOT_DIR, "web");
 const INTERNAL_BIN_DIR = path.join(ROOT_DIR, "internal", "bin");
 const BIN_DIR = path.join(ROOT_DIR, "bin");
+const MACOS_LAUNCHER_SOURCE = path.join(ROOT_DIR, "scripts", "cli", "macos-launcher.swift");
 
 const PLATFORM_CHOICES = [
   { label: "windows-x86_64", goos: "windows", goarch: "amd64" },
@@ -162,6 +163,29 @@ function runCommand(cmd, args, options = {}) {
   });
 }
 
+function runCommandCapture(cmd, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], ...options });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve(stdout);
+      } else {
+        const detail = stderr.trim() || stdout.trim();
+        reject(new Error(detail || `${cmd} exited with code ${code}`));
+      }
+    });
+  });
+}
+
 function commandExists(cmd) {
   return new Promise((resolve) => {
     const probe = process.platform === "win32" ? "where" : "which";
@@ -275,7 +299,12 @@ async function buildBackendRelease(choice, outDir) {
     }
   }
 
-  const binName = choice.goos === "windows" ? "pornboss.exe" : "pornboss";
+  const binName =
+    choice.goos === "windows"
+      ? "pornboss.exe"
+      : choice.goos === "darwin"
+        ? "pornboss-server"
+        : "pornboss";
   const binPath = path.join(outDir, binName);
   const env = {
     ...process.env,
@@ -314,32 +343,104 @@ async function copyBundledFfmpeg(choice, outDir) {
   }
 }
 
-async function createMacCommandLauncher(outDir) {
-  const launcherPath = path.join(outDir, "pornboss.command");
-  const launcherContent = [
-    "#!/bin/bash",
-    "set -u",
-    'QUARANTINE_ATTR="com.apple.quarantine"',
-    'SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"',
-    'cd "$SCRIPT_DIR" || exit 1',
-    "",
-    'if command -v xattr >/dev/null 2>&1; then',
-    '  xattr -dr "$QUARANTINE_ATTR" "$SCRIPT_DIR" >/dev/null 2>&1 || true',
-    "fi",
-    "",
-    '"$SCRIPT_DIR/pornboss" "$@"',
-    "status=$?",
-    'if [ "$status" -ne 0 ]; then',
-    '  echo',
-    '  echo "Pornboss exited with status $status."',
-    '  read -r -p "Press Enter to close..." _',
-    "fi",
-    'exit "$status"',
-    "",
-  ].join("\n");
+function releaseOutDir(choice, version) {
+  return path.join(ROOT_DIR, "release", `pornboss-${version}-${choice.label}`);
+}
 
-  await fsp.writeFile(launcherPath, launcherContent);
+function releaseAppDir(choice, outDir) {
+  if (choice.goos === "darwin") {
+    return path.join(outDir, "Pornboss.app");
+  }
+  return outDir;
+}
+
+function releasePayloadDir(choice, outDir) {
+  if (choice.goos === "darwin") {
+    return path.join(releaseAppDir(choice, outDir), "Contents", "MacOS");
+  }
+  return outDir;
+}
+
+function macLauncherTarget(choice) {
+  if (choice.goarch === "arm64") {
+    return { triple: "arm64-apple-macos11.0", minimumVersion: "11.0" };
+  }
+  return { triple: "x86_64-apple-macos10.13", minimumVersion: "10.13" };
+}
+
+async function compileMacLauncher(choice, appDir) {
+  if (process.platform !== "darwin") {
+    throw new Error("macOS .app 打包需要在 macOS 主机上运行 release");
+  }
+  if (!(await exists(MACOS_LAUNCHER_SOURCE))) {
+    throw new Error(`缺少 macOS launcher 源文件：${MACOS_LAUNCHER_SOURCE}`);
+  }
+  if (!(await commandExists("swiftc"))) {
+    throw new Error("缺少 swiftc，请先安装 Xcode 或 Command Line Tools");
+  }
+  if (!(await commandExists("xcrun"))) {
+    throw new Error("缺少 xcrun，请先安装 Xcode 或 Command Line Tools");
+  }
+
+  const sdkPath = (await runCommandCapture("xcrun", ["--sdk", "macosx", "--show-sdk-path"])).trim();
+  const target = macLauncherTarget(choice);
+  const launcherPath = path.join(appDir, "Contents", "MacOS", "Pornboss");
+  await runCommand(
+    "swiftc",
+    [
+      "-O",
+      "-target",
+      target.triple,
+      "-sdk",
+      sdkPath,
+      MACOS_LAUNCHER_SOURCE,
+      "-o",
+      launcherPath,
+    ],
+    { cwd: ROOT_DIR },
+  );
   await fsp.chmod(launcherPath, 0o755);
+}
+
+async function createMacAppBundle(choice, appDir, version) {
+  const contentsDir = path.join(appDir, "Contents");
+  const macosDir = path.join(contentsDir, "MacOS");
+  const resourcesDir = path.join(contentsDir, "Resources");
+  await fsp.mkdir(macosDir, { recursive: true });
+  await fsp.mkdir(resourcesDir, { recursive: true });
+
+  const infoPlistPath = path.join(contentsDir, "Info.plist");
+  const target = macLauncherTarget(choice);
+  const infoPlist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleDisplayName</key>
+  <string>Pornboss</string>
+  <key>CFBundleExecutable</key>
+  <string>Pornboss</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.javboss.pornboss</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>Pornboss</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>${version}</string>
+  <key>CFBundleVersion</key>
+  <string>${version}</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>${target.minimumVersion}</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+</dict>
+</plist>
+`;
+  await fsp.writeFile(infoPlistPath, infoPlist);
 }
 
 async function createZip(outDir, zipPath) {
@@ -363,20 +464,23 @@ async function runRelease(choice, version) {
     return;
   }
 
-  const outDir = path.join(ROOT_DIR, "release", `pornboss-${version}-${choice.label}`);
+  const outDir = releaseOutDir(choice, version);
+  const appDir = releaseAppDir(choice, outDir);
+  const payloadDir = releasePayloadDir(choice, outDir);
   await fsp.rm(outDir, { recursive: true, force: true });
-  await fsp.mkdir(outDir, { recursive: true });
+  await fsp.mkdir(payloadDir, { recursive: true });
+  if (choice.goos === "darwin") {
+    await createMacAppBundle(choice, appDir, version);
+    console.log("[release] 编译 macOS 原生 launcher");
+    await compileMacLauncher(choice, appDir);
+  }
 
   await buildWeb();
   console.log("[release] 复制前端资源");
-  await copyDir(path.join(WEB_DIR, "dist"), path.join(outDir, "web", "dist"));
-  await buildBackendRelease(choice, outDir);
+  await copyDir(path.join(WEB_DIR, "dist"), path.join(payloadDir, "web", "dist"));
+  await buildBackendRelease(choice, payloadDir);
   console.log("[release] 复制 ffmpeg/ffprobe");
-  await copyBundledFfmpeg(choice, outDir);
-  if (choice.goos === "darwin") {
-    console.log("[release] 生成 macOS .command 启动器");
-    await createMacCommandLauncher(outDir);
-  }
+  await copyBundledFfmpeg(choice, payloadDir);
 
   const zipPath = path.join(
     ROOT_DIR,

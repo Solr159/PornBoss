@@ -68,8 +68,8 @@ Go to the [Releases](https://github.com/JavBoss/pornboss/releases) page, downloa
 ### 2. Start the App
 
 - Windows: double-click `pornboss.exe`. If SmartScreen blocks it on first launch, click "More info" and continue.
-- macOS: right-click `pornboss.command` and choose Open. If macOS shows a security warning, continue anyway.
-- Linux: run `pornboss`
+- macOS: open `Pornboss.app` in the extracted folder. If Gatekeeper blocks it on first launch, right-click the app, choose Open, and continue anyway.
+- Linux: run `pornboss`.
 
 After launch, Pornboss will try to open your browser automatically. If it does not, open the local address shown in the terminal manually.
 
