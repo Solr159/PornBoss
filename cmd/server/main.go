@@ -147,7 +147,11 @@ func main() {
 		}
 		actualPort := listener.Addr().(*net.TCPAddr).Port
 		url := fmt.Sprintf("http://localhost:%d", actualPort)
-		fmt.Printf("Pornboss启动成功，浏览器访问地址：%s\n", url)
+		if util.SystemPrefersChinese() {
+			fmt.Printf("Pornboss启动成功，浏览器访问地址：%s\n", url)
+		} else {
+			fmt.Printf("Pornboss started successfully. Open this URL in your browser: %s\n", url)
+		}
 		if err := util.OpenFile(url); err != nil {
 			logger.Printf("open browser failed: %v", err)
 		}
