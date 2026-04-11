@@ -85,15 +85,7 @@ func (ThePornDB) LookupCoverURLByCode(code string) (string, error) {
 		if !strings.EqualFold(strings.TrimSpace(item.ExternalID), code) {
 			continue
 		}
-		coverURL := firstNonEmpty(
-			item.Image,
-			item.PosterImage,
-			item.Poster,
-			item.Posters.Full,
-			item.Posters.Large,
-			item.Posters.Medium,
-			item.Posters.Small,
-		)
+		coverURL := strings.TrimSpace(item.Background.Full)
 		if coverURL == "" {
 			return "", ResourceNotFonud
 		}
@@ -108,16 +100,13 @@ type thePornDBResponse struct {
 }
 
 type thePornDBRecord struct {
-	ExternalID  string `json:"external_id"`
-	Image       string `json:"image"`
-	Poster      string `json:"poster"`
-	PosterImage string `json:"poster_image"`
-	Posters     struct {
+	ExternalID string `json:"external_id"`
+	Background struct {
 		Full   string `json:"full"`
 		Large  string `json:"large"`
 		Medium string `json:"medium"`
 		Small  string `json:"small"`
-	} `json:"posters"`
+	} `json:"background"`
 }
 
 func decodeThePornDBResponse(body io.Reader) (*thePornDBResponse, error) {
