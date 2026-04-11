@@ -9,7 +9,9 @@
   <a href="https://go.dev/"><img alt="Go" src="https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white"></a>
 </p>
 
-<p align="center">[中文](README.md) | [English](README.en.md)</p>
+<p align="center">
+  <a href="./README.md">中文</a> | <a href="./README.en.md">English</a>
+</p>
 
 ## Keywords
 
