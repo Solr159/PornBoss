@@ -87,6 +87,24 @@ Open `Global Settings` -> `Directory Management`, then add the local folders tha
 - Add custom tags such as `favorite`, `subtitled`, `uncensored`, or `must-watch`
 - Use search, random browsing, and sorting to find what you want quickly
 
+## Screenshots
+
+<p align="center">
+  <img src="screenshot/en/image1.png" style="width: 100%; height: auto;">
+</p>
+
+<p align="center">
+  <img src="screenshot/en/image2.png" style="width: 100%; height: auto;">
+</p>
+
+<p align="center">
+  <img src="screenshot/en/image3.png" style="width: 100%; height: auto;">
+</p>
+
+<p align="center">
+  <img src="screenshot/en/image4.png" style="width: 100%; height: auto;">
+</p>
+
 ## How to Upgrade
 
 After downloading and extracting a new version, copy the current `data` directory into the new version directory. Keep a backup of your data. Do not move the old directory immediately; it is safer to keep the old version around for a while in case the new version has a serious bug.
@@ -109,25 +127,6 @@ After downloading and extracting a new version, copy the current `data` director
 
 - Q: How do I move a managed directory?
 - A: Move it directly, then update the directory path in directory management.
-
-
-## Screenshots
-
-<p align="center">
-  <img src="screenshot/en/image1.png" style="width: 100%; height: auto;">
-</p>
-
-<p align="center">
-  <img src="screenshot/en/image2.png" style="width: 100%; height: auto;">
-</p>
-
-<p align="center">
-  <img src="screenshot/en/image3.png" style="width: 100%; height: auto;">
-</p>
-
-<p align="center">
-  <img src="screenshot/en/image4.png" style="width: 100%; height: auto;">
-</p>
 
 ## Developer Notes
 

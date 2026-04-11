@@ -88,6 +88,24 @@ porn manager, jav manager, av manager, jav scraper, jav metadata, adult video ma
 - 给常看内容打上“收藏”“中文字幕”“无码”“必看”等自定义标签
 - 用搜索、随机和排序快速找到想看的内容
 
+## 部分截图
+
+<p align="center">
+  <img src="screenshot/image1.png" style="width: 100%; height: auto;">
+</p>
+
+<p align="center">
+  <img src="screenshot/image2.png" style="width: 100%; height: auto;">
+</p>
+
+<p align="center">
+  <img src="screenshot/image3.png" style="width: 100%; height: auto;">
+</p>
+
+<p align="center">
+  <img src="screenshot/image4.png" style="width: 100%; height: auto;">
+</p>
+
 ## 如何升级版本
 
 下载解压新版本之后，复制当前版本的data目录到新版本目录下即可（请注意数据备份，不建议直接剪切过去，可以选择平稳运行新版本一段时间之后再将旧版本目录删除，以防新版本有严重bug导致数据丢失）
@@ -110,25 +128,6 @@ porn manager, jav manager, av manager, jav scraper, jav metadata, adult video ma
 
 - Q: 我想移动一个被管理的目录要怎么做？
 - A: 直接移动，然后在目录管理里面修改目录地址。
-
-
-## 部分截图
-
-<p align="center">
-  <img src="screenshot/image1.png" style="width: 100%; height: auto;">
-</p>
-
-<p align="center">
-  <img src="screenshot/image2.png" style="width: 100%; height: auto;">
-</p>
-
-<p align="center">
-  <img src="screenshot/image3.png" style="width: 100%; height: auto;">
-</p>
-
-<p align="center">
-  <img src="screenshot/image4.png" style="width: 100%; height: auto;">
-</p>
 
 
 ## 开发者说明
