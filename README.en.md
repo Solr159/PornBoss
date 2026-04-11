@@ -1,11 +1,13 @@
 [中文](README.md) | [English](README.en.md)
 
-# Pornboss
+<h1 align="center">Pornboss</h1>
 
-[![Release](https://img.shields.io/github/v/release/JavBoss/pornboss?display_name=tag)](https://github.com/JavBoss/pornboss/releases)
-[![Stars](https://img.shields.io/github/stars/JavBoss/pornboss?style=social)](https://github.com/JavBoss/pornboss/stargazers)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-1E88E5)](https://github.com/JavBoss/pornboss/releases)
-[![Go](https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+<p align="center">
+  <a href="https://github.com/JavBoss/pornboss/releases"><img alt="Release" src="https://img.shields.io/github/v/release/JavBoss/pornboss?display_name=tag"></a>
+  <a href="https://github.com/JavBoss/pornboss/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/JavBoss/pornboss?style=social"></a>
+  <a href="https://github.com/JavBoss/pornboss/releases"><img alt="Platform" src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-1E88E5"></a>
+  <a href="https://go.dev/"><img alt="Go" src="https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white"></a>
+</p>
 
 Pornboss is an all-in-one solution for managing a local adult video collection, covering both general adult videos and Japanese JAV libraries.
 
