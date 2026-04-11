@@ -73,3 +73,24 @@ func TestParseJavDatabaseMovieInfo(t *testing.T) {
 		}
 	}
 }
+
+func TestParseJavDatabaseCoverURL(t *testing.T) {
+	doc, err := html.Parse(strings.NewReader(`
+<!doctype html>
+<html>
+<head>
+  <meta property="og:image" content="/covers/ipx-004.jpg">
+</head>
+<body>
+  <img class="poster" src="/covers/fallback.jpg">
+</body>
+</html>`))
+	if err != nil {
+		t.Fatalf("parse html: %v", err)
+	}
+
+	coverURL := parseJavDatabaseCoverURL(doc, "https://www.javdatabase.com/movies/IPX-004")
+	if coverURL != "https://www.javdatabase.com/covers/ipx-004.jpg" {
+		t.Fatalf("unexpected cover url: %q", coverURL)
+	}
+}

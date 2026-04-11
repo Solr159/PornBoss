@@ -55,6 +55,11 @@ func (JavBus) LookupActressByCode(code string) (*ActressInfo, error) {
 	return nil, errors.New("javbus: lookup actress not supported")
 }
 
+// LookupCoverURLByCode resolves a cover image URL for a movie code.
+func (JavBus) LookupCoverURLByCode(code string) (string, error) {
+	return "", errors.New("javbus: lookup cover not supported")
+}
+
 func fetchInfo(ctx context.Context, code string) (*Info, error) {
 	base := "https://www.javbus.com"
 

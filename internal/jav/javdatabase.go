@@ -40,6 +40,37 @@ func (JavDatabase) LookupActressByCode(code string) (*ActressInfo, error) {
 	return lookupActressByCode(code)
 }
 
+// LookupCoverURLByCode resolves the cover image URL for a given movie code.
+func (JavDatabase) LookupCoverURLByCode(code string) (string, error) {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return "", ResourceNotFonud
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	base := "https://www.javdatabase.com"
+	movieURL := fmt.Sprintf("%s/movies/%s", base, code)
+
+	doc, status, err := fetchJavDatabaseHTML(ctx, movieURL, base)
+	if err != nil {
+		if isRetryableJavDatabaseErr(err) {
+			return "", err
+		}
+		return "", ResourceNotFonud
+	}
+	if status == http.StatusNotFound || doc == nil {
+		return "", ResourceNotFonud
+	}
+
+	coverURL := parseJavDatabaseCoverURL(doc, movieURL)
+	if coverURL == "" {
+		return "", ResourceNotFonud
+	}
+	return coverURL, nil
+}
+
 // LookupJavByCode fetches metadata for a given code.
 func (JavDatabase) LookupJavByCode(code string) (*Info, error) {
 	code = strings.TrimSpace(code)
@@ -522,6 +553,42 @@ func parseJavDatabaseMovieInfo(root *html.Node) *Info {
 		return nil
 	}
 	return info
+}
+
+func parseJavDatabaseCoverURL(root *html.Node, pageURL string) string {
+	if root == nil {
+		return ""
+	}
+
+	var cover string
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if cover != "" {
+			return
+		}
+		if n.Type == html.ElementNode && n.Data == "meta" {
+			prop := strings.ToLower(strings.TrimSpace(attrValue(n, "property")))
+			content := strings.TrimSpace(attrValue(n, "content"))
+			if prop == "og:image" && content != "" {
+				cover = resolveURL(pageURL, content)
+				return
+			}
+		}
+		if n.Type == html.ElementNode && n.Data == "img" {
+			if hasClass(n, "poster") || hasClass(n, "cover") {
+				src := strings.TrimSpace(attrValue(n, "src"))
+				if src != "" {
+					cover = resolveURL(pageURL, src)
+					return
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(root)
+	return strings.TrimSpace(cover)
 }
 
 type javDatabaseMovieFields struct {
