@@ -25,6 +25,8 @@ type CoverManager struct {
 	providers []jav.JavLookupProvider
 }
 
+const minValidCoverSizeBytes int64 = 30 * 1024
+
 // NewCoverManager creates a manager when coverDir and providers are provided.
 func NewCoverManager(coverDir string, providers []jav.JavLookupProvider) *CoverManager {
 	coverDir = strings.TrimSpace(coverDir)
@@ -70,8 +72,15 @@ func (m *CoverManager) Exists(code string) bool {
 	if m == nil {
 		return false
 	}
-	_, ok := FindCoverPath(m.coverDir, code)
-	return ok
+	path, ok := FindCoverPath(m.coverDir, code)
+	if !ok {
+		return false
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return info.Size() >= minValidCoverSizeBytes
 }
 
 func (m *CoverManager) worker(ctx context.Context) {
@@ -216,7 +225,8 @@ func FindCoverPath(dir, code string) (string, bool) {
 	}
 	for _, ext := range knownExts {
 		p := filepath.Join(dir, code+ext)
-		if _, err := os.Stat(p); err == nil {
+		info, err := os.Stat(p)
+		if err == nil && info.Size() >= minValidCoverSizeBytes {
 			return p, true
 		}
 	}
