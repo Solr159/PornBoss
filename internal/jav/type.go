@@ -92,5 +92,6 @@ type ActressInfo struct {
 type JavLookupProvider interface {
 	LookupActressByCode(code string) (*ActressInfo, error)
 	LookupActressByJapaneseName(name string) (*ActressInfo, error)
+	LookupCoverURLByCode(code string) (string, error)
 	LookupJavByCode(code string) (*Info, error)
 }

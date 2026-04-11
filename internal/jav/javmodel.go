@@ -28,7 +28,12 @@ var invalidJavModelNameCache sync.Map
 
 // LookupActressByCode implements JavLookupProvider.
 func (JavModel) LookupActressByCode(code string) (*ActressInfo, error) {
-	panic("unimplemented")
+	return nil, errors.New("javmodel: lookup actress not supported")
+}
+
+// LookupCoverURLByCode resolves a cover image URL for a movie code.
+func (JavModel) LookupCoverURLByCode(code string) (string, error) {
+	return "", errors.New("javmodel: lookup cover not supported")
 }
 
 // LookupActressByJapaneseName implements JavLookupProvider.

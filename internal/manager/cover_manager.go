@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -14,27 +13,32 @@ import (
 	"time"
 
 	"pornboss/internal/common/logging"
+	"pornboss/internal/jav"
 	"pornboss/internal/util"
-
-	"golang.org/x/net/html"
 )
 
 // CoverManager coordinates background cover downloads.
 type CoverManager struct {
-	tasks    chan string
-	coverDir string
-	workers  int
+	tasks     chan string
+	coverDir  string
+	workers   int
+	providers []jav.JavLookupProvider
 }
 
-// NewCoverManager creates a manager when coverDir is provided. Nil is returned when empty.
-func NewCoverManager(coverDir string) *CoverManager {
-	if strings.TrimSpace(coverDir) == "" {
+const minValidCoverSizeBytes int64 = 30 * 1024
+
+// NewCoverManager creates a manager when coverDir and providers are provided.
+func NewCoverManager(coverDir string, providers []jav.JavLookupProvider) *CoverManager {
+	coverDir = strings.TrimSpace(coverDir)
+	providers = compactCoverProviders(providers)
+	if coverDir == "" || len(providers) == 0 {
 		return nil
 	}
 	return &CoverManager{
-		tasks:    make(chan string, 5000), // larger buffer to reduce producer blocking
-		coverDir: coverDir,
-		workers:  10,
+		tasks:     make(chan string, 5000), // larger buffer to reduce producer blocking
+		coverDir:  coverDir,
+		workers:   10,
+		providers: providers,
 	}
 }
 
@@ -68,8 +72,15 @@ func (m *CoverManager) Exists(code string) bool {
 	if m == nil {
 		return false
 	}
-	_, ok := FindCoverPath(m.coverDir, code)
-	return ok
+	path, ok := FindCoverPath(m.coverDir, code)
+	if !ok {
+		return false
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return info.Size() >= minValidCoverSizeBytes
 }
 
 func (m *CoverManager) worker(ctx context.Context) {
@@ -101,7 +112,7 @@ func (m *CoverManager) handleTask(parent context.Context, code string) error {
 	ctx, cancel := context.WithTimeout(parent, 45*time.Second)
 	defer cancel()
 
-	coverURL, err := FetchCoverURL(ctx, code)
+	coverURL, err := m.fetchCoverURL(code)
 	if err != nil {
 		if errors.Is(err, util.ErrCachedNotFound) {
 			return nil
@@ -121,45 +132,30 @@ func (m *CoverManager) handleTask(parent context.Context, code string) error {
 	return nil
 }
 
-// FetchCoverURL retrieves the cover image URL from javdatabase for the given code.
-func FetchCoverURL(ctx context.Context, code string) (string, error) {
-	code = normalizeCode(code)
-	if code == "" {
-		return "", errors.New("empty code")
+func (m *CoverManager) fetchCoverURL(code string) (string, error) {
+	if m == nil {
+		return "", errors.New("cover manager not configured")
 	}
-
-	pageURL := fmt.Sprintf("https://www.javdatabase.com/movies/%s", url.PathEscape(code))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, nil)
-	if err != nil {
-		return "", fmt.Errorf("build request: %w", err)
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; JavCoverBot/1.0)")
-
-	resp, err := util.DoRequest(req)
-	if err != nil {
-		if errors.Is(err, util.ErrCachedNotFound) {
-			return "", err
+	var lastErr error
+	for _, provider := range m.providers {
+		coverURL, err := provider.LookupCoverURLByCode(code)
+		if err == nil {
+			coverURL = strings.TrimSpace(coverURL)
+			if coverURL != "" {
+				return coverURL, nil
+			}
+			continue
 		}
-		return "", fmt.Errorf("fetch page: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusNotFound {
-			return "", util.ErrCachedNotFound
+		if errors.Is(err, jav.ResourceNotFonud) {
+			continue
 		}
-		return "", fmt.Errorf("fetch page: status %s", resp.Status)
+		lastErr = err
+		logging.Error("fetch cover url failed: provider=%T code=%s err=%v", provider, code, err)
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024))
-	if err != nil {
-		return "", fmt.Errorf("read page: %w", err)
+	if lastErr != nil {
+		return "", fmt.Errorf("fetch cover url: %w", lastErr)
 	}
-
-	coverURL, err := extractCoverURL(body)
-	if err != nil {
-		return "", fmt.Errorf("parse cover url: %w", err)
-	}
-	return strings.TrimSpace(coverURL), nil
+	return "", util.ErrCachedNotFound
 }
 
 func (m *CoverManager) downloadCover(ctx context.Context, code, coverURL string) error {
@@ -229,7 +225,8 @@ func FindCoverPath(dir, code string) (string, bool) {
 	}
 	for _, ext := range knownExts {
 		p := filepath.Join(dir, code+ext)
-		if _, err := os.Stat(p); err == nil {
+		info, err := os.Stat(p)
+		if err == nil && info.Size() >= minValidCoverSizeBytes {
 			return p, true
 		}
 	}
@@ -250,68 +247,15 @@ func guessExt(ct string) string {
 	}
 }
 
-func extractCoverURL(body []byte) (string, error) {
-	doc, err := html.Parse(strings.NewReader(string(body)))
-	if err != nil {
-		return "", fmt.Errorf("parse html: %w", err)
+func compactCoverProviders(providers []jav.JavLookupProvider) []jav.JavLookupProvider {
+	if len(providers) == 0 {
+		return nil
 	}
-	var cover string
-	var walk func(*html.Node)
-	walk = func(n *html.Node) {
-		if cover != "" {
-			return
-		}
-		if n.Type == html.ElementNode && n.Data == "meta" {
-			var prop, content string
-			for _, a := range n.Attr {
-				switch strings.ToLower(a.Key) {
-				case "property":
-					prop = strings.ToLower(a.Val)
-				case "content":
-					content = a.Val
-				}
-			}
-			if prop == "og:image" && strings.TrimSpace(content) != "" {
-				cover = content
-				return
-			}
-		}
-		if n.Type == html.ElementNode && n.Data == "img" {
-			if coverHasClass(n, "poster") || coverHasClass(n, "cover") {
-				if src := coverAttr(n, "src"); src != "" {
-					cover = src
-					return
-				}
-			}
-		}
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			walk(c)
+	compact := make([]jav.JavLookupProvider, 0, len(providers))
+	for _, provider := range providers {
+		if provider != nil {
+			compact = append(compact, provider)
 		}
 	}
-	walk(doc)
-	return strings.TrimSpace(cover), nil
-}
-
-func coverHasClass(n *html.Node, target string) bool {
-	for _, a := range n.Attr {
-		if a.Key != "class" {
-			continue
-		}
-		parts := strings.Fields(a.Val)
-		for _, p := range parts {
-			if p == target {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func coverAttr(n *html.Node, key string) string {
-	for _, a := range n.Attr {
-		if strings.EqualFold(a.Key, key) {
-			return a.Val
-		}
-	}
-	return ""
+	return compact
 }

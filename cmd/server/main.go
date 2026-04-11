@@ -18,6 +18,7 @@ import (
 	"pornboss/internal/common"
 	"pornboss/internal/common/logging"
 	"pornboss/internal/db"
+	"pornboss/internal/jav"
 	"pornboss/internal/models"
 	"pornboss/internal/server"
 	"pornboss/internal/service"
@@ -105,7 +106,10 @@ func main() {
 
 	dataDir := filepath.Dir(cfg.DatabasePath)
 	screenshotManager := manager.NewScreenshotManager(dataDir, db.GetVideo)
-	coverManager := manager.NewCoverManager(cfg.JavCoverDir)
+	coverManager := manager.NewCoverManager(cfg.JavCoverDir, []jav.JavLookupProvider{
+		jav.ThePornDBProvider,
+		jav.JavDatabaseProvider,
+	})
 	streamManager := manager.NewStreamManager(filepath.Join(dataDir, "stream-cache"))
 
 	common.AppConfig = cfg
