@@ -378,6 +378,38 @@ type JavIdolSummary struct {
 	SampleCode   string     `json:"sample_code"`
 }
 
+func applyJavIdolSearch(q *gorm.DB, search string) *gorm.DB {
+	search = strings.TrimSpace(search)
+	if search == "" {
+		return q
+	}
+	like := fmt.Sprintf("%%%s%%", search)
+	return q.Where(
+		"ji.name LIKE ? OR ji.japanese_name LIKE ? OR ji.roman_name LIKE ? OR ji.chinese_name LIKE ?",
+		like,
+		like,
+		like,
+		like,
+	)
+}
+
+func buildVisibleSoloIdolSampleQuery(ctx context.Context) *gorm.DB {
+	soloJavs := common.DB.WithContext(ctx).
+		Table("jav_idol_map").
+		Select("jav_id").
+		Group("jav_id").
+		Having("COUNT(*) = 1")
+
+	return common.DB.WithContext(ctx).
+		Table("jav_idol_map jim_solo").
+		Select("jim_solo.jav_idol_id, MIN(j_solo.code) AS sample_code").
+		Joins("JOIN (?) solo_jav ON solo_jav.jav_id = jim_solo.jav_id", soloJavs).
+		Joins("JOIN jav j_solo ON j_solo.id = jim_solo.jav_id").
+		Joins("JOIN video v_solo ON v_solo.jav_id = jim_solo.jav_id").
+		Where("(v_solo.hidden = 0 OR v_solo.hidden IS NULL)").
+		Group("jim_solo.jav_idol_id")
+}
+
 // ListJavIdols returns idols ordered by selected sort with pagination.
 func ListJavIdols(ctx context.Context, search, sort string, limit, offset int) ([]JavIdolSummary, int64, error) {
 	if limit <= 0 {
@@ -386,48 +418,20 @@ func ListJavIdols(ctx context.Context, search, sort string, limit, offset int) (
 	if offset < 0 {
 		offset = 0
 	}
-	search = strings.TrimSpace(search)
 	sort = strings.ToLower(strings.TrimSpace(sort))
+	soloIdols := buildVisibleSoloIdolSampleQuery(ctx)
 
-	base := common.DB.WithContext(ctx).
+	countBase := common.DB.WithContext(ctx).
 		Table("jav_idol ji").
-		Joins("JOIN jav_idol_map jim ON jim.jav_idol_id = ji.id").
-		Joins("JOIN jav j ON j.id = jim.jav_id").
-		Joins("JOIN video v ON v.jav_id = j.id").
-		Where("COALESCE(v.hidden, 0) = 0")
-
-	if search != "" {
-		like := fmt.Sprintf("%%%s%%", search)
-		base = base.Where(
-			"ji.name LIKE ? OR ji.japanese_name LIKE ? OR ji.roman_name LIKE ? OR ji.chinese_name LIKE ?",
-			like,
-			like,
-			like,
-			like,
-		)
-	}
+		Joins("JOIN (?) solo_idols ON solo_idols.jav_idol_id = ji.id", soloIdols)
+	countBase = applyJavIdolSearch(countBase, search)
 
 	var total int64
-	if err := base.Select("COUNT(DISTINCT ji.id)").Count(&total).Error; err != nil {
+	if err := countBase.Count(&total).Error; err != nil {
 		return nil, 0, fmt.Errorf("count jav idols: %w", err)
 	}
 
 	var items []JavIdolSummary
-	soloCode := `
-COALESCE(
-  (
-    SELECT j2.code
-    FROM jav_idol_map jim2
-    JOIN jav j2 ON j2.id = jim2.jav_id
-    JOIN video v2 ON v2.jav_id = j2.id
-    WHERE jim2.jav_idol_id = ji.id
-      AND COALESCE(v2.hidden, 0) = 0
-      AND j2.id IN (SELECT jav_id FROM jav_idol_map GROUP BY jav_id HAVING COUNT(*) = 1)
-    ORDER BY j2.code
-    LIMIT 1
-  ),
-  MIN(j.code)
-) AS sample_code`
 	order := "work_count DESC, ji.name ASC"
 	switch sort {
 	case "birth", "birth_date", "age":
@@ -449,9 +453,17 @@ COALESCE(
 	default:
 		// ignore unknown values
 	}
+	base := common.DB.WithContext(ctx).
+		Table("jav_idol ji").
+		Joins("JOIN (?) solo_idols ON solo_idols.jav_idol_id = ji.id", soloIdols).
+		Joins("JOIN jav_idol_map jim ON jim.jav_idol_id = ji.id").
+		Joins("JOIN jav j ON j.id = jim.jav_id").
+		Joins("JOIN video v ON v.jav_id = j.id").
+		Where("(v.hidden = 0 OR v.hidden IS NULL)")
+	base = applyJavIdolSearch(base, search)
 	if err := base.
-		Select("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, COUNT(DISTINCT j.id) AS work_count, " + soloCode).
-		Group("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup").
+		Select("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, COUNT(DISTINCT j.id) AS work_count, solo_idols.sample_code").
+		Group("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, solo_idols.sample_code").
 		Order(order).
 		Limit(limit).
 		Offset(offset).

@@ -80,6 +80,12 @@ func Open(path string) (*gorm.DB, error) {
 	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_jav_tag_provider ON jav_tag(provider)").Error; err != nil {
 		return nil, fmt.Errorf("create jav tag provider index: %w", err)
 	}
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_jav_idol_map_jav_idol_id_jav_id ON jav_idol_map(jav_idol_id, jav_id)").Error; err != nil {
+		return nil, fmt.Errorf("create jav idol map reverse index: %w", err)
+	}
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_video_jav_id_visible ON video(jav_id) WHERE hidden = 0 OR hidden IS NULL").Error; err != nil {
+		return nil, fmt.Errorf("create visible video jav index: %w", err)
+	}
 	if hasIsUser {
 		if err := db.Exec("ALTER TABLE jav_tag DROP COLUMN is_user").Error; err != nil && !ignorableSQLiteDropColumnErr(err) {
 			return nil, fmt.Errorf("drop jav_tag.is_user: %w", err)
