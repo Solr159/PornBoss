@@ -94,3 +94,28 @@ func TestParseJavDatabaseCoverURL(t *testing.T) {
 		t.Fatalf("unexpected cover url: %q", coverURL)
 	}
 }
+
+func TestParseJavDatabaseActressInfoTrimsTrailingDashFromJapaneseName(t *testing.T) {
+	doc, err := html.Parse(strings.NewReader(`
+<!doctype html>
+<html>
+<body>
+  <div class="entry-content">
+    <h1 class="idol-name">Lara Kudo</h1>
+    <p><b>Japanese Name:</b> 工藤ララ  - </p>
+    <p><b>Height:</b> 160 cm</p>
+  </div>
+</body>
+</html>`))
+	if err != nil {
+		t.Fatalf("parse html: %v", err)
+	}
+
+	info := parseJavDatabaseActressInfo(doc)
+	if info == nil {
+		t.Fatal("expected info, got nil")
+	}
+	if info.JapaneseName != "工藤ララ" {
+		t.Fatalf("unexpected japanese name: %q", info.JapaneseName)
+	}
+}

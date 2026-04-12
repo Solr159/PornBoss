@@ -510,7 +510,7 @@ func parseJavDatabaseActressInfo(root *html.Node) *ActressInfo {
 	birthDate := parseBirthDateUnix(fields.BirthDate)
 	info := &ActressInfo{
 		RomanName:    roman,
-		JapaneseName: firstNonEmpty(fields.JapaneseName, japanese),
+		JapaneseName: cleanJapaneseName(firstNonEmpty(fields.JapaneseName, japanese)),
 		HeightCM:     height,
 		Bust:         bust,
 		Waist:        waist,
@@ -988,6 +988,16 @@ func cleanIdolName(value string) string {
 	for _, suffix := range []string{"JAV Profile", "- JAV Profile"} {
 		value = strings.TrimSpace(strings.TrimSuffix(value, suffix))
 	}
+	return strings.TrimSpace(value)
+}
+
+func cleanJapaneseName(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return value
+	}
+	value = strings.Trim(value, " -")
+	value = strings.Trim(value, "–—")
 	return strings.TrimSpace(value)
 }
 
