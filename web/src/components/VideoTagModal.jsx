@@ -159,9 +159,7 @@ export default function VideoTagModal({
                         >
                           <span className="skeuo-tag-label">{t.name}</span>
                           {!editMode && count !== null && (
-                            <span className="skeuo-tag-count">
-                              {count}
-                            </span>
+                            <span className="skeuo-tag-count">{count}</span>
                           )}
                           {showRenameHint && (
                             <span className="skeuo-tag-hint">

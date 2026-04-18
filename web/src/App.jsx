@@ -33,7 +33,7 @@ import TopBar from '@/components/TopBar'
 import VideoSettingsModal from '@/components/VideoSettingsModal'
 import VideoTagModal from '@/components/VideoTagModal'
 import VideoView from '@/components/VideoView'
-import { isUserJavTag } from '@/constants/jav'
+import { isUserJavTag, normalizeJavSort } from '@/constants/jav'
 import { isChineseLocale, zh } from '@/utils/i18n'
 import { useStore } from '@/store'
 import { parsePlayerHotkeys } from '@/utils/playerHotkeys'
@@ -84,9 +84,11 @@ export default function App() {
     javActors,
     javTags,
     javSort,
+    javPageSort,
     javRandomMode,
     javRandomSeed,
     idolSort,
+    setJavPageSort,
     loadJavs,
     javItems,
     javTotal,
@@ -366,16 +368,17 @@ export default function App() {
   )
 
   const buildJavUrl = useCallback(
-    ({
-      page: pageOverride,
-      search: searchOverride,
-      tab: tabOverride,
-      actors: actorsOverride,
-      sort: sortOverride,
-      tagIds: tagIdsOverride,
-      random: randomOverride,
-      seed: seedOverride,
-    } = {}) => {
+    (options = {}) => {
+      const {
+        page: pageOverride,
+        search: searchOverride,
+        tab: tabOverride,
+        actors: actorsOverride,
+        sort: sortOverride,
+        tagIds: tagIdsOverride,
+        random: randomOverride,
+        seed: seedOverride,
+      } = options
       const sp = new URLSearchParams()
       sp.set('view', 'jav')
       const tab = tabOverride ?? javTab
@@ -394,7 +397,12 @@ export default function App() {
       if (tab !== 'idol' && tagList && tagList.length > 0) {
         sp.set('tag_ids', tagList.join(','))
       }
-      const sortVal = String(sortOverride ?? (tab === 'idol' ? idolSort : javSort) ?? '').trim()
+      const hasSortOverride = Object.prototype.hasOwnProperty.call(options, 'sort')
+      const normalizedSortOverride = hasSortOverride ? normalizeJavSort(sortOverride, null) : null
+      const sortVal =
+        tab === 'idol'
+          ? String(normalizedSortOverride ?? idolSort ?? '').trim()
+          : String(normalizedSortOverride ?? javSort ?? '').trim()
       if (tab === 'idol') {
         if (sortVal && sortVal !== 'work') {
           sp.set('sort', sortVal)
@@ -443,6 +451,7 @@ export default function App() {
     useStore.setState({
       viewMode: 'jav',
       javTab: 'list',
+      javPageSort: '',
       javRandomMode: false,
       javRandomSeed: null,
       javActors: [],
@@ -477,6 +486,7 @@ export default function App() {
           javPage: jav.random ? 1 : jav.page,
           idolPage: jav.tab === 'idol' ? jav.page : 1,
           javSort: jav.tab === 'idol' ? 'recent' : jav.sort,
+          javPageSort: '',
           idolSort: jav.tab === 'idol' ? jav.idolSort : currentIdolSort,
         })
         setJavSearchInput(jav.search)
@@ -490,6 +500,7 @@ export default function App() {
       const { video } = parsed
       useStore.setState({
         viewMode: 'video',
+        javPageSort: '',
         sortOrder: video.sort,
         randomMode: video.random,
         randomSeed: video.random ? video.seed : null,
@@ -583,6 +594,7 @@ export default function App() {
     javActors,
     javTags,
     javSort,
+    javPageSort,
     javRandomMode,
     javRandomSeed,
     idolSort,
@@ -735,6 +747,7 @@ export default function App() {
     useStore.setState({
       viewMode: 'jav',
       javTab: 'list',
+      javPageSort: '',
       javActors: [],
       javTags: [],
       javSearchTerm: '',
@@ -816,6 +829,7 @@ export default function App() {
     e?.preventDefault()
     useStore.setState({
       viewMode: 'jav',
+      javPageSort: '',
       javRandomMode: false,
       javRandomSeed: null,
       javActors: [],
@@ -859,14 +873,7 @@ export default function App() {
   const handleSaveJavSettings = async () => {
     const javSize = Math.max(1, parseInt(javPageSizeInput, 10) || javPageSize)
     const idolSize = Math.max(1, parseInt(idolPageSizeInput, 10) || idolPageSize)
-    const normalizedSort =
-      javSortInput === 'code'
-        ? 'code'
-        : javSortInput === 'release'
-          ? 'release'
-          : javSortInput === 'play_count'
-            ? 'play_count'
-            : 'recent'
+    const normalizedSort = normalizeJavSort(javSortInput)
     const normalizedIdolSort =
       idolSortInput === 'birth'
         ? 'birth'
@@ -896,6 +903,7 @@ export default function App() {
         javPageSize: javSize,
         idolPageSize: idolSize,
         javSort: normalizedSort,
+        javPageSort: '',
         idolSort: normalizedIdolSort,
         javPage: Math.min(prevJavPage, javLast),
         idolPage: Math.min(prevIdolPage, idolLast),
@@ -1160,6 +1168,7 @@ export default function App() {
     if (isJavMode) {
       useStore.setState({
         viewMode: 'jav',
+        javPageSort: '',
         javRandomMode: false,
         javRandomSeed: null,
         javActors: [],
@@ -1189,7 +1198,7 @@ export default function App() {
 
   const handleSwitchToJav = () => {
     const targetTab = javTab === 'idol' ? 'idol' : 'list'
-    useStore.setState({ viewMode: 'jav', javTab: targetTab })
+    useStore.setState({ viewMode: 'jav', javTab: targetTab, javPageSort: '' })
     forceReloadJavByTab(targetTab)
   }
 
@@ -1199,6 +1208,7 @@ export default function App() {
     const nextRandomSeed = nextTab === 'idol' ? null : javRandomSeed
     useStore.setState({
       javTab: nextTab,
+      javPageSort: '',
       javActors: [],
       javTags: [],
       javRandomMode: nextRandomMode,
@@ -1223,6 +1233,7 @@ export default function App() {
     useStore.setState({
       viewMode: 'jav',
       javTab: 'list',
+      javPageSort: '',
       javRandomMode: false,
       javRandomSeed: null,
       javActors: [idol.name],
@@ -1239,6 +1250,7 @@ export default function App() {
     useStore.setState({
       viewMode: 'jav',
       javTab: 'list',
+      javPageSort: '',
       javRandomMode: false,
       javRandomSeed: null,
       javActors: [trimmed],
@@ -1407,8 +1419,11 @@ export default function App() {
               javHasNext={javHasNext}
               javLoading={activeJavLoading}
               javRandomMode={javRandomMode}
+              javPageSort={javPageSort}
+              javGlobalSort={javSort}
               buildJavUrl={buildJavUrl}
               setJavPage={setJavPage}
+              setJavPageSort={setJavPageSort}
               javItems={javItems}
               onPlay={handleJavPlay}
               onOpenFile={handleJavOpenFile}

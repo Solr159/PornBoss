@@ -1,13 +1,64 @@
-import { useMemo } from 'react'
-import { IconButton, Tooltip } from '@mui/material'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { IconButton, Popper, Tooltip } from '@mui/material'
 import Fade from '@mui/material/Fade'
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 
+import { fetchJavIdolPreview } from '@/api'
+import { IdolCard, getIdolCardLayoutProps } from '@/components/JavIdolGrid'
 import { isUserJavTag } from '@/constants/jav'
 import { zh } from '@/utils/i18n'
+
+function DurationIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true" className="h-4 w-4 shrink-0">
+      <circle cx="10" cy="10" r="7" fill="#F59E0B" />
+      <circle cx="10" cy="10" r="5.4" fill="#FEF3C7" />
+      <path
+        d="M10 6.7v3.5l2.5 1.6"
+        fill="none"
+        stroke="#7C3AED"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M7.4 2.8h5.2" fill="none" stroke="#EF4444" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function ReleaseIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true" className="h-4 w-4 shrink-0">
+      <rect x="3.1" y="4.1" width="13.8" height="12.8" rx="2.4" fill="#A78BFA" />
+      <rect x="3.9" y="7" width="12.2" height="8.9" rx="1.7" fill="#FFF7ED" />
+      <rect
+        x="3.1"
+        y="4.1"
+        width="13.8"
+        height="12.8"
+        rx="2.4"
+        fill="none"
+        stroke="#7C3AED"
+        strokeWidth="0.8"
+      />
+      <path
+        d="M6.4 3.2v2.8M13.6 3.2v2.8"
+        fill="none"
+        stroke="#EC4899"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      <path d="M5.8 8.8h8.4" fill="none" stroke="#F97316" strokeWidth="1.4" strokeLinecap="round" />
+      <rect x="6.7" y="10.2" width="2.5" height="2.3" rx="0.5" fill="#22C55E" />
+      <rect x="10.7" y="10.2" width="2.5" height="2.3" rx="0.5" fill="#3B82F6" />
+      <rect x="6.7" y="13.4" width="2.5" height="2.3" rx="0.5" fill="#F43F5E" />
+      <rect x="10.7" y="13.4" width="2.5" height="2.3" rx="0.5" fill="#14B8A6" />
+    </svg>
+  )
+}
 
 export default function JavGrid({
   items,
@@ -18,7 +69,38 @@ export default function JavGrid({
   onOpenFile,
   onRevealFile,
 }) {
+  const idolPreviewCacheRef = useRef(new Map())
+  const idolPreviewInflightRef = useRef(new Map())
   const hasItems = Array.isArray(items) && items.length > 0
+
+  const loadIdolPreview = async (idol) => {
+    const idolId = Number(idol?.id)
+    if (!Number.isFinite(idolId) || idolId <= 0) {
+      return idol || null
+    }
+
+    const cached = idolPreviewCacheRef.current.get(idolId)
+    if (cached) {
+      return cached
+    }
+
+    const inflight = idolPreviewInflightRef.current.get(idolId)
+    if (inflight) {
+      return inflight
+    }
+
+    const request = fetchJavIdolPreview(idolId)
+      .then((preview) => {
+        idolPreviewCacheRef.current.set(idolId, preview)
+        return preview
+      })
+      .finally(() => {
+        idolPreviewInflightRef.current.delete(idolId)
+      })
+    idolPreviewInflightRef.current.set(idolId, request)
+    return request
+  }
+
   if (!hasItems) {
     return (
       <div className="mt-4 flex min-h-[200px] items-center justify-center rounded border border-dashed border-gray-200 text-gray-500">
@@ -39,14 +121,25 @@ export default function JavGrid({
           onEditTags={onEditTags}
           onOpenFile={onOpenFile}
           onRevealFile={onRevealFile}
+          loadIdolPreview={loadIdolPreview}
         />
       ))}
     </div>
   )
 }
 
-function JavCard({ item, onPlay, onIdolClick, onTagClick, onEditTags, onOpenFile, onRevealFile }) {
+function JavCard({
+  item,
+  onPlay,
+  onIdolClick,
+  onTagClick,
+  onEditTags,
+  onOpenFile,
+  onRevealFile,
+  loadIdolPreview,
+}) {
   const primaryVideo = useMemo(() => (item?.videos || [])[0], [item])
+  const { bgWidthPercent, coverAspectPercent } = useMemo(() => getIdolCardLayoutProps(), [])
   const cover = item?.code ? `/jav/${encodeURIComponent(item.code)}/cover` : null
 
   const release =
@@ -57,9 +150,9 @@ function JavCard({ item, onPlay, onIdolClick, onTagClick, onEditTags, onOpenFile
   const durationText = item?.duration_min
     ? zh(`${item.duration_min} 分钟`, `${item.duration_min} min`)
     : ''
-  const titleText = [item?.code, item?.title || item?.code || zh('未知标题', 'Untitled')]
-    .filter(Boolean)
-    .join(' ')
+  const codeText = item?.code?.trim()
+  const mainTitle = item?.title || item?.code || zh('未知标题', 'Untitled')
+  const titleText = [codeText, mainTitle].filter(Boolean).join(' ')
   const videos = item?.videos || []
   const openableVideos = videos.filter((video) =>
     Boolean(video?.path && (video?.directory?.path || video?.directory_path))
@@ -80,6 +173,18 @@ function JavCard({ item, onPlay, onIdolClick, onTagClick, onEditTags, onOpenFile
           name: 'JavBus',
           href: `https://www.javbus.com/${encodedCode}`,
           icon: '/ico/javbus.ico',
+        },
+        {
+          key: 'missav',
+          name: 'MissAV',
+          href: `https://missav.ws/ja/${encodedCode}`,
+          icon: '/ico/missav.ico',
+        },
+        {
+          key: 'javmost',
+          name: 'JavMost',
+          href: `https://www.javmost.ws/search/${encodedCode}/`,
+          icon: '/ico/javmost.ico',
         },
       ]
     : []
@@ -108,6 +213,58 @@ function JavCard({ item, onPlay, onIdolClick, onTagClick, onEditTags, onOpenFile
   }
   const tags = Array.isArray(item?.tags) ? item.tags : []
   const showEditTags = typeof onEditTags === 'function'
+  const [previewIdol, setPreviewIdol] = useState(null)
+  const [hoverAnchorEl, setHoverAnchorEl] = useState(null)
+  const closeTimerRef = useRef(null)
+  const activeHoverIdRef = useRef(null)
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) {
+        window.clearTimeout(closeTimerRef.current)
+      }
+    }
+  }, [])
+
+  const clearHoverCloseTimer = () => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
+  }
+
+  const scheduleHoverClose = () => {
+    clearHoverCloseTimer()
+    closeTimerRef.current = window.setTimeout(() => {
+      activeHoverIdRef.current = null
+      setPreviewIdol(null)
+      setHoverAnchorEl(null)
+      closeTimerRef.current = null
+    }, 120)
+  }
+
+  const handleIdolHoverStart = (idol, event) => {
+    clearHoverCloseTimer()
+    const idolId = Number(idol?.id)
+    activeHoverIdRef.current = Number.isFinite(idolId) ? idolId : null
+    setPreviewIdol(idol || null)
+    setHoverAnchorEl(event.currentTarget)
+
+    void loadIdolPreview?.(idol)
+      .then((loadedIdol) => {
+        if (!loadedIdol) return
+        if (activeHoverIdRef.current !== Number(loadedIdol.id)) return
+        setPreviewIdol((current) =>
+          current && current.id === loadedIdol.id ? { ...current, ...loadedIdol } : current
+        )
+      })
+      .catch((error) => {
+        console.warn('load idol preview failed', error)
+      })
+  }
+
+  const showIdolWorkCount =
+    typeof previewIdol?.work_count === 'number' && previewIdol.work_count > 0
 
   return (
     <div className="flex flex-col overflow-hidden rounded-lg border bg-white shadow-sm transition hover:shadow-lg">
@@ -141,12 +298,20 @@ function JavCard({ item, onPlay, onIdolClick, onTagClick, onEditTags, onOpenFile
         </div>
       </div>
       <div className="flex flex-1 flex-col gap-2 p-3">
-        <div className="line-clamp-2 text-sm font-semibold leading-tight" title={titleText}>
-          {titleText}
+        <div className="line-clamp-2 text-sm leading-tight" title={titleText}>
+          {codeText ? <span className="font-semibold text-gray-800">{codeText}</span> : null}
+          {codeText ? ' ' : null}
+          <span className="font-medium text-gray-800">{mainTitle}</span>
         </div>
-        <div className="text-xs text-gray-600">
-          {durationText || zh('时长未知', 'Unknown duration')}
-          {releaseText ? ` · ${releaseText}` : ''}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">
+          <span className="inline-flex items-center gap-1">
+            <DurationIcon />
+            <span>{durationText || zh('时长未知', 'Unknown duration')}</span>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <ReleaseIcon />
+            <span>{releaseText}</span>
+          </span>
         </div>
         {Array.isArray(item?.idols) && item.idols.length > 0 && (
           <div className="flex flex-wrap gap-1">
@@ -155,11 +320,45 @@ function JavCard({ item, onPlay, onIdolClick, onTagClick, onEditTags, onOpenFile
                 key={idol.id || idol.name}
                 type="button"
                 className="rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-700 transition hover:bg-purple-200"
+                onMouseEnter={(event) => handleIdolHoverStart(idol, event)}
+                onMouseLeave={scheduleHoverClose}
+                onFocus={(event) => handleIdolHoverStart(idol, event)}
+                onBlur={scheduleHoverClose}
                 onClick={() => onIdolClick?.(idol.name)}
               >
                 {idol.name}
               </button>
             ))}
+            <Popper
+              open={Boolean(previewIdol && hoverAnchorEl)}
+              anchorEl={hoverAnchorEl}
+              placement="right-start"
+              className="z-[1400]"
+              modifiers={[
+                {
+                  name: 'offset',
+                  options: {
+                    offset: [10, 0],
+                  },
+                },
+              ]}
+            >
+              <div
+                className="w-[220px]"
+                onMouseEnter={clearHoverCloseTimer}
+                onMouseLeave={scheduleHoverClose}
+              >
+                {previewIdol ? (
+                  <IdolCard
+                    item={previewIdol}
+                    onSelectIdol={(idol) => onIdolClick?.(idol?.name)}
+                    bgWidthPercent={bgWidthPercent}
+                    coverAspectPercent={coverAspectPercent}
+                    showWorkCount={showIdolWorkCount}
+                  />
+                ) : null}
+              </div>
+            </Popper>
           </div>
         )}
         {tags.length > 0 && (

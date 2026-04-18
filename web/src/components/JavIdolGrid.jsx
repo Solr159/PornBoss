@@ -1,13 +1,19 @@
 import { isChineseLocale, zh } from '@/utils/i18n'
 
-export default function JavIdolGrid({ items, onSelectIdol, buildIdolUrl }) {
-  // 可调节右侧展示比例：0.47 表示展示封面最右侧 47%，可按需修改
-  const RIGHT_PORTION = 0.47
+const RIGHT_PORTION = 0.47
+
+export function getIdolCardLayoutProps() {
   const visibleRatio = Math.min(Math.max(RIGHT_PORTION, 0.01), 1)
   const bgWidthPercent = (1 / visibleRatio) * 100
   const originalWidth = 800
   const originalHeight = 538
   const coverAspectPercent = (originalHeight / (originalWidth * visibleRatio)) * 100
+
+  return { bgWidthPercent, coverAspectPercent }
+}
+
+export default function JavIdolGrid({ items, onSelectIdol, buildIdolUrl }) {
+  const { bgWidthPercent, coverAspectPercent } = getIdolCardLayoutProps()
 
   const hasItems = Array.isArray(items) && items.length > 0
   if (!hasItems) {
@@ -34,7 +40,14 @@ export default function JavIdolGrid({ items, onSelectIdol, buildIdolUrl }) {
   )
 }
 
-function IdolCard({ item, onSelectIdol, href, bgWidthPercent, coverAspectPercent }) {
+export function IdolCard({
+  item,
+  onSelectIdol,
+  href,
+  bgWidthPercent,
+  coverAspectPercent,
+  showWorkCount = true,
+}) {
   const chineseLocale = isChineseLocale()
   const cover = item?.sample_code ? `/jav/${encodeURIComponent(item.sample_code)}/cover` : null
   const workCount = item?.work_count || 0
@@ -42,7 +55,7 @@ function IdolCard({ item, onSelectIdol, href, bgWidthPercent, coverAspectPercent
   const romanName = item?.roman_name || ''
   const japaneseName = item?.japanese_name || ''
   const chineseName = item?.chinese_name || ''
-  const birthDate = formatBirthDate(item?.birth_date)
+  const birthDate = formatBirthDateWithAge(item?.birth_date)
   const height = typeof item?.height_cm === 'number' ? `${item.height_cm}cm` : ''
   const bwh = formatBwh(item)
   const cup = formatCup(item?.cup)
@@ -102,9 +115,11 @@ function IdolCard({ item, onSelectIdol, href, bgWidthPercent, coverAspectPercent
             {primaryName}
           </div>
         )}
-        <div className="absolute left-2 top-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
-          {zh(`作品 ${workCount}`, `${workCount} javs`)}
-        </div>
+        {showWorkCount && (
+          <div className="absolute left-2 top-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
+            {zh(`作品 ${workCount}`, `${workCount} javs`)}
+          </div>
+        )}
       </div>
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div className="line-clamp-2 text-sm font-semibold leading-tight">{primaryName}</div>
@@ -140,6 +155,31 @@ function formatBirthDate(value) {
     return value.toISOString().slice(0, 10)
   }
   return ''
+}
+
+function formatBirthDateWithAge(value) {
+  const birthDate = formatBirthDate(value)
+  if (!birthDate) return ''
+
+  const age = calculateAge(birthDate)
+  if (!Number.isFinite(age) || age < 0) {
+    return birthDate
+  }
+  return zh(`${birthDate}（${age}岁）`, `${birthDate} (${age} years old)`)
+}
+
+function calculateAge(birthDate) {
+  const date = new Date(`${birthDate}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return null
+
+  const now = new Date()
+  let age = now.getFullYear() - date.getFullYear()
+  const monthDiff = now.getMonth() - date.getMonth()
+  const dayDiff = now.getDate() - date.getDate()
+  if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+    age -= 1
+  }
+  return age
 }
 
 function formatBwh(item) {
