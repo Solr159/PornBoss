@@ -87,6 +87,26 @@ export default function JavSettingsModal({
               </div>
             </label>
             <label
+              htmlFor="jav-sort-duration"
+              className="flex cursor-pointer items-center gap-3 rounded border bg-white px-3 py-1.5 hover:border-blue-500"
+              aria-label={zh('按时长排序', 'Sort by duration')}
+            >
+              <input
+                id="jav-sort-duration"
+                type="radio"
+                name="jav-sort"
+                value="duration"
+                checked={javSortInput === 'duration'}
+                onChange={() => onJavSortChange?.('duration')}
+              />
+              <div className="text-sm font-semibold">
+                {zh('时长（长→短）', 'Duration (long to short)')}
+                <span className="ml-2 text-xs font-normal text-gray-500">
+                  {zh('按 JAV 时长降序', 'By JAV duration descending')}
+                </span>
+              </div>
+            </label>
+            <label
               htmlFor="jav-sort-release"
               className="flex cursor-pointer items-center gap-3 rounded border bg-white px-3 py-1.5 hover:border-blue-500"
               aria-label={zh('按发行时间排序', 'Sort by release date')}

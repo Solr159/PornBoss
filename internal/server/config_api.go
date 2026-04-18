@@ -83,7 +83,7 @@ func updateConfig(c *gin.Context) {
 	}
 	if s := strings.ToLower(strings.TrimSpace(req.JavSort)); s != "" {
 		switch s {
-		case "recent", "code", "release", "play_count":
+		case "recent", "code", "duration", "release", "play_count":
 			entries["jav_sort"] = s
 		default:
 			// ignore invalid values

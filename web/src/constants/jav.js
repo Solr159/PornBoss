@@ -5,6 +5,7 @@ export const JAV_PROVIDER_USER = 3
 
 export function normalizeJavSort(sort, fallback = 'recent') {
   if (sort === 'code') return 'code'
+  if (sort === 'duration') return 'duration'
   if (sort === 'release') return 'release'
   if (sort === 'play_count') return 'play_count'
   if (sort === 'recent') return 'recent'

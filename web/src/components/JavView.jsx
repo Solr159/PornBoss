@@ -30,6 +30,7 @@ export default function JavView({
   const sortOptions = [
     { value: 'recent', label: zh('加入时间', 'Added time') },
     { value: 'code', label: zh('番号', 'Code') },
+    { value: 'duration', label: zh('时长', 'Duration') },
     { value: 'release', label: zh('发行时间', 'Release date') },
     { value: 'play_count', label: zh('播放次数', 'Play count') },
   ]

@@ -64,6 +64,8 @@ func SearchJav(ctx context.Context, actors []string, tagIDs []int64, search, sor
 	switch sort {
 	case "code":
 		order = "jav.code"
+	case "duration":
+		order = "jav.duration_min DESC, jav.created_at DESC, jav.id DESC"
 	case "release":
 		order = "jav.release_unix DESC, jav.code"
 	case "play_count":

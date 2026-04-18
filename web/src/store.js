@@ -48,7 +48,7 @@ export const useStore = create((set, get) => ({
   selectedVideoMeta: {},
   searchTerm: '',
   sortOrder: 'recent', // recent | filename | duration | play_count
-  javSort: 'recent', // recent | code | release | play_count
+  javSort: 'recent', // recent | code | duration | release | play_count
   javPageSort: '',
   randomMode: false,
   randomSeed: null,

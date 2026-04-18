@@ -178,6 +178,77 @@ func TestGetJavIdolSummaryReturnsSampleCodeAndWorkCount(t *testing.T) {
 	}
 }
 
+func TestSearchJavSortByDurationDesc(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+
+	dir := models.Directory{Path: "/tmp/media"}
+	if err := db.Create(&dir).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+
+	shortJav := models.Jav{
+		Code:        "FFF-001",
+		Title:       "Short",
+		DurationMin: 90,
+		Provider:    1,
+		FetchedAt:   now,
+	}
+	longJav := models.Jav{
+		Code:        "GGG-001",
+		Title:       "Long",
+		DurationMin: 180,
+		Provider:    1,
+		FetchedAt:   now,
+	}
+	if err := db.Create(&shortJav).Error; err != nil {
+		t.Fatalf("create short jav: %v", err)
+	}
+	if err := db.Create(&longJav).Error; err != nil {
+		t.Fatalf("create long jav: %v", err)
+	}
+
+	videos := []models.Video{
+		{
+			DirectoryID: dir.ID,
+			Path:        "short.mp4",
+			Filename:    "short.mp4",
+			Fingerprint: "fp-short",
+			JavID:       int64Ptr(shortJav.ID),
+			ModifiedAt:  now,
+		},
+		{
+			DirectoryID: dir.ID,
+			Path:        "long.mp4",
+			Filename:    "long.mp4",
+			Fingerprint: "fp-long",
+			JavID:       int64Ptr(longJav.ID),
+			ModifiedAt:  now,
+		},
+	}
+	if err := db.Create(&videos).Error; err != nil {
+		t.Fatalf("create videos: %v", err)
+	}
+
+	items, total, err := SearchJav(ctx, nil, nil, "", "duration", 20, 0, nil)
+	if err != nil {
+		t.Fatalf("SearchJav: %v", err)
+	}
+	if total != 2 {
+		t.Fatalf("unexpected total: got %d want 2", total)
+	}
+	if len(items) != 2 {
+		t.Fatalf("unexpected item count: got %d want 2", len(items))
+	}
+	if items[0].ID != longJav.ID {
+		t.Fatalf("unexpected first jav: got %d want %d", items[0].ID, longJav.ID)
+	}
+	if items[1].ID != shortJav.ID {
+		t.Fatalf("unexpected second jav: got %d want %d", items[1].ID, shortJav.ID)
+	}
+}
+
 func openTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 

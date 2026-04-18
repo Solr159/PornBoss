@@ -174,6 +174,18 @@ function JavCard({
           href: `https://www.javbus.com/${encodedCode}`,
           icon: '/ico/javbus.ico',
         },
+        {
+          key: 'missav',
+          name: 'MissAV',
+          href: `https://missav.ws/ja/${encodedCode}`,
+          icon: '/ico/missav.ico',
+        },
+        {
+          key: 'javmost',
+          name: 'JavMost',
+          href: `https://www.javmost.ws/search/${encodedCode}/`,
+          icon: '/ico/javmost.ico',
+        },
       ]
     : []
 
