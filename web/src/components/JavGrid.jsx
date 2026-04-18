@@ -110,7 +110,7 @@ export default function JavGrid({
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4">
       {items.map((item) => (
         <JavCard
           key={item.id || item.code}
@@ -268,7 +268,7 @@ function JavCard({
 
   return (
     <div className="flex flex-col overflow-hidden rounded-lg border bg-white shadow-sm transition hover:shadow-lg">
-      <div className="group relative h-64 bg-gray-100">
+      <div className="group relative aspect-[800/538] bg-gray-100">
         {cover ? (
           <img src={cover} alt={item?.code} className="h-full w-full object-cover" loading="lazy" />
         ) : (
