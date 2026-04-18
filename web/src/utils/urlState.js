@@ -1,3 +1,5 @@
+import { normalizeJavSort } from '@/constants/jav'
+
 const RANDOM_SEED_MAX = 2147483646
 
 const clampSeed = (seed) => {
@@ -41,14 +43,7 @@ export const parseUrlState = (searchString = window.location.search) => {
   }
 
   const sortParam = (sp.get('sort') || '').trim().toLowerCase()
-  const javSort =
-    sortParam === 'code'
-      ? 'code'
-      : sortParam === 'release'
-        ? 'release'
-        : sortParam === 'play_count'
-          ? 'play_count'
-          : 'recent'
+  const javSort = normalizeJavSort(sortParam)
   const idolSort =
     sortParam === 'birth'
       ? 'birth'

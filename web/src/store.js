@@ -16,6 +16,7 @@ import {
   fetchJavTags,
   fetchConfig,
 } from '@/api'
+import { normalizeJavSort } from '@/constants/jav'
 import { zh } from '@/utils/i18n'
 
 const VIDEO_PAGE_SIZE = 25
@@ -48,6 +49,7 @@ export const useStore = create((set, get) => ({
   searchTerm: '',
   sortOrder: 'recent', // recent | filename | duration | play_count
   javSort: 'recent', // recent | code | release | play_count
+  javPageSort: '',
   randomMode: false,
   randomSeed: null,
   javRandomMode: false,
@@ -59,7 +61,13 @@ export const useStore = create((set, get) => ({
   javPageSize: JAV_PAGE_SIZE,
   setJavPageSize: (size) => {
     const next = Math.max(1, Math.floor(Number(size) || JAV_PAGE_SIZE))
-    set({ javPageSize: next, javRandomMode: false, javRandomSeed: null, javPage: 1 })
+    set({
+      javPageSize: next,
+      javPageSort: '',
+      javRandomMode: false,
+      javRandomSeed: null,
+      javPage: 1,
+    })
   },
   javSearchTerm: '',
   javActors: [],
@@ -174,31 +182,34 @@ export const useStore = create((set, get) => ({
     set({ sortOrder: normalized, randomMode: false, randomSeed: null, page: 1 })
   },
   setJavSort: (order) => {
-    const normalized =
-      order === 'code'
-        ? 'code'
-        : order === 'release'
-          ? 'release'
-          : order === 'play_count'
-            ? 'play_count'
-            : 'recent'
-    set({ javSort: normalized, javRandomMode: false, javRandomSeed: null, javPage: 1 })
+    const normalized = normalizeJavSort(order)
+    set({
+      javSort: normalized,
+      javPageSort: '',
+      javRandomMode: false,
+      javRandomSeed: null,
+      javPage: 1,
+    })
+  },
+  setJavPageSort: (order) => {
+    const normalized = normalizeJavSort(order, '')
+    set({ javPageSort: normalized, javRandomMode: false, javRandomSeed: null, javPage: 1 })
   },
   clearRandomMode: () => set({ randomMode: false, randomSeed: null }),
-  clearJavRandom: () => set({ javRandomMode: false, javRandomSeed: null }),
+  clearJavRandom: () => set({ javPageSort: '', javRandomMode: false, javRandomSeed: null }),
   openPlayer: (video) => set({ playingVideo: video }),
   closePlayer: () => set({ playingVideo: null }),
   setViewMode: (mode) => {
     if (mode !== 'video' && mode !== 'jav') return
-    set({ viewMode: mode })
+    set({ viewMode: mode, ...(mode === 'jav' ? {} : { javPageSort: '' }) })
   },
   setJavTab: (tab) => {
     if (tab !== 'list' && tab !== 'idol') return
-    set({ javTab: tab })
+    set({ javTab: tab, javPageSort: '' })
   },
   setJavActors: (actors) => {
     const clean = Array.from(new Set((actors || []).map((n) => (n || '').trim()).filter(Boolean)))
-    set({ javActors: clean, javPage: 1 })
+    set({ javActors: clean, javPageSort: '', javPage: 1 })
   },
   setJavTags: (tags) => {
     const clean = Array.from(
@@ -208,7 +219,7 @@ export const useStore = create((set, get) => ({
           .filter((id) => Number.isFinite(id) && id > 0)
       )
     )
-    set({ javTags: clean, javPage: 1 })
+    set({ javTags: clean, javPageSort: '', javPage: 1 })
   },
   setJavPage: (p) => {
     const state = get()
@@ -221,11 +232,11 @@ export const useStore = create((set, get) => ({
     const state = get()
     if (trimmed === state.javSearchTerm) {
       if (resetPage && state.javPage !== 1) {
-        set({ javPage: 1, idolPage: 1 })
+        set({ javPageSort: '', javPage: 1, idolPage: 1 })
       }
       return
     }
-    const next = { javSearchTerm: trimmed }
+    const next = { javSearchTerm: trimmed, javPageSort: '' }
     if (resetPage) {
       next.javPage = 1
       next.idolPage = 1
@@ -263,7 +274,7 @@ export const useStore = create((set, get) => ({
       const videoSort = (cfg?.video_sort || '').toLowerCase()
       const javSize = clamp(cfg?.jav_page_size)
       const idolSize = clamp(cfg?.idol_page_size)
-      const javSort = (cfg?.jav_sort || '').toLowerCase()
+      const javSort = normalizeJavSort((cfg?.jav_sort || '').toLowerCase(), '')
       const idolSort = (cfg?.idol_sort || '').toLowerCase()
       if (videoSize && videoSize !== state.pageSize) {
         updates.pageSize = videoSize
@@ -276,12 +287,7 @@ export const useStore = create((set, get) => ({
       ) {
         updates.sortOrder = videoSort
       }
-      if (
-        javSort === 'recent' ||
-        javSort === 'code' ||
-        javSort === 'release' ||
-        javSort === 'play_count'
-      ) {
+      if (javSort) {
         updates.javSort = javSort
       }
       if (
@@ -376,10 +382,12 @@ export const useStore = create((set, get) => ({
       javActors,
       javTags,
       javSort,
+      javPageSort,
       javRandomMode,
       javRandomSeed,
     } = get()
     const search = javSearchTerm || ''
+    const effectiveSort = javPageSort || javSort
     const key = [
       javRandomMode ? 'r' : 'p',
       javRandomMode ? 1 : javPage,
@@ -387,7 +395,7 @@ export const useStore = create((set, get) => ({
       search,
       (javActors || []).join(','),
       (javTags || []).join(','),
-      javSort,
+      effectiveSort,
       javRandomMode ? javRandomSeed || '' : '',
     ].join('|')
     if (!options.force && key === lastJavFetchKey) {
@@ -402,7 +410,7 @@ export const useStore = create((set, get) => ({
         search,
         actors: javActors,
         tagIds: javTags,
-        sort: javRandomMode ? 'random' : javSort,
+        sort: javRandomMode ? 'random' : effectiveSort,
         seed: javRandomMode ? javRandomSeed : null,
       })
       const items = resp.items || []
@@ -510,7 +518,7 @@ export const useStore = create((set, get) => ({
   },
   loadJavRandom: async (seed) => {
     const nextSeed = normalizeSeed(seed) ?? generateSeed()
-    set({ javRandomMode: true, javRandomSeed: nextSeed, javPage: 1 })
+    set({ javPageSort: '', javRandomMode: true, javRandomSeed: nextSeed, javPage: 1 })
   },
 
   createDirectory: async ({ path }) => {
