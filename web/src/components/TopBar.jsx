@@ -241,8 +241,8 @@ export default function TopBar({
               >
                 <span className="min-w-0 truncate">
                   {zh(
-                    '没有可用的视频目录，打开目录管理添加',
-                    'No video directories. Open Directory Management to add one'
+                    '您还没有添加目录，点击此处在目录管理内添加',
+                    'No directories yet. Click here to add one in Directory Management'
                   )}
                 </span>
                 <ArrowForwardRoundedIcon
