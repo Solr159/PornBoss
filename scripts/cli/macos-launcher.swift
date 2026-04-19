@@ -7,6 +7,37 @@ private let startupURLPattern = try! NSRegularExpression(
   options: []
 )
 
+private func systemPrefersChinese() -> Bool {
+  let candidates = ProcessInfo.processInfo.environment["AppleLanguages"]
+    .map { [$0] } ?? []
+  let localeCandidates = Locale.preferredLanguages
+  for value in candidates + localeCandidates {
+    let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    guard !normalized.isEmpty else {
+      continue
+    }
+    let tokens = normalized.split(whereSeparator: {
+      ":;, \n\r\t()[]{}\"'".contains($0)
+    })
+    for token in tokens {
+      var part = String(token)
+      if let idx = part.firstIndex(where: { $0 == "." || $0 == "@" }) {
+        part = String(part[..<idx])
+      }
+      if part == "zh" || part.hasPrefix("zh-") || part.hasPrefix("zh_") || part.contains("chinese") {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+private let prefersChinese = systemPrefersChinese()
+
+private func localized(_ chinese: String, _ english: String) -> String {
+  prefersChinese ? chinese : english
+}
+
 final class OutputBuffer {
   private let limit: Int
   private let lock = NSLock()
@@ -120,7 +151,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     mainMenu.addItem(appMenuItem)
 
     let appMenu = NSMenu()
-    let quitItem = NSMenuItem(title: "Quit \(appName)", action: #selector(quitSelected(_:)), keyEquivalent: "q")
+    let quitItem = NSMenuItem(
+      title: localized("退出 \(appName)", "Quit \(appName)"),
+      action: #selector(quitSelected(_:)),
+      keyEquivalent: "q"
+    )
     quitItem.target = self
     appMenu.addItem(quitItem)
 
@@ -143,17 +178,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     contentView.translatesAutoresizingMaskIntoConstraints = false
     window.contentView = contentView
 
-    let statusLabel = NSTextField(labelWithString: "Starting Pornboss...")
+    let statusLabel = NSTextField(labelWithString: localized("正在启动 Pornboss...", "Starting Pornboss..."))
     statusLabel.font = .systemFont(ofSize: 14)
     statusLabel.alignment = .center
     statusLabel.translatesAutoresizingMaskIntoConstraints = false
 
-    let openButton = NSButton(title: "Open Page", target: self, action: #selector(openPageSelected(_:)))
+    let openButton = NSButton(
+      title: localized("打开页面", "Open Page"),
+      target: self,
+      action: #selector(openPageSelected(_:))
+    )
     openButton.bezelStyle = .rounded
     openButton.isEnabled = false
     openButton.translatesAutoresizingMaskIntoConstraints = false
 
-    let quitButton = NSButton(title: "Quit", target: self, action: #selector(quitSelected(_:)))
+    let quitButton = NSButton(title: localized("退出", "Quit"), target: self, action: #selector(quitSelected(_:)))
     quitButton.bezelStyle = .rounded
     quitButton.translatesAutoresizingMaskIntoConstraints = false
 
@@ -203,7 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     serverURL = url
-    updateStatus("Pornboss is running.")
+    updateStatus(localized("Pornboss 已启动。", "Pornboss is running."))
     openButton?.isEnabled = true
     if !hasAutoOpenedPage {
       hasAutoOpenedPage = true
@@ -213,7 +252,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   private func launchServer() {
     guard let launcherURL = Bundle.main.executableURL else {
-      showFatal(message: "Pornboss could not determine its executable path.", detail: "")
+      showFatal(message: localized("Pornboss 无法确定可执行文件路径。", "Pornboss could not determine its executable path."), detail: "")
       return
     }
 
@@ -221,7 +260,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let serverURL = executableDir.appendingPathComponent("pornboss-server")
     guard FileManager.default.isExecutableFile(atPath: serverURL.path) else {
       showFatal(
-        message: "Pornboss is missing the bundled server executable.",
+        message: localized("Pornboss 缺少内置服务端可执行文件。", "Pornboss is missing the bundled server executable."),
         detail: serverURL.path
       )
       return
@@ -283,12 +322,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     do {
       try process.run()
       serverProcess = process
-      updateStatus("Starting Pornboss...")
+      updateStatus(localized("正在启动 Pornboss...", "Starting Pornboss..."))
     } catch {
       let detail = [serverURL.path, error.localizedDescription]
         .filter { !$0.isEmpty }
         .joined(separator: "\n")
-      showFatal(message: "Pornboss failed to start.", detail: detail)
+      showFatal(message: localized("Pornboss 启动失败。", "Pornboss failed to start."), detail: detail)
     }
   }
 
@@ -322,13 +361,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       return
     }
 
-    updateStatus("Pornboss stopped.")
+    updateStatus(localized("Pornboss 已停止。", "Pornboss stopped."))
 
-    var lines = ["The bundled server stopped unexpectedly."]
+    var lines = [localized("内置服务异常停止。", "The bundled server stopped unexpectedly.")]
     if process.terminationReason == .uncaughtSignal {
-      lines.append("Signal: \(process.terminationStatus)")
+      lines.append(localized("信号：\(process.terminationStatus)", "Signal: \(process.terminationStatus)"))
     } else {
-      lines.append("Exit status: \(process.terminationStatus)")
+      lines.append(localized("退出状态：\(process.terminationStatus)", "Exit status: \(process.terminationStatus)"))
     }
 
     let capturedOutput = outputBuffer.stringValue()
@@ -337,7 +376,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       lines.append(capturedOutput)
     }
 
-    showFatal(message: "Pornboss stopped.", detail: lines.joined(separator: "\n"))
+    showFatal(message: localized("Pornboss 已停止。", "Pornboss stopped."), detail: lines.joined(separator: "\n"))
   }
 
   private func showFatal(message: String, detail: String) {
