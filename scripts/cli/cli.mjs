@@ -33,6 +33,7 @@ const WEB_DIR = path.join(ROOT_DIR, "web");
 const INTERNAL_BIN_DIR = path.join(ROOT_DIR, "internal", "bin");
 const BIN_DIR = path.join(ROOT_DIR, "bin");
 const MACOS_LAUNCHER_SOURCE = path.join(ROOT_DIR, "scripts", "cli", "macos-launcher.swift");
+const MACOS_APP_ICON_PNG = path.join(ROOT_DIR, "assets", "macos", "AppIcon.png");
 
 const PLATFORM_CHOICES = [
   { label: "windows-x86_64", goos: "windows", goarch: "amd64" },
@@ -402,12 +403,96 @@ async function compileMacLauncher(choice, appDir) {
   await fsp.chmod(launcherPath, 0o755);
 }
 
+function parseSipsProperties(output) {
+  const properties = {};
+  for (const line of output.split("\n")) {
+    const trimmed = line.trim();
+    const separator = trimmed.indexOf(":");
+    if (separator === -1) continue;
+    const key = trimmed.slice(0, separator).trim();
+    const value = trimmed.slice(separator + 1).trim();
+    if (key) properties[key] = value;
+  }
+  return properties;
+}
+
+async function generateMacAppIcon(outputPath) {
+  if (!(await exists(MACOS_APP_ICON_PNG))) {
+    throw new Error(`缺少 macOS app 图标源文件：${MACOS_APP_ICON_PNG}`);
+  }
+  if (!(await commandExists("sips"))) {
+    throw new Error("缺少 sips，无法从 PNG 生成 macOS app 图标");
+  }
+  if (!(await commandExists("iconutil"))) {
+    throw new Error("缺少 iconutil，无法生成 macOS app 图标");
+  }
+
+  const info = parseSipsProperties(
+    await runCommandCapture("sips", [
+      "-g",
+      "pixelWidth",
+      "-g",
+      "pixelHeight",
+      "-g",
+      "format",
+      MACOS_APP_ICON_PNG,
+    ]),
+  );
+  const width = Number.parseInt(info.pixelWidth ?? "", 10);
+  const height = Number.parseInt(info.pixelHeight ?? "", 10);
+  if (info.format !== "png") {
+    throw new Error(`macOS app 图标必须是 PNG：${MACOS_APP_ICON_PNG}`);
+  }
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width !== height) {
+    throw new Error(`macOS app 图标必须是正方形 PNG：${MACOS_APP_ICON_PNG}`);
+  }
+  if (width < 1024) {
+    throw new Error(`macOS app 图标建议至少 1024x1024，当前为 ${width}x${height}`);
+  }
+
+  const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), "pornboss-iconset-"));
+  const iconsetDir = path.join(tmpDir, "AppIcon.iconset");
+  const icon1024 = path.join(iconsetDir, "icon_512x512@2x.png");
+  try {
+    await fsp.mkdir(iconsetDir, { recursive: true });
+    await fsp.copyFile(MACOS_APP_ICON_PNG, icon1024);
+
+    const iconSizes = [
+      ["16", "16", "icon_16x16.png"],
+      ["32", "32", "icon_16x16@2x.png"],
+      ["32", "32", "icon_32x32.png"],
+      ["64", "64", "icon_32x32@2x.png"],
+      ["128", "128", "icon_128x128.png"],
+      ["256", "256", "icon_128x128@2x.png"],
+      ["256", "256", "icon_256x256.png"],
+      ["512", "512", "icon_256x256@2x.png"],
+      ["512", "512", "icon_512x512.png"],
+    ];
+
+    for (const [heightPx, widthPx, filename] of iconSizes) {
+      await runCommandCapture("sips", [
+        "-z",
+        heightPx,
+        widthPx,
+        icon1024,
+        "--out",
+        path.join(iconsetDir, filename),
+      ]);
+    }
+
+    await runCommandCapture("iconutil", ["-c", "icns", iconsetDir, "-o", outputPath]);
+  } finally {
+    await fsp.rm(tmpDir, { recursive: true, force: true });
+  }
+}
+
 async function createMacAppBundle(choice, appDir, version) {
   const contentsDir = path.join(appDir, "Contents");
   const macosDir = path.join(contentsDir, "MacOS");
   const resourcesDir = path.join(contentsDir, "Resources");
   await fsp.mkdir(macosDir, { recursive: true });
   await fsp.mkdir(resourcesDir, { recursive: true });
+  await generateMacAppIcon(path.join(resourcesDir, "AppIcon.icns"));
 
   const infoPlistPath = path.join(contentsDir, "Info.plist");
   const target = macLauncherTarget(choice);
@@ -421,6 +506,8 @@ async function createMacAppBundle(choice, appDir, version) {
   <string>Pornboss</string>
   <key>CFBundleExecutable</key>
   <string>Pornboss</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundleIdentifier</key>
   <string>com.javboss.pornboss</string>
   <key>CFBundleInfoDictionaryVersion</key>
