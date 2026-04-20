@@ -37,6 +37,8 @@ func main() {
 	staticDir := flag.String("static", "web/dist", "Path to built frontend assets")
 	flag.Parse()
 
+	_ = os.Setenv("PORNBOSS_BUILD_MODE", buildMode)
+
 	if buildMode == "release" && os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.ReleaseMode)
 	}
