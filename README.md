@@ -68,11 +68,18 @@ porn manager, jav manager, av manager, jav scraper, jav metadata, adult video ma
 
 ### 2. 启动程序
 
-- Windows：双击 `pornboss.exe`；首次运行可能会被smartScreen阻止，点击更多信息->仍要运行
-- macOS：右键 `pornboss.command` 点击打开；如果系统弹出安全警告，仍然选择继续打开
-- Linux：运行 `pornboss`
+- Windows：双击 `pornboss.exe`。
+首次运行可能会被smartScreen阻止，点击更多信息->仍要运行。
+- macOS：双击 `pornboss.command`。
+如果提示`Apple无法验证“pornboss.command”是否包含可能危害Mac安全或泄漏隐私的恶意软件`，打开`系统设置`，选择`隐私与安全性`，滑到最底部，点击`仍要打开`。
+<p align="center">
+  <img src="screenshot/macos1.png" style="width: 100%; height: auto;">
+</p>
 
-启动成功后，程序会自动尝试打开浏览器；如果没有自动打开，可以手动访问终端里显示的本地地址。
+- Linux：打开终端运行 `pornboss`。
+</br>
+
+启动成功后，程序会自动尝试打开浏览器；如果没有自动打开，可以手动访问终端里显示的本地地址，运行过程中请不要关闭终端窗口。
 
 ### 3. 添加你的资源目录
 

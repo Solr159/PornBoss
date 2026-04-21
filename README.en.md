@@ -67,11 +67,13 @@ Go to the [Releases](https://github.com/JavBoss/pornboss/releases) page, downloa
 
 ### 2. Start the App
 
-- Windows: double-click `pornboss.exe`. If SmartScreen blocks it on first launch, click "More info" and continue.
-- macOS: right-click `pornboss.command` and choose Open. If macOS shows a security warning, continue anyway.
-- Linux: run `pornboss`
+- Windows: double-click `pornboss.exe`.
+If SmartScreen blocks it on first launch, click "More info" and continue.
+- macOS: double-click `pornboss.command`.
+If macOS says it cannot verify whether `pornboss.command` contains malware that may harm your Mac or compromise your privacy, open `System Settings`, go to `Privacy & Security`, scroll to the bottom, click `Open Anyway`.
+- Linux: open a terminal and run `pornboss`.
 
-After launch, Pornboss will try to open your browser automatically. If it does not, open the local address shown in the terminal manually.
+After launch, Pornboss will try to open your browser automatically. If it does not, open the local address shown in the terminal manually, and do not close the terminal window while Pornboss is running.
 
 ### 3. Add Your Media Directories
 
