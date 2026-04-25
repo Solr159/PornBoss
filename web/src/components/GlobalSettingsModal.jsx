@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import DirectoryManager from '@/components/DirectoryManager'
 import PlayerSettingsModal from '@/components/PlayerSettingsModal'
-import { formatPlayerHotkeyKey, parsePlayerHotkeys } from '@/utils/playerHotkeys'
+import { parsePlayerHotkeys } from '@/utils/playerHotkeys'
 import { zh } from '@/utils/i18n'
 
 const SETTINGS_SECTIONS = [
@@ -42,20 +42,7 @@ export default function GlobalSettingsModal({
   const [proxyEnabledInput, setProxyEnabledInput] = useState(false)
   const [activeSection, setActiveSection] = useState('proxy')
 
-  const normalizedPlayerHotkeys = useMemo(() => parsePlayerHotkeys(playerHotkeys), [playerHotkeys])
-  const shortcutSummary = normalizedPlayerHotkeys
-    .map((item) =>
-      item.action === 'volume'
-        ? zh(
-            `${formatPlayerHotkeyKey(item.key)}: 音量 ${item.amount > 0 ? '+' : ''}${item.amount}%`,
-            `${formatPlayerHotkeyKey(item.key)}: Volume ${item.amount > 0 ? '+' : ''}${item.amount}%`
-          )
-        : zh(
-            `${formatPlayerHotkeyKey(item.key)}: 进度 ${item.amount > 0 ? '+' : ''}${item.amount} 秒`,
-            `${formatPlayerHotkeyKey(item.key)}: Seek ${item.amount > 0 ? '+' : ''}${item.amount}s`
-          )
-    )
-    .join(' / ')
+  const normalizedPlayerHotkeys = parsePlayerHotkeys(playerHotkeys)
 
   useEffect(() => {
     if (open) {
@@ -198,14 +185,12 @@ export default function GlobalSettingsModal({
   const renderPlayerPanel = () => (
     <div className="space-y-5">
       <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 text-sm text-zinc-500">
-          {shortcutSummary || zh('当前未配置自定义快捷键', 'No shortcuts configured')}
+        <div className="mb-4">
+          <h4 className="text-sm font-semibold text-zinc-800">
+            {zh('快捷键设置', 'Shortcut Settings')}
+          </h4>
         </div>
-        <PlayerSettingsModal
-          embedded
-          hotkeys={normalizedPlayerHotkeys}
-          onSave={onSavePlayerHotkeys}
-        />
+        <PlayerSettingsModal hotkeys={normalizedPlayerHotkeys} onSave={onSavePlayerHotkeys} />
       </section>
     </div>
   )
