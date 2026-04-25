@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -253,16 +252,12 @@ func (m *ScreenshotManager) capture(ctx context.Context, videoPath string, secon
 		return fmt.Errorf("ensure screenshot dir: %w", err)
 	}
 
-	tempPath := outputPath + ".tmp.jpg"
+	shotPath := filepath.Join(filepath.Dir(outputPath), "00000001.jpg")
 	mpvPath, pathErr := util.ResolveMPVPath()
 	if pathErr != nil {
 		return fmt.Errorf("resolve mpv path: %w", pathErr)
 	}
-	tempDir, err := os.MkdirTemp(filepath.Dir(outputPath), ".mpv-shot-*")
-	if err != nil {
-		return fmt.Errorf("create mpv temp dir: %w", err)
-	}
-	defer func() { _ = os.RemoveAll(tempDir) }()
+	_ = os.Remove(shotPath)
 
 	args := []string{
 		"--no-config",
@@ -274,14 +269,14 @@ func (m *ScreenshotManager) capture(ctx context.Context, videoPath string, secon
 		"--frames=1",
 		"--vo=image",
 		"--vo-image-format=jpg",
-		"--vo-image-outdir=" + tempDir,
+		"--vo-image-outdir=" + filepath.Dir(outputPath),
 		videoPath,
 	}
 
 	cmd := exec.CommandContext(ctx, mpvPath, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		_ = os.Remove(tempPath)
+		_ = os.Remove(shotPath)
 		if errors.Is(err, exec.ErrNotFound) {
 			return fmt.Errorf("mpv not found: %w", err)
 		}
@@ -292,38 +287,16 @@ func (m *ScreenshotManager) capture(ctx context.Context, videoPath string, secon
 		return fmt.Errorf("mpv screenshot failed: %w", err)
 	}
 
-	entries, err := os.ReadDir(tempDir)
+	info, err := os.Stat(shotPath)
 	if err != nil {
-		return fmt.Errorf("read mpv output dir: %w", err)
-	}
-	files := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		if strings.EqualFold(filepath.Ext(entry.Name()), ".jpg") || strings.EqualFold(filepath.Ext(entry.Name()), ".jpeg") {
-			files = append(files, filepath.Join(tempDir, entry.Name()))
-		}
-	}
-	if len(files) == 0 {
 		return errors.New("mpv produced no screenshot file")
 	}
-	slices.Sort(files)
-
-	info, err := os.Stat(files[0])
-	if err != nil {
-		return fmt.Errorf("screenshot not produced: %s %w", videoPath, err)
-	}
 	if info.Size() == 0 {
+		_ = os.Remove(shotPath)
 		return errors.New("mpv produced empty screenshot file")
 	}
 
-	if err := os.Rename(files[0], tempPath); err != nil {
-		return fmt.Errorf("stage screenshot: %w", err)
-	}
-
-	if err := os.Rename(tempPath, outputPath); err != nil {
-		_ = os.Remove(tempPath)
+	if err := os.Rename(shotPath, outputPath); err != nil {
 		return fmt.Errorf("rename screenshot: %w", err)
 	}
 	return nil
