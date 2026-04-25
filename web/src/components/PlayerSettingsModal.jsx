@@ -19,22 +19,21 @@ const createRows = (items) =>
     amount: String(item.amount),
   }))
 
-export default function PlayerSettingsModal({ open, onClose, hotkeys, onSave }) {
+export default function PlayerSettingsModal({ hotkeys, onSave }) {
   const seedRef = useRef(0)
   const [rows, setRows] = useState([])
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (!open) return
     seedRef.current += 1
     const source = Array.isArray(hotkeys) ? hotkeys : DEFAULT_PLAYER_HOTKEYS
     setRows(createRows(source))
     setError('')
+    setSuccess('')
     setSaving(false)
-  }, [open, hotkeys])
-
-  if (!open) return null
+  }, [hotkeys])
 
   const setRowValue = (id, patch) => {
     setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)))
@@ -52,15 +51,18 @@ export default function PlayerSettingsModal({ open, onClose, hotkeys, onSave }) 
       },
     ])
     setError('')
+    setSuccess('')
   }
 
   const handleReset = () => {
     setRows(createRows(DEFAULT_PLAYER_HOTKEYS))
     setError('')
+    setSuccess('')
   }
 
   const handleSave = async () => {
     setError('')
+    setSuccess('')
     const seen = new Set()
     const normalized = []
     for (const row of rows) {
@@ -117,7 +119,7 @@ export default function PlayerSettingsModal({ open, onClose, hotkeys, onSave }) 
     setSaving(true)
     try {
       await onSave?.(normalized)
-      onClose?.()
+      setSuccess(zh('快捷键保存成功', 'Shortcut settings saved'))
     } catch (err) {
       setError(err.message || zh('保存失败', 'Save failed'))
     } finally {
@@ -126,145 +128,119 @@ export default function PlayerSettingsModal({ open, onClose, hotkeys, onSave }) 
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-4xl rounded-lg bg-white p-5 shadow-xl">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold">{zh('播放器设置', 'Player Settings')}</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              {zh('仅支持视频进度和音量快捷键', 'Only seek and volume shortcuts are supported')}
-            </p>
+    <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <div className="space-y-3">
+        <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 px-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+          <div>{zh('按键', 'Key')}</div>
+          <div>{zh('动作', 'Action')}</div>
+          <div>{zh('变化值', 'Amount')}</div>
+          <div>{zh('操作', 'Operation')}</div>
+        </div>
+
+        {rows.length === 0 ? (
+          <div className="rounded border border-dashed px-4 py-6 text-center text-sm text-gray-500">
+            {zh('当前没有自定义快捷键', 'No custom shortcuts')}
           </div>
+        ) : (
+          rows.map((row) => (
+            <div
+              key={row.id}
+              className="grid grid-cols-1 gap-3 rounded-xl border border-zinc-200 bg-zinc-50/60 p-3 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
+            >
+              <input
+                value={formatPlayerHotkeyKey(row.key)}
+                readOnly
+                onKeyDown={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  const nextKey = normalizePlayerHotkeyKey(event.key)
+                  if (!nextKey) return
+                  setRowValue(row.id, { key: nextKey })
+                  setError('')
+                  setSuccess('')
+                }}
+                onFocus={() => setError('')}
+                placeholder={zh('聚焦后按下按键', 'Focus then press a key')}
+                className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <select
+                value={row.action}
+                onChange={(event) => {
+                  const nextAction = event.target.value
+                  setRowValue(row.id, {
+                    action: nextAction,
+                    amount: nextAction === PLAYER_HOTKEY_ACTIONS.VOLUME ? '10' : '5',
+                  })
+                  setError('')
+                  setSuccess('')
+                }}
+                className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
+              >
+                <option value={PLAYER_HOTKEY_ACTIONS.SEEK}>{zh('调节进度', 'Seek')}</option>
+                <option value={PLAYER_HOTKEY_ACTIONS.VOLUME}>{zh('调节音量', 'Volume')}</option>
+              </select>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  step="1"
+                  value={row.amount}
+                  onChange={(event) => {
+                    setRowValue(row.id, { amount: event.target.value })
+                    setError('')
+                    setSuccess('')
+                  }}
+                  className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
+                />
+                <span className="shrink-0 text-sm text-gray-500">
+                  {row.action === PLAYER_HOTKEY_ACTIONS.VOLUME ? '%' : zh('秒', 'sec')}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setRows((current) => current.filter((item) => item.id !== row.id))
+                  setError('')
+                  setSuccess('')
+                }}
+                className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+              >
+                {zh('删除', 'Delete')}
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      {error && <div className="mt-2 text-sm text-red-600">{error}</div>}
+      {success && <div className="mt-2 text-sm text-emerald-600">{success}</div>}
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={onClose}
-            className="rounded px-3 py-1 text-sm text-gray-600 hover:bg-gray-100"
+            onClick={handleAdd}
+            className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50"
           >
-            {zh('关闭', 'Close')}
+            {zh('新增快捷键', 'Add shortcut')}
+          </button>
+          <button
+            type="button"
+            onClick={handleReset}
+            className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50"
+          >
+            {zh('恢复默认', 'Restore defaults')}
           </button>
         </div>
-
-        <div className="mt-4 space-y-3">
-          <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 px-2 text-xs font-medium uppercase tracking-wide text-gray-500">
-            <div>{zh('按键', 'Key')}</div>
-            <div>{zh('动作', 'Action')}</div>
-            <div>{zh('变化值', 'Amount')}</div>
-            <div>{zh('操作', 'Operation')}</div>
-          </div>
-
-          {rows.length === 0 ? (
-            <div className="rounded border border-dashed px-4 py-6 text-center text-sm text-gray-500">
-              {zh('当前没有自定义快捷键', 'No custom shortcuts')}
-            </div>
-          ) : (
-            rows.map((row) => (
-              <div
-                key={row.id}
-                className="grid grid-cols-1 gap-3 rounded border p-3 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
-              >
-                <input
-                  value={formatPlayerHotkeyKey(row.key)}
-                  readOnly
-                  onKeyDown={(event) => {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    const nextKey = normalizePlayerHotkeyKey(event.key)
-                    if (!nextKey) return
-                    setRowValue(row.id, { key: nextKey })
-                    setError('')
-                  }}
-                  onFocus={() => setError('')}
-                  placeholder={zh('聚焦后按下按键', 'Focus then press a key')}
-                  className="rounded border px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <select
-                  value={row.action}
-                  onChange={(event) => {
-                    const nextAction = event.target.value
-                    setRowValue(row.id, {
-                      action: nextAction,
-                      amount: nextAction === PLAYER_HOTKEY_ACTIONS.VOLUME ? '10' : '5',
-                    })
-                    setError('')
-                  }}
-                  className="rounded border px-3 py-2 text-sm"
-                >
-                  <option value={PLAYER_HOTKEY_ACTIONS.SEEK}>{zh('调节进度', 'Seek')}</option>
-                  <option value={PLAYER_HOTKEY_ACTIONS.VOLUME}>{zh('调节音量', 'Volume')}</option>
-                </select>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    step="1"
-                    value={row.amount}
-                    onChange={(event) => {
-                      setRowValue(row.id, { amount: event.target.value })
-                      setError('')
-                    }}
-                    className="w-full rounded border px-3 py-2 text-sm"
-                  />
-                  <span className="shrink-0 text-sm text-gray-500">
-                    {row.action === PLAYER_HOTKEY_ACTIONS.VOLUME ? '%' : zh('秒', 'sec')}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRows((current) => current.filter((item) => item.id !== row.id))
-                    setError('')
-                  }}
-                  className="rounded border px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-                >
-                  {zh('删除', 'Delete')}
-                </button>
-              </div>
-            ))
-          )}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="rounded-xl bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-60"
+          >
+            {saving ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
+          </button>
         </div>
-
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={handleAdd}
-              className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
-            >
-              {zh('新增快捷键', 'Add shortcut')}
-            </button>
-            <button
-              type="button"
-              onClick={handleReset}
-              className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
-            >
-              {zh('恢复默认', 'Restore defaults')}
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
-            >
-              {zh('取消', 'Cancel')}
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-60"
-            >
-              {saving ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-2 text-xs text-gray-500">
-          {zh(
-            '正数表示增加，负数表示减少。`Space` 和 `Escape` 仍固定用于播放/暂停和关闭播放器。',
-            'Positive numbers increase, negative numbers decrease. `Space` and `Escape` remain reserved for play/pause and close.'
-          )}
-        </div>
-        {error && <div className="mt-2 text-sm text-red-600">{error}</div>}
       </div>
     </div>
   )

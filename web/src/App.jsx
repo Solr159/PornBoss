@@ -1637,6 +1637,42 @@ export default function App() {
           const cfg = await updateConfig({ proxy_port: port })
           useStore.setState({ config: cfg })
         }}
+        playerWindowWidth={
+          Number.parseInt(config?.player_window_width, 10) ||
+          Number.parseInt(config?.player_window_size, 10) ||
+          70
+        }
+        playerWindowHeight={
+          Number.parseInt(config?.player_window_height, 10) ||
+          Number.parseInt(config?.player_window_size, 10) ||
+          70
+        }
+        playerWindowUseAutofit={
+          config?.player_window_use_autofit == null
+            ? false
+            : !['0', 'false', 'no', 'off'].includes(
+                String(config.player_window_use_autofit).trim().toLowerCase()
+              )
+        }
+        playerOntop={
+          config?.player_ontop == null
+            ? true
+            : !['0', 'false', 'no', 'off'].includes(
+                String(config.player_ontop).trim().toLowerCase()
+              )
+        }
+        playerVolume={
+          config?.player_volume === '0' ? 0 : Number.parseInt(config?.player_volume, 10) || 70
+        }
+        onSavePlayerBasicSettings={async (payload) => {
+          const cfg = await updateConfig(payload)
+          useStore.setState({ config: cfg })
+        }}
+        playerHotkeys={config?.player_hotkeys}
+        onSavePlayerHotkeys={async (hotkeys) => {
+          const cfg = await updateConfig({ player_hotkeys: hotkeys })
+          useStore.setState({ config: cfg })
+        }}
       />
       <Toast
         open={Boolean(toastMessage)}

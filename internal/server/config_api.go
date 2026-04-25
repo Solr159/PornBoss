@@ -10,6 +10,7 @@ import (
 
 	"pornboss/internal/common/logging"
 	dbpkg "pornboss/internal/db"
+	"pornboss/internal/mpv"
 	"pornboss/internal/util"
 )
 
@@ -33,14 +34,20 @@ func updateConfig(c *gin.Context) {
 	}
 
 	var req struct {
-		VideoPageSize *int                  `json:"video_page_size"`
-		JavPageSize   *int                  `json:"jav_page_size"`
-		IdolPageSize  *int                  `json:"idol_page_size"`
-		VideoSort     string                `json:"video_sort"`
-		JavSort       string                `json:"jav_sort"`
-		IdolSort      string                `json:"idol_sort"`
-		ProxyPort     *int                  `json:"proxy_port"`
-		PlayerHotkeys []playerHotkeyPayload `json:"player_hotkeys"`
+		VideoPageSize          *int                  `json:"video_page_size"`
+		JavPageSize            *int                  `json:"jav_page_size"`
+		IdolPageSize           *int                  `json:"idol_page_size"`
+		VideoSort              string                `json:"video_sort"`
+		JavSort                string                `json:"jav_sort"`
+		IdolSort               string                `json:"idol_sort"`
+		ProxyPort              *int                  `json:"proxy_port"`
+		PlayerWindowSize       *int                  `json:"player_window_size"`
+		PlayerWindowWidth      *int                  `json:"player_window_width"`
+		PlayerWindowHeight     *int                  `json:"player_window_height"`
+		PlayerWindowUseAutofit *bool                 `json:"player_window_use_autofit"`
+		PlayerVolume           *int                  `json:"player_volume"`
+		PlayerOntop            *bool                 `json:"player_ontop"`
+		PlayerHotkeys          []playerHotkeyPayload `json:"player_hotkeys"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
@@ -105,6 +112,44 @@ func updateConfig(c *gin.Context) {
 			entries["proxy_port"] = strconv.Itoa(port)
 		}
 	}
+	if req.PlayerWindowSize != nil {
+		size := *req.PlayerWindowSize
+		if size < 10 || size > 100 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "player window size out of range"})
+			return
+		}
+		entries["player_window_size"] = strconv.Itoa(size)
+	}
+	if req.PlayerWindowWidth != nil {
+		width := *req.PlayerWindowWidth
+		if width < 10 || width > 100 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "player window width out of range"})
+			return
+		}
+		entries["player_window_width"] = strconv.Itoa(width)
+	}
+	if req.PlayerWindowHeight != nil {
+		height := *req.PlayerWindowHeight
+		if height < 10 || height > 100 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "player window height out of range"})
+			return
+		}
+		entries["player_window_height"] = strconv.Itoa(height)
+	}
+	if req.PlayerWindowUseAutofit != nil {
+		entries["player_window_use_autofit"] = strconv.FormatBool(*req.PlayerWindowUseAutofit)
+	}
+	if req.PlayerVolume != nil {
+		volume := *req.PlayerVolume
+		if volume < 0 || volume > 130 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "player volume out of range"})
+			return
+		}
+		entries["player_volume"] = strconv.Itoa(volume)
+	}
+	if req.PlayerOntop != nil {
+		entries["player_ontop"] = strconv.FormatBool(*req.PlayerOntop)
+	}
 	if req.PlayerHotkeys != nil {
 		clean := make([]playerHotkeyPayload, 0, len(req.PlayerHotkeys))
 		seen := make(map[string]struct{}, len(req.PlayerHotkeys))
@@ -157,6 +202,17 @@ func updateConfig(c *gin.Context) {
 		logging.Error("update config error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
+	}
+	if req.PlayerHotkeys != nil {
+		mpv.InvalidateHotkeysCache()
+	}
+	if req.PlayerWindowSize != nil ||
+		req.PlayerWindowWidth != nil ||
+		req.PlayerWindowHeight != nil ||
+		req.PlayerWindowUseAutofit != nil ||
+		req.PlayerVolume != nil ||
+		req.PlayerOntop != nil {
+		mpv.InvalidatePlayerConfigCache()
 	}
 
 	cfg, err := dbpkg.ListConfig(c.Request.Context())
