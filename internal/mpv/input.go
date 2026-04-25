@@ -329,6 +329,7 @@ func buildConfigContent() (string, error) {
 	lines := []string{
 		"auto-window-resize=no",
 		"keep-open=yes",
+		"ontop=yes",
 	}
 	if useAutofit {
 		lines = append(lines,
