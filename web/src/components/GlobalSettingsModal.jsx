@@ -7,6 +7,11 @@ import { zh } from '@/utils/i18n'
 
 const SETTINGS_SECTIONS = [
   {
+    id: 'directories',
+    title: { zh: '目录管理', en: 'Directory Management' },
+    summary: { zh: '管理扫描目录与路径', en: 'Manage watched folders and paths' },
+  },
+  {
     id: 'proxy',
     title: { zh: '网络与代理', en: 'Network & Proxy' },
     summary: { zh: '代理端口与连接行为', en: 'Proxy port and connection behavior' },
@@ -15,11 +20,6 @@ const SETTINGS_SECTIONS = [
     id: 'player',
     title: { zh: '播放器设置', en: 'Player Settings' },
     summary: { zh: 'mpv 快捷键与播放控制', en: 'mpv shortcuts and playback controls' },
-  },
-  {
-    id: 'directories',
-    title: { zh: '目录管理', en: 'Directory Management' },
-    summary: { zh: '管理扫描目录与路径', en: 'Manage watched folders and paths' },
   },
 ]
 
@@ -483,7 +483,7 @@ export default function GlobalSettingsModal({
                       ? String(proxyPort)
                       : zh('自动', 'Auto')
                     : section.id === 'player'
-                      ? String(normalizedPlayerHotkeys.length)
+                      ? ''
                       : String(directories.length)
 
                 return (
@@ -502,13 +502,12 @@ export default function GlobalSettingsModal({
                         <div className="text-sm font-semibold text-zinc-900">
                           {zh(section.title.zh, section.title.en)}
                         </div>
-                        <div className="mt-1 text-xs text-zinc-500">
-                          {zh(section.summary.zh, section.summary.en)}
-                        </div>
                       </div>
-                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
-                        {badgeText}
-                      </span>
+                      {badgeText ? (
+                        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
+                          {badgeText}
+                        </span>
+                      ) : null}
                     </div>
                   </button>
                 )
