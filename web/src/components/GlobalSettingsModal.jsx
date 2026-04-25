@@ -285,7 +285,7 @@ export default function GlobalSettingsModal({
                     </label>
                   </div>
 
-                  <label className="flex items-center gap-3 text-sm font-semibold text-zinc-800">
+                  <label className="flex items-center gap-3 text-sm font-medium text-zinc-600">
                     <input
                       type="checkbox"
                       checked={playerWindowUseAutofitInput}
