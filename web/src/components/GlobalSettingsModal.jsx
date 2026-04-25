@@ -32,6 +32,11 @@ export default function GlobalSettingsModal({
   onDeleteDirectory,
   proxyPort,
   onSaveProxyPort,
+  playerWindowWidth,
+  playerWindowHeight,
+  playerWindowUseAutofit,
+  playerVolume,
+  onSavePlayerBasicSettings,
   playerHotkeys,
   onSavePlayerHotkeys,
 }) {
@@ -41,6 +46,14 @@ export default function GlobalSettingsModal({
   const [proxyEditing, setProxyEditing] = useState(false)
   const [proxyEnabledInput, setProxyEnabledInput] = useState(false)
   const [activeSection, setActiveSection] = useState('proxy')
+  const [playerTab, setPlayerTab] = useState('basic')
+  const [playerBasicError, setPlayerBasicError] = useState('')
+  const [playerBasicSuccess, setPlayerBasicSuccess] = useState('')
+  const [savingPlayerBasic, setSavingPlayerBasic] = useState(false)
+  const [playerWindowWidthInput, setPlayerWindowWidthInput] = useState('')
+  const [playerWindowHeightInput, setPlayerWindowHeightInput] = useState('')
+  const [playerWindowUseAutofitInput, setPlayerWindowUseAutofitInput] = useState(true)
+  const [playerVolumeInput, setPlayerVolumeInput] = useState('')
 
   const normalizedPlayerHotkeys = parsePlayerHotkeys(playerHotkeys)
 
@@ -50,8 +63,15 @@ export default function GlobalSettingsModal({
       setProxyEnabledInput(Boolean(proxyPort))
       setProxyEditing(false)
       setProxyError('')
+      setPlayerTab('basic')
+      setPlayerBasicError('')
+      setPlayerBasicSuccess('')
+      setPlayerWindowWidthInput(String(playerWindowWidth ?? 70))
+      setPlayerWindowHeightInput(String(playerWindowHeight ?? 70))
+      setPlayerWindowUseAutofitInput(playerWindowUseAutofit ?? true)
+      setPlayerVolumeInput(String(playerVolume ?? 70))
     }
-  }, [open, proxyPort])
+  }, [open, proxyPort, playerWindowWidth, playerWindowHeight, playerWindowUseAutofit, playerVolume])
 
   if (!open) return null
 
@@ -185,18 +205,210 @@ export default function GlobalSettingsModal({
   const renderPlayerPanel = () => (
     <div className="space-y-5">
       <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <div className="mb-4">
-          <h4 className="text-sm font-semibold text-zinc-800">
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setPlayerTab('basic')}
+            className={`rounded-xl px-3 py-1.5 text-sm ${
+              playerTab === 'basic'
+                ? 'bg-zinc-900 text-white'
+                : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+            }`}
+          >
+            {zh('基础设置', 'Basic Settings')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setPlayerTab('hotkeys')}
+            className={`rounded-xl px-3 py-1.5 text-sm ${
+              playerTab === 'hotkeys'
+                ? 'bg-zinc-900 text-white'
+                : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+            }`}
+          >
             {zh('快捷键设置', 'Shortcut Settings')}
-          </h4>
-          <p className="mt-1 text-xs text-zinc-500">
-            {zh(
-              '正数表示增加，负数表示减少。`Space` 和 `Escape` 仍固定用于播放/暂停和关闭播放器。',
-              'Positive numbers increase, negative numbers decrease. `Space` and `Escape` remain reserved for play/pause and close.'
-            )}
-          </p>
+          </button>
         </div>
-        <PlayerSettingsModal hotkeys={normalizedPlayerHotkeys} onSave={onSavePlayerHotkeys} />
+
+        {playerTab === 'basic' ? (
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-zinc-800">
+                  {zh('初始宽度', 'Initial Width')}
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={playerWindowWidthInput}
+                    onChange={(e) => {
+                      setPlayerWindowWidthInput(e.target.value)
+                      setPlayerBasicError('')
+                      setPlayerBasicSuccess('')
+                    }}
+                    inputMode="numeric"
+                    className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
+                  />
+                  <span className="text-sm text-zinc-500">%</span>
+                </div>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {zh(
+                    '控制 mpv 初始窗口宽度，范围 10-100。',
+                    'Controls the initial mpv window width, range 10-100.'
+                  )}
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-zinc-800">
+                  {zh('初始高度', 'Initial Height')}
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={playerWindowHeightInput}
+                    onChange={(e) => {
+                      setPlayerWindowHeightInput(e.target.value)
+                      setPlayerBasicError('')
+                      setPlayerBasicSuccess('')
+                    }}
+                    inputMode="numeric"
+                    className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
+                  />
+                  <span className="text-sm text-zinc-500">%</span>
+                </div>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {zh(
+                    '控制 mpv 初始窗口高度，范围 10-100。',
+                    'Controls the initial mpv window height, range 10-100.'
+                  )}
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-zinc-800">
+                  {zh('初始音量', 'Initial Volume')}
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={playerVolumeInput}
+                    onChange={(e) => {
+                      setPlayerVolumeInput(e.target.value)
+                      setPlayerBasicError('')
+                      setPlayerBasicSuccess('')
+                    }}
+                    inputMode="numeric"
+                    className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
+                  />
+                  <span className="text-sm text-zinc-500">%</span>
+                </div>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {zh(
+                    '控制 mpv 启动时的默认音量，范围 0-130。',
+                    'Controls the default mpv startup volume, range 0-130.'
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+              <label className="flex items-center gap-3 text-sm font-semibold text-zinc-800">
+                <input
+                  type="checkbox"
+                  checked={playerWindowUseAutofitInput}
+                  onChange={(e) => {
+                    setPlayerWindowUseAutofitInput(e.target.checked)
+                    setPlayerBasicError('')
+                    setPlayerBasicSuccess('')
+                  }}
+                  className="h-4 w-4 rounded"
+                />
+                <span>{zh('窗口大小使用 AutoFit', 'Use AutoFit for window size')}</span>
+              </label>
+              <p className="mt-2 text-xs text-zinc-500">
+                {playerWindowUseAutofitInput
+                  ? zh(
+                      '开启后按最大宽高限制窗口，并保持视频纵横比。',
+                      'When enabled, the window is limited by max width and height while preserving aspect ratio.'
+                    )
+                  : zh(
+                      '关闭后将强制使用指定宽高，可能出现黑边。',
+                      'When disabled, the specified width and height are enforced and may produce letterboxing.'
+                    )}
+              </p>
+            </div>
+
+            {playerBasicError && (
+              <div className="mt-3 text-sm text-red-600">{playerBasicError}</div>
+            )}
+            {playerBasicSuccess && (
+              <div className="mt-3 text-sm text-emerald-600">{playerBasicSuccess}</div>
+            )}
+
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={async () => {
+                  setPlayerBasicError('')
+                  setPlayerBasicSuccess('')
+                  const width = Number.parseInt(playerWindowWidthInput, 10)
+                  const height = Number.parseInt(playerWindowHeightInput, 10)
+                  const volume = Number.parseInt(playerVolumeInput, 10)
+                  if (!Number.isFinite(width) || width < 10 || width > 100) {
+                    setPlayerBasicError(
+                      zh('初始宽度请输入 10-100', 'Initial width must be between 10 and 100')
+                    )
+                    return
+                  }
+                  if (!Number.isFinite(height) || height < 10 || height > 100) {
+                    setPlayerBasicError(
+                      zh('初始高度请输入 10-100', 'Initial height must be between 10 and 100')
+                    )
+                    return
+                  }
+                  if (!Number.isFinite(volume) || volume < 0 || volume > 130) {
+                    setPlayerBasicError(
+                      zh('初始音量请输入 0-130', 'Initial volume must be between 0 and 130')
+                    )
+                    return
+                  }
+
+                  setSavingPlayerBasic(true)
+                  try {
+                    await onSavePlayerBasicSettings?.({
+                      player_window_width: width,
+                      player_window_height: height,
+                      player_window_use_autofit: playerWindowUseAutofitInput,
+                      player_volume: volume,
+                    })
+                    setPlayerBasicSuccess(zh('基础设置保存成功', 'Basic settings saved'))
+                  } catch (err) {
+                    setPlayerBasicError(err.message || zh('保存失败', 'Save failed'))
+                  } finally {
+                    setSavingPlayerBasic(false)
+                  }
+                }}
+                disabled={savingPlayerBasic}
+                className="rounded-xl bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+              >
+                {savingPlayerBasic ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="mb-4">
+              <h4 className="text-sm font-semibold text-zinc-800">
+                {zh('快捷键设置', 'Shortcut Settings')}
+              </h4>
+              <p className="mt-1 text-xs text-zinc-500">
+                {zh(
+                  '正数表示增加，负数表示减少。`Space` 和 `Escape` 仍固定用于播放/暂停和关闭播放器。',
+                  'Positive numbers increase, negative numbers decrease. `Space` and `Escape` remain reserved for play/pause and close.'
+                )}
+              </p>
+            </div>
+            <PlayerSettingsModal hotkeys={normalizedPlayerHotkeys} onSave={onSavePlayerHotkeys} />
+          </>
+        )}
       </section>
     </div>
   )

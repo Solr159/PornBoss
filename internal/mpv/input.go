@@ -16,11 +16,17 @@ import (
 )
 
 const playerHotkeysConfigKey = "player_hotkeys"
+const playerWindowSizeConfigKey = "player_window_size"
+const playerWindowWidthConfigKey = "player_window_width"
+const playerWindowHeightConfigKey = "player_window_height"
+const playerWindowUseAutofitConfigKey = "player_window_use_autofit"
+const playerVolumeConfigKey = "player_volume"
 
-const configContent = `autofit=70%x70%
-geometry=50%:50%
-auto-window-resize=no
-`
+const (
+	defaultWindowWidth  = 70
+	defaultWindowHeight = 70
+	defaultVolume       = 70
+)
 
 type hotkeyConfig struct {
 	Key    string  `json:"key"`
@@ -47,9 +53,10 @@ var (
 	inputConfContent string
 	inputConfReady   bool
 
-	configOnce sync.Once
-	configPath string
-	configErr  error
+	configMu      sync.Mutex
+	configPath    string
+	configContent string
+	configReady   bool
 )
 
 func InvalidateHotkeysCache() {
@@ -58,6 +65,14 @@ func InvalidateHotkeysCache() {
 
 	inputConfContent = ""
 	inputConfReady = false
+}
+
+func InvalidatePlayerConfigCache() {
+	configMu.Lock()
+	defer configMu.Unlock()
+
+	configContent = ""
+	configReady = false
 }
 
 func ensureInputConf() (string, error) {
@@ -265,22 +280,112 @@ func formatAmount(amount float64) string {
 }
 
 func ensureConfig() (string, error) {
-	configOnce.Do(func() {
-		configPath, configErr = writeConfig()
-	})
-	return configPath, configErr
-}
+	configMu.Lock()
+	defer configMu.Unlock()
 
-func writeConfig() (string, error) {
 	dir := filepath.Join(os.TempDir(), "pornboss")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("create mpv config dir: %w", err)
 	}
 
-	path := filepath.Join(dir, "mpv.conf")
-	if err := os.WriteFile(path, []byte(configContent), 0o644); err != nil {
+	if configPath == "" {
+		configPath = filepath.Join(dir, "mpv.conf")
+	}
+
+	if configReady {
+		if _, err := os.Stat(configPath); err == nil {
+			return configPath, nil
+		}
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
+			return "", fmt.Errorf("restore mpv config: %w", err)
+		}
+		return configPath, nil
+	}
+
+	return writeConfig()
+}
+
+func writeConfig() (string, error) {
+	content, err := buildConfigContent()
+	if err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(configPath, []byte(content), 0o644); err != nil {
 		return "", fmt.Errorf("write mpv config: %w", err)
 	}
 
-	return path, nil
+	configContent = content
+	configReady = true
+
+	return configPath, nil
+}
+
+func buildConfigContent() (string, error) {
+	windowWidth, windowHeight, useAutofit, volume, err := loadConfiguredPlayerBaseSettings()
+	if err != nil {
+		return "", err
+	}
+
+	lines := []string{"auto-window-resize=no"}
+	if useAutofit {
+		lines = append(lines,
+			fmt.Sprintf("autofit=%d%%x%d%%", windowWidth, windowHeight),
+			"geometry=50%:50%",
+		)
+	} else {
+		lines = append(lines, fmt.Sprintf("geometry=%d%%x%d%%", windowWidth, windowHeight))
+	}
+	lines = append(lines, fmt.Sprintf("volume=%d", volume))
+
+	return strings.Join(lines, "\n") + "\n", nil
+}
+
+func loadConfiguredPlayerBaseSettings() (int, int, bool, int, error) {
+	if common.DB == nil {
+		return defaultWindowWidth, defaultWindowHeight, true, defaultVolume, nil
+	}
+
+	cfg, err := dbpkg.ListConfig(context.Background())
+	if err != nil {
+		logging.Error("list player base config failed, using defaults: %v", err)
+		return defaultWindowWidth, defaultWindowHeight, true, defaultVolume, nil
+	}
+
+	windowWidth := defaultWindowWidth
+	windowHeight := defaultWindowHeight
+	if raw := strings.TrimSpace(cfg[playerWindowSizeConfigKey]); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed >= 10 && parsed <= 100 {
+			windowWidth = parsed
+			windowHeight = parsed
+		}
+	}
+	if raw := strings.TrimSpace(cfg[playerWindowWidthConfigKey]); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed >= 10 && parsed <= 100 {
+			windowWidth = parsed
+		}
+	}
+	if raw := strings.TrimSpace(cfg[playerWindowHeightConfigKey]); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed >= 10 && parsed <= 100 {
+			windowHeight = parsed
+		}
+	}
+
+	useAutofit := true
+	if raw := strings.TrimSpace(cfg[playerWindowUseAutofitConfigKey]); raw != "" {
+		switch strings.ToLower(raw) {
+		case "0", "false", "no", "off":
+			useAutofit = false
+		case "1", "true", "yes", "on":
+			useAutofit = true
+		}
+	}
+
+	volume := defaultVolume
+	if raw := strings.TrimSpace(cfg[playerVolumeConfigKey]); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed >= 0 && parsed <= 130 {
+			volume = parsed
+		}
+	}
+
+	return windowWidth, windowHeight, useAutofit, volume, nil
 }
