@@ -252,12 +252,16 @@ func (m *ScreenshotManager) capture(ctx context.Context, videoPath string, secon
 		return fmt.Errorf("ensure screenshot dir: %w", err)
 	}
 
-	shotPath := filepath.Join(filepath.Dir(outputPath), "00000001.jpg")
 	mpvPath, pathErr := util.ResolveMPVPath()
 	if pathErr != nil {
 		return fmt.Errorf("resolve mpv path: %w", pathErr)
 	}
-	_ = os.Remove(shotPath)
+	tempDir, err := os.MkdirTemp(filepath.Dir(outputPath), ".mpv-shot-*")
+	if err != nil {
+		return fmt.Errorf("create mpv temp dir: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(tempDir) }()
+	shotPath := filepath.Join(tempDir, "00000001.jpg")
 
 	args := []string{
 		"--no-config",
@@ -269,7 +273,7 @@ func (m *ScreenshotManager) capture(ctx context.Context, videoPath string, secon
 		"--frames=1",
 		"--vo=image",
 		"--vo-image-format=jpg",
-		"--vo-image-outdir=" + filepath.Dir(outputPath),
+		"--vo-image-outdir=" + tempDir,
 		videoPath,
 	}
 
