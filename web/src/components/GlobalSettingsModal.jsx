@@ -239,11 +239,9 @@ export default function GlobalSettingsModal({
                 </h4>
                 <div className="flex flex-col gap-3">
                   <div className="grid gap-3 md:max-w-xl md:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-medium text-zinc-500">
-                        {zh('宽度', 'Width')}
-                      </label>
-                      <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 text-xs font-medium text-zinc-500">
+                      <span className="shrink-0">{zh('宽度', 'Width')}</span>
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
                         <input
                           value={playerWindowWidthInput}
                           onChange={(e) => {
@@ -252,17 +250,15 @@ export default function GlobalSettingsModal({
                             setPlayerBasicSuccess('')
                           }}
                           inputMode="numeric"
-                          className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
+                          className="w-full min-w-0 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800"
                         />
                         <span className="text-sm text-zinc-500">%</span>
                       </div>
-                    </div>
+                    </label>
 
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-medium text-zinc-500">
-                        {zh('高度', 'Height')}
-                      </label>
-                      <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 text-xs font-medium text-zinc-500">
+                      <span className="shrink-0">{zh('高度', 'Height')}</span>
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
                         <input
                           value={playerWindowHeightInput}
                           onChange={(e) => {
@@ -271,11 +267,11 @@ export default function GlobalSettingsModal({
                             setPlayerBasicSuccess('')
                           }}
                           inputMode="numeric"
-                          className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
+                          className="w-full min-w-0 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800"
                         />
                         <span className="text-sm text-zinc-500">%</span>
                       </div>
-                    </div>
+                    </label>
                   </div>
 
                   <label className="flex items-center gap-3 text-sm font-semibold text-zinc-800">
@@ -299,28 +295,30 @@ export default function GlobalSettingsModal({
                         'When enabled, the window is limited by max width and height while preserving aspect ratio.'
                       )
                     : zh(
-                        '关闭后将强制使用指定宽高，可能出现黑边。',
-                        'When disabled, the specified width and height are enforced and may produce letterboxing.'
+                        '默认关闭，强制使用指定宽高。',
+                        'Disabled by default and forces the specified width and height.'
                       )}
                 </p>
               </section>
 
               <section className="space-y-3 border-t border-zinc-200 pt-5">
-                <h4 className="text-sm font-semibold text-zinc-800">
-                  {zh('初始音量', 'Initial Volume')}
-                </h4>
-                <div className="flex w-full items-center gap-2 md:max-w-sm">
-                  <input
-                    value={playerVolumeInput}
-                    onChange={(e) => {
-                      setPlayerVolumeInput(e.target.value)
-                      setPlayerBasicError('')
-                      setPlayerBasicSuccess('')
-                    }}
-                    inputMode="numeric"
-                    className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
-                  />
-                  <span className="text-sm text-zinc-500">%</span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <h4 className="text-sm font-semibold text-zinc-800">
+                    {zh('初始音量', 'Initial Volume')}
+                  </h4>
+                  <div className="flex w-full items-center gap-2 md:max-w-sm">
+                    <input
+                      value={playerVolumeInput}
+                      onChange={(e) => {
+                        setPlayerVolumeInput(e.target.value)
+                        setPlayerBasicError('')
+                        setPlayerBasicSuccess('')
+                      }}
+                      inputMode="numeric"
+                      className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800"
+                    />
+                    <span className="text-sm text-zinc-500">%</span>
+                  </div>
                 </div>
                 <p className="text-xs text-zinc-500">
                   {zh(
