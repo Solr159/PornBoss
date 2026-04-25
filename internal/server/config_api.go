@@ -10,6 +10,7 @@ import (
 
 	"pornboss/internal/common/logging"
 	dbpkg "pornboss/internal/db"
+	"pornboss/internal/mpv"
 	"pornboss/internal/util"
 )
 
@@ -157,6 +158,9 @@ func updateConfig(c *gin.Context) {
 		logging.Error("update config error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
+	}
+	if req.PlayerHotkeys != nil {
+		mpv.InvalidateHotkeysCache()
 	}
 
 	cfg, err := dbpkg.ListConfig(c.Request.Context())

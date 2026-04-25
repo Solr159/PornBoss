@@ -42,22 +42,28 @@ var defaultHotkeys = []hotkeyConfig{
 }
 
 var (
-	inputConfMu   sync.Mutex
-	inputConfPath string
+	inputConfMu      sync.Mutex
+	inputConfPath    string
+	inputConfContent string
+	inputConfReady   bool
 
 	configOnce sync.Once
 	configPath string
 	configErr  error
 )
 
+func InvalidateHotkeysCache() {
+	inputConfMu.Lock()
+	defer inputConfMu.Unlock()
+
+	inputConfContent = ""
+	inputConfReady = false
+}
+
 func ensureInputConf() (string, error) {
 	inputConfMu.Lock()
 	defer inputConfMu.Unlock()
 
-	return writeInputConf()
-}
-
-func writeInputConf() (string, error) {
 	dir := filepath.Join(os.TempDir(), "pornboss")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("create mpv input conf dir: %w", err)
@@ -67,6 +73,20 @@ func writeInputConf() (string, error) {
 		inputConfPath = filepath.Join(dir, "mpv-input.conf")
 	}
 
+	if inputConfReady {
+		if _, err := os.Stat(inputConfPath); err == nil {
+			return inputConfPath, nil
+		}
+		if err := os.WriteFile(inputConfPath, []byte(inputConfContent), 0o644); err != nil {
+			return "", fmt.Errorf("restore mpv input conf: %w", err)
+		}
+		return inputConfPath, nil
+	}
+
+	return writeInputConf()
+}
+
+func writeInputConf() (string, error) {
 	content, err := buildInputConfContent()
 	if err != nil {
 		return "", err
@@ -75,6 +95,9 @@ func writeInputConf() (string, error) {
 	if err := os.WriteFile(inputConfPath, []byte(content), 0o644); err != nil {
 		return "", fmt.Errorf("write mpv input conf: %w", err)
 	}
+
+	inputConfContent = content
+	inputConfReady = true
 
 	return inputConfPath, nil
 }
