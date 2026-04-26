@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { zh } from '@/utils/i18n'
 
-export default function Toast({ open, message, onClose, duration = 6000 }) {
+export default function Toast({ open, message, onClose, duration = 10000 }) {
   useEffect(() => {
     if (!open || !message) return
     const timer = window.setTimeout(() => {
