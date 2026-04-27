@@ -236,7 +236,7 @@ func releaseConfigPort(baseDir string) (int, bool, error) {
 	if baseDir == "" {
 		return 0, false, nil
 	}
-	data, err := os.ReadFile(filepath.Join(baseDir, "config"))
+	data, err := os.ReadFile(filepath.Join(baseDir, "config.toml"))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return 0, false, nil

@@ -475,7 +475,7 @@ async function createMacCommandLauncher(outDir) {
 }
 
 async function createReleaseConfig(outDir) {
-  const configPath = path.join(outDir, "config");
+  const configPath = path.join(outDir, "config.toml");
   const configContent = [
     "# Pornboss release config",
     "# This file uses TOML format.",
