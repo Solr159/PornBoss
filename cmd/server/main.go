@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	"pornboss/internal/manager"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pelletier/go-toml/v2"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -143,7 +145,10 @@ func main() {
 	}()
 
 	if gin.Mode() == gin.ReleaseMode {
-		listenAddr := releaseListenAddr(*addr)
+		listenAddr, err := releaseListenAddr(*addr, baseDir)
+		if err != nil {
+			logger.Fatalf("resolve release listen address: %v", err)
+		}
 		listener, err := net.Listen("tcp", listenAddr)
 		if err != nil {
 			logger.Fatalf("listen on %s: %v", listenAddr, err)
@@ -204,15 +209,54 @@ func buildLogger(baseDir string) (*log.Logger, func(), error) {
 	return logger, func() { _ = rotator.Close() }, nil
 }
 
-func releaseListenAddr(addr string) string {
+func releaseListenAddr(addr string, baseDir string) (string, error) {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		return ":0"
+		host = ""
 	}
+
+	port, configured, err := releaseConfigPort(baseDir)
+	if err != nil {
+		return "", err
+	}
+	if configured {
+		if host == "" {
+			return net.JoinHostPort("", strconv.Itoa(port)), nil
+		}
+		return net.JoinHostPort(host, strconv.Itoa(port)), nil
+	}
+
 	if host == "" {
-		return ":0"
+		return ":0", nil
 	}
-	return net.JoinHostPort(host, "0")
+	return net.JoinHostPort(host, "0"), nil
+}
+
+func releaseConfigPort(baseDir string) (int, bool, error) {
+	if baseDir == "" {
+		return 0, false, nil
+	}
+	data, err := os.ReadFile(filepath.Join(baseDir, "config"))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return 0, false, nil
+		}
+		return 0, false, fmt.Errorf("read config: %w", err)
+	}
+
+	var cfg struct {
+		Port int `toml:"port"`
+	}
+	if err := toml.Unmarshal(data, &cfg); err != nil {
+		return 0, false, fmt.Errorf("parse config TOML: %w", err)
+	}
+	if cfg.Port == 0 {
+		return 0, false, nil
+	}
+	if cfg.Port < 1 || cfg.Port > 65535 {
+		return 0, false, fmt.Errorf("invalid config port %d", cfg.Port)
+	}
+	return cfg.Port, true, nil
 }
 
 func resolveBaseDir() (string, error) {

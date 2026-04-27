@@ -474,6 +474,19 @@ async function createMacCommandLauncher(outDir) {
   await fsp.chmod(launcherPath, 0o755);
 }
 
+async function createReleaseConfig(outDir) {
+  const configPath = path.join(outDir, "config");
+  const configContent = [
+    "# Pornboss release config",
+    "# This file uses TOML format.",
+    "# Set port to 0 to use a random startup port.",
+    "# Example: port = 17654",
+    "port = 0",
+    "",
+  ].join("\n");
+  await fsp.writeFile(configPath, configContent);
+}
+
 async function createZip(outDir, zipPath) {
   const hasZip = await commandExists("zip");
   if (!hasZip) {
@@ -529,6 +542,8 @@ async function runRelease(choice, version) {
     console.log("[release] 复制 mpv");
     await copyBundledMpv(choice, outDir);
   }
+  console.log("[release] 生成默认配置文件");
+  await createReleaseConfig(outDir);
   if (choice.goos === "darwin") {
     console.log("[release] 生成 macOS .command 启动器");
     await createMacCommandLauncher(outDir);

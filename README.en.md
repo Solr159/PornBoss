@@ -80,6 +80,12 @@ Go to the [Releases](https://github.com/JavBoss/pornboss/releases) page, downloa
 
 After launch, Pornboss will try to open your browser automatically. If it does not, open the local address shown in the terminal manually. Keep the terminal window open while Pornboss is running.
 
+The release package includes a TOML-format `config` file in its root directory. By default `port = 0`, so Pornboss uses a random startup port. To use a fixed port, set it like this:
+
+```text
+port = 17654
+```
+
 ### 3. Add Your Media Folders
 
 Open `Global Settings` -> `Directory Management`, then add the local folders that store your videos. Scanning runs in the background, and indexed videos are available immediately without waiting for the full scan to finish.
