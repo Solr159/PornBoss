@@ -1,7 +1,27 @@
-import { Button } from '@mui/material'
+import SwapVertIcon from '@mui/icons-material/SwapVert'
+import { Button, Popover } from '@mui/material'
+import { useState } from 'react'
 import Pagination from '@/components/Pagination'
 import VideoGrid from '@/components/VideoGrid'
+import {
+  VIDEO_SORT_OPTIONS,
+  findVideoSortOption,
+  reverseVideoSortValue,
+  videoSortLabelParts,
+} from '@/constants/video'
 import { zh } from '@/utils/i18n'
+
+function SortText({ option, value, className = '' }) {
+  const parts = videoSortLabelParts(option, value, zh)
+
+  return (
+    <span className={`truncate font-semibold ${className}`}>
+      <span>{parts.label}</span>
+      <span className="font-normal text-gray-500">{parts.separator}</span>
+      <span className="font-normal text-gray-500">{parts.direction}</span>
+    </span>
+  )
+}
 
 export default function VideoView({
   selectedCount,
@@ -13,8 +33,11 @@ export default function VideoView({
   canNext,
   loading,
   randomMode,
+  videoPageSort,
+  videoGlobalSort,
   buildVideoUrl,
   setPage,
+  setVideoPageSort,
   goToLastPage,
   videos,
   selectedVideoIds,
@@ -24,14 +47,29 @@ export default function VideoView({
   setTagPickerFor,
   onTagClick,
 }) {
+  const [sortAnchorEl, setSortAnchorEl] = useState(null)
   const pageIds = videos.map((video) => video?.id).filter(Boolean)
   const pageSelectable = pageIds.length > 0
   const pageAllSelected = pageSelectable && pageIds.every((id) => selectedVideoIds.has(id))
   const hasSelection = selectedCount > 0
+  const effectiveSort = videoPageSort || videoGlobalSort
+  const currentOption = findVideoSortOption(effectiveSort) || VIDEO_SORT_OPTIONS[0]
+
+  const isOptionActive = (option) => {
+    return findVideoSortOption(effectiveSort)?.base === option.base
+  }
+
+  const openSortMenu = (event) => {
+    setSortAnchorEl(event.currentTarget)
+  }
+
+  const closeSortMenu = () => {
+    setSortAnchorEl(null)
+  }
 
   return (
     <>
-      <div className="sticky-pagination mb-4 grid grid-cols-[auto_1fr_auto] items-center gap-3">
+      <div className="sticky-pagination mb-4 grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
         <div className="flex items-center gap-1 overflow-x-auto overflow-y-hidden whitespace-nowrap">
           {hasSelection && (
             <>
@@ -92,35 +130,75 @@ export default function VideoView({
             />
           )}
         </div>
-        <div className="pointer-events-none flex items-center justify-end gap-1 overflow-hidden whitespace-nowrap opacity-0">
-          {hasSelection && (
-            <>
-              <span className="rounded-full px-2 py-0.5 text-xs font-medium leading-5">
-                {zh(`已选 ${selectedCount} 项`, `${selectedCount} selected`)}
-              </span>
-              <Button
-                variant="outlined"
-                size="small"
-                className="!min-h-0 !min-w-0 !px-2 !py-0.5 !text-xs !leading-5"
+        <div className="flex justify-end">
+          {!randomMode && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">{zh('排序', 'Sort')}</span>
+              <button
+                type="button"
+                onClick={openSortMenu}
+                aria-haspopup="dialog"
+                aria-expanded={Boolean(sortAnchorEl)}
+                aria-label={zh('修改当前视频排序方式', 'Change current video sort')}
+                className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 shadow-sm hover:border-gray-400"
               >
-                {pageAllSelected ? zh('取消本页', 'Unselect page') : zh('全选本页', 'Select page')}
-              </Button>
-              <Button
-                variant="outlined"
-                size="small"
-                className="!min-h-0 !min-w-0 !px-2 !py-0.5 !text-xs !leading-5"
-              >
-                {zh('操作', 'Actions')}
-              </Button>
-              <Button
-                variant="text"
-                size="small"
-                className="!min-h-0 !min-w-0 !px-2 !py-0.5 !text-xs !leading-5"
-              >
-                {zh('清空', 'Clear')}
-              </Button>
-            </>
+                <SortText option={currentOption} value={effectiveSort} />
+                <span
+                  aria-hidden="true"
+                  className="block h-1.5 w-1.5 rotate-45 border-b border-r border-gray-400"
+                />
+              </button>
+            </div>
           )}
+          <Popover
+            open={Boolean(sortAnchorEl)}
+            anchorEl={sortAnchorEl}
+            onClose={closeSortMenu}
+            disableScrollLock
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          >
+            <div className="flex min-w-[180px] flex-col p-1">
+              {VIDEO_SORT_OPTIONS.map((option) => {
+                const active = isOptionActive(option)
+                const displayValue = active ? effectiveSort : option.defaultValue
+                return (
+                  <div
+                    key={option.base}
+                    className={`flex items-center gap-1 rounded ${
+                      active ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeSortMenu()
+                        setVideoPageSort?.(displayValue)
+                      }}
+                      className="min-w-0 flex-1 px-2 py-1 text-left text-xs"
+                    >
+                      <SortText option={option} value={displayValue} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeSortMenu()
+                        setVideoPageSort?.(reverseVideoSortValue(displayValue, option.defaultValue))
+                      }}
+                      className="mr-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-white hover:text-blue-700"
+                      title={zh('反转排序', 'Reverse sort')}
+                      aria-label={zh(
+                        `反转${option.label[0]}排序`,
+                        `Reverse ${option.label[1]} sort`
+                      )}
+                    >
+                      <SwapVertIcon fontSize="inherit" />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </Popover>
         </div>
       </div>
       {loading ? (

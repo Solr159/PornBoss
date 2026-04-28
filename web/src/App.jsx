@@ -67,6 +67,8 @@ export default function App() {
     searchTerm,
     setSearchTerm,
     sortOrder,
+    videoPageSort,
+    setVideoPageSort,
     loadJavRandom,
     randomMode,
     randomSeed,
@@ -442,6 +444,7 @@ export default function App() {
     )
     useStore.setState({
       viewMode: 'jav',
+      videoPageSort: '',
       javTab: 'list',
       javPageSort: '',
       javRandomMode: false,
@@ -469,6 +472,7 @@ export default function App() {
         const currentIdolSort = useStore.getState().idolSort
         useStore.setState({
           viewMode: 'jav',
+          videoPageSort: '',
           javTab: jav.tab,
           javRandomMode: jav.tab === 'idol' ? false : jav.random,
           javRandomSeed: jav.tab === 'idol' ? null : jav.random ? jav.seed : null,
@@ -494,6 +498,7 @@ export default function App() {
         viewMode: 'video',
         javPageSort: '',
         sortOrder: video.sort,
+        videoPageSort: '',
         randomMode: video.random,
         randomSeed: video.random ? video.seed : null,
         searchTerm: video.random ? '' : video.search,
@@ -567,6 +572,7 @@ export default function App() {
     searchTerm,
     selectedTags,
     sortOrder,
+    videoPageSort,
   ])
 
   useEffect(() => {
@@ -622,6 +628,7 @@ export default function App() {
           page,
           searchTerm,
           sortOrder,
+          videoPageSort,
           selectedTags,
           randomMode,
           randomSeed,
@@ -655,6 +662,7 @@ export default function App() {
       searchTerm,
       selectedTags,
       sortOrder,
+      videoPageSort,
       tagsByName,
       viewMode,
     ]
@@ -738,6 +746,7 @@ export default function App() {
     const nextSeed = generateRandomSeed()
     useStore.setState({
       viewMode: 'jav',
+      videoPageSort: '',
       javTab: 'list',
       javPageSort: '',
       javActors: [],
@@ -757,6 +766,7 @@ export default function App() {
       viewMode: 'video',
       selectedTags: [],
       searchTerm: '',
+      videoPageSort: '',
       page: 1,
       randomMode: true,
       randomSeed: nextSeed,
@@ -811,6 +821,7 @@ export default function App() {
       viewMode: 'video',
       selectedTags: [],
       searchTerm: nextSearch,
+      videoPageSort: '',
       page: 1,
       randomMode: false,
       randomSeed: null,
@@ -821,6 +832,7 @@ export default function App() {
     e?.preventDefault()
     useStore.setState({
       viewMode: 'jav',
+      videoPageSort: '',
       javPageSort: '',
       javRandomMode: false,
       javRandomSeed: null,
@@ -845,6 +857,7 @@ export default function App() {
       useStore.setState({
         pageSize: size,
         sortOrder: normalizedSort,
+        videoPageSort: '',
         page: nextPage,
         randomMode: false,
         randomSeed: null,
@@ -1140,6 +1153,7 @@ export default function App() {
     if (isJavMode) {
       useStore.setState({
         viewMode: 'jav',
+        videoPageSort: '',
         javPageSort: '',
         javRandomMode: false,
         javRandomSeed: null,
@@ -1154,6 +1168,7 @@ export default function App() {
     } else {
       useStore.setState({
         viewMode: 'video',
+        videoPageSort: '',
         randomMode: false,
         randomSeed: null,
         selectedTags: [],
@@ -1170,7 +1185,7 @@ export default function App() {
 
   const handleSwitchToJav = () => {
     const targetTab = javTab === 'idol' ? 'idol' : 'list'
-    useStore.setState({ viewMode: 'jav', javTab: targetTab, javPageSort: '' })
+    useStore.setState({ viewMode: 'jav', videoPageSort: '', javTab: targetTab, javPageSort: '' })
     forceReloadJavByTab(targetTab)
   }
 
@@ -1204,6 +1219,7 @@ export default function App() {
     if (!idol || !idol.name) return
     useStore.setState({
       viewMode: 'jav',
+      videoPageSort: '',
       javTab: 'list',
       javPageSort: '',
       javRandomMode: false,
@@ -1221,6 +1237,7 @@ export default function App() {
     if (!trimmed) return
     useStore.setState({
       viewMode: 'jav',
+      videoPageSort: '',
       javTab: 'list',
       javPageSort: '',
       javRandomMode: false,
@@ -1392,8 +1409,11 @@ export default function App() {
             canNext={canNext}
             loading={loading}
             randomMode={randomMode}
+            videoPageSort={videoPageSort}
+            videoGlobalSort={sortOrder}
             buildVideoUrl={buildVideoUrl}
             setPage={navigateVideoPage}
+            setVideoPageSort={setVideoPageSort}
             goToLastPage={() => navigateVideoPage(lastPage)}
             videos={videos}
             selectedVideoIds={selectedVideoIds}
