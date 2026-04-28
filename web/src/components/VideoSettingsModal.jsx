@@ -1,4 +1,54 @@
+import SwapVertIcon from '@mui/icons-material/SwapVert'
+import {
+  VIDEO_SORT_OPTIONS,
+  findVideoSortOption,
+  reverseVideoSortValue,
+  videoSortLabelParts,
+} from '@/constants/video'
 import { zh } from '@/utils/i18n'
+
+function SortText({ option, value }) {
+  const parts = videoSortLabelParts(option, value, zh)
+
+  return (
+    <span className="truncate text-sm font-semibold">
+      <span>{parts.label}</span>
+      <span className="font-normal text-gray-500">{parts.separator}</span>
+      <span className="font-normal text-gray-500">{parts.direction}</span>
+    </span>
+  )
+}
+
+function SortOptionRow({ option, inputValue, onChange }) {
+  const active = findVideoSortOption(inputValue)?.base === option.base
+  const displayValue = active ? inputValue : option.defaultValue
+  const id = `sort-${option.base}`
+
+  return (
+    <div className="flex items-center gap-2 rounded border px-3 py-1.5 hover:border-blue-500">
+      <label htmlFor={id} className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
+        <input
+          id={id}
+          type="radio"
+          name="sort"
+          value={displayValue}
+          checked={active}
+          onChange={() => onChange?.(displayValue)}
+        />
+        <SortText option={option} value={displayValue} />
+      </label>
+      <button
+        type="button"
+        onClick={() => onChange?.(reverseVideoSortValue(displayValue, option.defaultValue))}
+        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-gray-200 text-gray-500 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"
+        title={zh('反转排序', 'Reverse sort')}
+        aria-label={zh(`反转${option.label[0]}排序`, `Reverse ${option.label[1]} sort`)}
+      >
+        <SwapVertIcon fontSize="inherit" />
+      </button>
+    </div>
+  )
+}
 
 export default function VideoSettingsModal({
   open,
@@ -36,86 +86,14 @@ export default function VideoSettingsModal({
             />
           </label>
           <div className="text-sm font-medium text-gray-700">{zh('分页排序', 'Sort order')}</div>
-          <label
-            htmlFor="sort-recent"
-            className="flex cursor-pointer items-center gap-3 rounded border px-3 py-1.5 hover:border-blue-500"
-            aria-label={zh('按最近加入排序', 'Sort by recently added')}
-          >
-            <input
-              id="sort-recent"
-              type="radio"
-              name="sort"
-              value="recent"
-              checked={sortInput === 'recent'}
-              onChange={() => onSortChange?.('recent')}
+          {VIDEO_SORT_OPTIONS.map((option) => (
+            <SortOptionRow
+              key={option.base}
+              option={option}
+              inputValue={sortInput}
+              onChange={onSortChange}
             />
-            <div className="text-sm font-semibold">
-              {zh('最近加入（默认）', 'Recently added (default)')}
-              <span className="ml-2 text-xs font-normal text-gray-500">
-                {zh('按创建时间倒序', 'Newest first')}
-              </span>
-            </div>
-          </label>
-          <label
-            htmlFor="sort-filename"
-            className="flex cursor-pointer items-center gap-3 rounded border px-3 py-1.5 hover:border-blue-500"
-            aria-label={zh('按文件名排序', 'Sort by filename')}
-          >
-            <input
-              id="sort-filename"
-              type="radio"
-              name="sort"
-              value="filename"
-              checked={sortInput === 'filename'}
-              onChange={() => onSortChange?.('filename')}
-            />
-            <div className="text-sm font-semibold">
-              {zh('文件名', 'Filename')}
-              <span className="ml-2 text-xs font-normal text-gray-500">
-                {zh('按文件名排序', 'Alphabetical order')}
-              </span>
-            </div>
-          </label>
-          <label
-            htmlFor="sort-duration"
-            className="flex cursor-pointer items-center gap-3 rounded border px-3 py-1.5 hover:border-blue-500"
-            aria-label={zh('按视频时长排序', 'Sort by duration')}
-          >
-            <input
-              id="sort-duration"
-              type="radio"
-              name="sort"
-              value="duration"
-              checked={sortInput === 'duration'}
-              onChange={() => onSortChange?.('duration')}
-            />
-            <div className="text-sm font-semibold">
-              {zh('时长（长→短）', 'Duration (long to short)')}
-              <span className="ml-2 text-xs font-normal text-gray-500">
-                {zh('按视频时长降序', 'Longest first')}
-              </span>
-            </div>
-          </label>
-          <label
-            htmlFor="sort-play-count"
-            className="flex cursor-pointer items-center gap-3 rounded border px-3 py-1.5 hover:border-blue-500"
-            aria-label={zh('按播放次数排序', 'Sort by play count')}
-          >
-            <input
-              id="sort-play-count"
-              type="radio"
-              name="sort"
-              value="play_count"
-              checked={sortInput === 'play_count'}
-              onChange={() => onSortChange?.('play_count')}
-            />
-            <div className="text-sm font-semibold">
-              {zh('播放次数（多→少）', 'Play count (high to low)')}
-              <span className="ml-2 text-xs font-normal text-gray-500">
-                {zh('按播放次数降序', 'Most played first')}
-              </span>
-            </div>
-          </label>
+          ))}
         </div>
         <div className="mt-3 flex justify-end">
           <button onClick={onClose} className="rounded border px-3 py-1 text-sm hover:bg-gray-50">

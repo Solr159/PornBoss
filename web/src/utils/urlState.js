@@ -1,4 +1,5 @@
 import { normalizeIdolSort, normalizeJavSort } from '@/constants/jav'
+import { normalizeVideoSort } from '@/constants/video'
 
 const RANDOM_SEED_MAX = 2147483646
 
@@ -24,14 +25,7 @@ export const parseUrlState = (searchString = window.location.search) => {
   const view = sp.get('view') === 'jav' ? 'jav' : 'video'
 
   const videoSortRaw = (sp.get('sort') || '').trim()
-  const videoSort =
-    videoSortRaw === 'filename'
-      ? 'filename'
-      : videoSortRaw === 'duration'
-        ? 'duration'
-        : videoSortRaw === 'play_count'
-          ? 'play_count'
-          : 'recent'
+  const videoSort = normalizeVideoSort(videoSortRaw)
 
   const video = {
     page: parseIntSafe(sp.get('page'), 1),

@@ -33,6 +33,7 @@ import VideoSettingsModal from '@/components/VideoSettingsModal'
 import VideoTagModal from '@/components/VideoTagModal'
 import VideoView from '@/components/VideoView'
 import { isUserJavTag, normalizeIdolSort, normalizeJavSort } from '@/constants/jav'
+import { normalizeVideoSort } from '@/constants/video'
 import { isChineseLocale, zh } from '@/utils/i18n'
 import { useStore } from '@/store'
 
@@ -833,14 +834,7 @@ export default function App() {
 
   const handleSaveVideoSettings = async () => {
     const size = Math.max(1, parseInt(videoPageSizeInput, 10) || pageSize)
-    const normalizedSort =
-      videoSortInput === 'filename'
-        ? 'filename'
-        : videoSortInput === 'duration'
-          ? 'duration'
-          : videoSortInput === 'play_count'
-            ? 'play_count'
-            : 'recent'
+    const normalizedSort = normalizeVideoSort(videoSortInput)
     try {
       await updateConfig({ video_page_size: size, video_sort: normalizedSort })
       const prevPage = page

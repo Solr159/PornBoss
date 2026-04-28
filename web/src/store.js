@@ -17,6 +17,7 @@ import {
   fetchConfig,
 } from '@/api'
 import { normalizeIdolSort, normalizeJavSort } from '@/constants/jav'
+import { normalizeVideoSort } from '@/constants/video'
 import { zh } from '@/utils/i18n'
 
 const VIDEO_PAGE_SIZE = 25
@@ -47,7 +48,7 @@ export const useStore = create((set, get) => ({
   selectedVideoIds: new Set(),
   selectedVideoMeta: {},
   searchTerm: '',
-  sortOrder: 'recent', // recent | filename | duration | play_count
+  sortOrder: 'recent',
   javSort: 'recent',
   javPageSort: '',
   randomMode: false,
@@ -157,14 +158,7 @@ export const useStore = create((set, get) => ({
   },
   clearSelection: () => set({ selectedVideoIds: new Set(), selectedVideoMeta: {} }),
   setSortOrder: (order) => {
-    const normalized =
-      order === 'filename'
-        ? 'filename'
-        : order === 'duration'
-          ? 'duration'
-          : order === 'play_count'
-            ? 'play_count'
-            : 'recent'
+    const normalized = normalizeVideoSort(order)
     set({ sortOrder: normalized, randomMode: false, randomSeed: null, page: 1 })
   },
   setJavSort: (order) => {
@@ -255,7 +249,7 @@ export const useStore = create((set, get) => ({
       }
       const updates = { config: cfg }
       const videoSize = clamp(cfg?.video_page_size)
-      const videoSort = (cfg?.video_sort || '').toLowerCase()
+      const videoSort = normalizeVideoSort((cfg?.video_sort || '').toLowerCase(), '')
       const javSize = clamp(cfg?.jav_page_size)
       const idolSize = clamp(cfg?.idol_page_size)
       const javSort = normalizeJavSort((cfg?.jav_sort || '').toLowerCase(), '')
@@ -263,12 +257,7 @@ export const useStore = create((set, get) => ({
       if (videoSize && videoSize !== state.pageSize) {
         updates.pageSize = videoSize
       }
-      if (
-        videoSort === 'filename' ||
-        videoSort === 'recent' ||
-        videoSort === 'duration' ||
-        videoSort === 'play_count'
-      ) {
+      if (videoSort) {
         updates.sortOrder = videoSort
       }
       if (javSort) {

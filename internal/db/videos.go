@@ -26,12 +26,20 @@ func ListVideos(ctx context.Context, limit, offset int, tagNames []string, searc
 	var orderExpr clause.Expr
 	useExpr := false
 	switch strings.ToLower(strings.TrimSpace(sort)) {
-	case "filename":
+	case "filename", "filename_asc":
 		orderClause = "video.filename COLLATE NOCASE, video.path"
-	case "duration":
+	case "filename_desc":
+		orderClause = "video.filename COLLATE NOCASE DESC, video.path DESC"
+	case "duration", "duration_desc":
 		orderClause = "video.duration_sec DESC, video.created_at DESC, video.id DESC"
-	case "play_count":
+	case "duration_asc":
+		orderClause = "video.duration_sec ASC, video.created_at ASC, video.id ASC"
+	case "play_count", "play_count_desc":
 		orderClause = "COALESCE(video.play_count, 0) DESC, video.created_at DESC, video.id DESC"
+	case "play_count_asc":
+		orderClause = "COALESCE(video.play_count, 0) ASC, video.created_at ASC, video.id ASC"
+	case "recent_asc":
+		orderClause = "video.created_at ASC, video.id ASC"
 	case "random":
 		if seed != nil && *seed > 0 {
 			orderExpr = clause.Expr{

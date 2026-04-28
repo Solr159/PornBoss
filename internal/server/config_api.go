@@ -82,7 +82,7 @@ func updateConfig(c *gin.Context) {
 	}
 	if s := strings.ToLower(strings.TrimSpace(req.VideoSort)); s != "" {
 		switch s {
-		case "recent", "filename", "duration", "play_count":
+		case "recent", "recent_asc", "filename", "filename_desc", "duration", "duration_asc", "play_count", "play_count_asc":
 			entries["video_sort"] = s
 		default:
 			// ignore invalid values
