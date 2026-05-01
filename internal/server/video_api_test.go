@@ -7,11 +7,12 @@ func TestIsScreenshotImageName(t *testing.T) {
 		name string
 		want bool
 	}{
-		{name: "00-12-34.567.jpg", want: true},
-		{name: "example.PNG", want: true},
-		{name: "../example.jpg", want: false},
-		{name: "nested/example.jpg", want: false},
-		{name: "example.txt", want: false},
+		{name: "mpv_00-12-34.567.jpg", want: true},
+		{name: "mpv_example.PNG", want: true},
+		{name: "00-12-34.567.jpg", want: false},
+		{name: "../mpv_example.jpg", want: false},
+		{name: "nested/mpv_example.jpg", want: false},
+		{name: "mpv_example.txt", want: false},
 		{name: "", want: false},
 	}
 

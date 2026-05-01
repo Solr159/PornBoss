@@ -12,7 +12,7 @@ import (
 	"pornboss/internal/common/logging"
 )
 
-const playbackScreenshotTemplate = "%wH-%wM-%wS.%wT"
+const playbackScreenshotTemplate = "mpv_%wH-%wM-%wS.%wT"
 
 type PlayOptions struct {
 	DataDir string

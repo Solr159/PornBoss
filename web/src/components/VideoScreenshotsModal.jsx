@@ -36,6 +36,15 @@ export default function VideoScreenshotsModal({ video, onClose }) {
 
   if (!open) return null
 
+  const formatScreenshotName = (name) => {
+    const stem = String(name || '')
+      .replace(/\.[^.]+$/, '')
+      .replace(/^mpv_/, '')
+    const match = stem.match(/^(\d{2})-(\d{2})-(\d{2})(\.\d+)?$/)
+    if (!match) return stem || name
+    return `${match[1]}:${match[2]}:${match[3]}${match[4] || ''}`
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
       <div className="flex max-h-full w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl">
@@ -79,7 +88,7 @@ export default function VideoScreenshotsModal({ video, onClose }) {
                   target="_blank"
                   rel="noreferrer"
                   className="group overflow-hidden rounded border border-gray-200 bg-white hover:border-gray-300"
-                  title={item.name}
+                  title={formatScreenshotName(item.name)}
                 >
                   <div className="aspect-video bg-gray-100">
                     <img
@@ -90,7 +99,7 @@ export default function VideoScreenshotsModal({ video, onClose }) {
                     />
                   </div>
                   <div className="truncate px-2 py-1 text-xs text-gray-600 group-hover:text-gray-900">
-                    {item.name}
+                    {formatScreenshotName(item.name)}
                   </div>
                 </a>
               ))}

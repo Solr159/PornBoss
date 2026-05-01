@@ -36,7 +36,7 @@ func TestBuildPlaybackScreenshotArgsIncludeTimeTemplate(t *testing.T) {
 	expectedDir := filepath.Join(dataDir, "video", "42", "screenshot")
 	expected := []string{
 		"--screenshot-directory=" + expectedDir,
-		"--screenshot-template=%wH-%wM-%wS.%wT",
+		"--screenshot-template=mpv_%wH-%wM-%wS.%wT",
 	}
 	if len(args) != len(expected) {
 		t.Fatalf("expected screenshot args %v, got %v", expected, args)

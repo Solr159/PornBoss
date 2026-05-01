@@ -579,6 +579,9 @@ func isScreenshotImageName(name string) bool {
 	if strings.TrimSpace(name) == "" || filepath.Base(name) != name {
 		return false
 	}
+	if !strings.HasPrefix(name, "mpv_") {
+		return false
+	}
 	switch strings.ToLower(filepath.Ext(name)) {
 	case ".jpg", ".jpeg", ".png", ".webp":
 		return true
