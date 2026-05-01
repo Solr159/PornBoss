@@ -252,7 +252,7 @@ func openVideoFile(c *gin.Context) {
 }
 
 func playVideoFile(c *gin.Context) {
-	fullPath, dirPath, err := resolveVideoPathFromBody(c)
+	req, fullPath, dirPath, err := resolveVideoPathRequestFromBody(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -260,7 +260,15 @@ func playVideoFile(c *gin.Context) {
 	if err := ensureVideoFileExists(c, fullPath); err != nil {
 		return
 	}
-	if err := mpv.PlayVideo(fullPath); err != nil {
+	videoID := resolvePlaybackVideoID(c.Request.Context(), req.VideoID, dirPath, fullPath)
+	dataDir := ""
+	if common.AppConfig != nil {
+		dataDir = filepath.Dir(common.AppConfig.DatabasePath)
+	}
+	if err := mpv.PlayVideo(fullPath, mpv.PlayOptions{
+		DataDir: dataDir,
+		VideoID: videoID,
+	}); err != nil {
 		logging.Error("play video file error: %v", err)
 		if strings.Contains(err.Error(), "mpv not found") {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
@@ -291,17 +299,23 @@ func revealVideoLocation(c *gin.Context) {
 }
 
 type videoPathRequest struct {
+	VideoID int64  `json:"video_id"`
 	Path    string `json:"path"`
 	DirPath string `json:"dir_path"`
 }
 
 func resolveVideoPathFromBody(c *gin.Context) (string, string, error) {
+	_, fullPath, dirPath, err := resolveVideoPathRequestFromBody(c)
+	return fullPath, dirPath, err
+}
+
+func resolveVideoPathRequestFromBody(c *gin.Context) (videoPathRequest, string, string, error) {
 	var req videoPathRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		return "", "", errors.New("invalid payload")
+		return req, "", "", errors.New("invalid payload")
 	}
 	fullPath, dirPath, err := resolveVideoPath(req.Path, req.DirPath)
-	return fullPath, dirPath, err
+	return req, fullPath, dirPath, err
 }
 
 func resolveVideoPath(rawPath, rawDirPath string) (string, string, error) {
@@ -360,6 +374,42 @@ func incrementPlayCountByPath(ctx context.Context, dirPath, fullPath string) {
 	if err := dbpkg.IncrementVideoPlayCountByPath(ctx, dirPath, relPath); err != nil {
 		logging.Error("increment play count by path error: %v", err)
 	}
+}
+
+func resolvePlaybackVideoID(ctx context.Context, requestedID int64, dirPath, fullPath string) int64 {
+	if requestedID > 0 {
+		video, err := dbpkg.GetVideo(ctx, requestedID)
+		if err != nil {
+			logging.Error("get playback video error: %v", err)
+		} else if video != nil {
+			if candidate, _, err := resolveVideoPath(video.Path, video.DirectoryRef.Path); err == nil && sameCleanPath(candidate, fullPath) {
+				return video.ID
+			}
+		}
+	}
+
+	if strings.TrimSpace(dirPath) == "" || strings.TrimSpace(fullPath) == "" {
+		return 0
+	}
+	relPath, err := filepath.Rel(dirPath, fullPath)
+	if err != nil {
+		logging.Error("resolve relative path for playback video id: %v", err)
+		return 0
+	}
+	relPath = filepath.ToSlash(filepath.Clean(relPath))
+	if relPath == "." || strings.HasPrefix(relPath, "..") {
+		return 0
+	}
+	videoID, err := dbpkg.GetVideoIDByPath(ctx, dirPath, relPath)
+	if err != nil {
+		logging.Error("lookup playback video id by path error: %v", err)
+		return 0
+	}
+	return videoID
+}
+
+func sameCleanPath(a, b string) bool {
+	return filepath.Clean(a) == filepath.Clean(b)
 }
 
 func getThumbnail(c *gin.Context) {

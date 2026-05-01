@@ -209,7 +209,11 @@ export default function App() {
   const playVideoWith = useCallback(
     (video, player) => {
       if (!video || !isVideoOpenable(video)) return
-      const payload = { path: getVideoRelPath(video), dirPath: getVideoDirPath(video) }
+      const payload = {
+        id: video.id,
+        path: getVideoRelPath(video),
+        dirPath: getVideoDirPath(video),
+      }
       const useSystemPlayer = player === 'system'
       const action = useSystemPlayer ? openVideoFile : playVideoFile
       action(payload).catch((err) =>

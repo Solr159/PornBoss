@@ -35,6 +35,23 @@ func TestBuildConfigContentIncludesRequiredDefaults(t *testing.T) {
 	}
 }
 
+func TestBuildInputConfContentIncludesDefaultScreenshotKey(t *testing.T) {
+	prevDB := common.DB
+	common.DB = nil
+	defer func() {
+		common.DB = prevDB
+	}()
+
+	content, err := buildInputConfContent()
+	if err != nil {
+		t.Fatalf("buildInputConfContent returned error: %v", err)
+	}
+
+	if !strings.Contains(content, "e screenshot\n") {
+		t.Fatalf("expected e screenshot in mpv input config, got %q", content)
+	}
+}
+
 func TestBuildConfigContentRespectsConfiguredOntop(t *testing.T) {
 	openConfigTestDB(t)
 	if err := dbpkg.UpsertConfig(context.Background(), map[string]string{

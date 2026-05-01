@@ -126,11 +126,13 @@ func buildInputConfContent() (string, error) {
 	}
 
 	var lines []string
+	usedKeys := make(map[string]struct{}, len(hotkeys)+1)
 	for _, item := range hotkeys {
 		keyName, ok := keyName(item.Key)
 		if !ok {
 			continue
 		}
+		usedKeys[keyName] = struct{}{}
 
 		switch item.Action {
 		case "seek":
@@ -140,6 +142,9 @@ func buildInputConfContent() (string, error) {
 		}
 	}
 
+	if _, exists := usedKeys["e"]; !exists {
+		lines = append(lines, "e screenshot")
+	}
 	lines = append(lines, "ESC quit")
 	return strings.Join(lines, "\n") + "\n", nil
 }
