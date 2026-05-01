@@ -324,6 +324,22 @@ export default function App() {
     [getVideoDirPath, getVideoRelPath, isVideoOpenable]
   )
 
+  const handleJavOpenScreenshots = useCallback(
+    (video, item) => {
+      const videos = item?.videos || (video ? [video] : [])
+      if (videos.length > 1) {
+        setJavVideoPickerAction('screenshots')
+        setJavVideoPickerItem(item)
+        setJavVideoPickerOpen(true)
+        return
+      }
+      const target = video && isVideoOpenable(video) ? video : videos.find(isVideoOpenable)
+      if (!target) return
+      setScreenshotsVideo(target)
+    },
+    [isVideoOpenable]
+  )
+
   const handleSelectJavVideo = useCallback(
     async (video) => {
       if (!video) return
@@ -335,6 +351,13 @@ export default function App() {
       if (javVideoPickerAction === 'open') {
         handleOpenAlternatePlayer(video)
         closeJavVideoPicker()
+        return
+      }
+      if (javVideoPickerAction === 'screenshots') {
+        if (isVideoOpenable(video)) {
+          setScreenshotsVideo(video)
+          closeJavVideoPicker()
+        }
         return
       }
       if (!isVideoOpenable(video)) return
@@ -1362,15 +1385,19 @@ export default function App() {
       ? alternatePlayer === 'mpv'
         ? zh('选择使用MPV播放器播放的文件', 'Choose a file to play with MPV player')
         : zh('选择使用系统播放器播放的文件', 'Choose a file to play with system player')
-      : javVideoPickerAction === 'reveal'
-        ? zh('选择定位文件', 'Choose a file to reveal')
-        : defaultPlayer === 'system'
-          ? zh('选择使用系统播放器播放的文件', 'Choose a file to play with system player')
-          : zh('选择使用MPV播放器播放的文件', 'Choose a file to play with MPV player')
+      : javVideoPickerAction === 'screenshots'
+        ? zh('选择查看截图的文件', 'Choose a file to view screenshots')
+        : javVideoPickerAction === 'reveal'
+          ? zh('选择定位文件', 'Choose a file to reveal')
+          : defaultPlayer === 'system'
+            ? zh('选择使用系统播放器播放的文件', 'Choose a file to play with system player')
+            : zh('选择使用MPV播放器播放的文件', 'Choose a file to play with MPV player')
   const javVideoPickerEmptyText =
     javVideoPickerAction === 'play'
       ? zh('暂无可播放文件', 'No playable files')
-      : zh('暂无可用文件', 'No available files')
+      : javVideoPickerAction === 'screenshots'
+        ? zh('暂无可查看截图的文件', 'No files with screenshots available')
+        : zh('暂无可用文件', 'No available files')
 
   return (
     <div className="min-h-screen">
@@ -1454,6 +1481,7 @@ export default function App() {
               onOpenFile={handleJavOpenFile}
               openFileLabel={alternatePlayerLabel}
               onRevealFile={handleJavRevealFile}
+              onOpenScreenshots={handleJavOpenScreenshots}
               onIdolClick={handleJavActorClick}
               onTagClick={handleJavTagClick}
               onEditTags={openJavTagEditor}
