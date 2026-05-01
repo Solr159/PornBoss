@@ -1530,6 +1530,7 @@ export default function App() {
 
       <VideoScreenshotsModal
         video={screenshotsVideo}
+        playerHotkeys={config?.player_hotkeys}
         onClose={() => setScreenshotsVideo(null)}
         onPlayAtTime={playVideoFromTime}
       />
