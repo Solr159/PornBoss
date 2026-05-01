@@ -127,7 +127,6 @@ export default function VideoScreenshotsModal({ video, onClose, onPlayAtTime }) 
                   <div
                     key={item.name}
                     className="group overflow-hidden rounded border border-gray-200 bg-white hover:border-gray-300"
-                    title={displayName}
                   >
                     <div className="relative aspect-video bg-gray-100">
                       <img
