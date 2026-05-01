@@ -7,8 +7,13 @@ import { IconButton, Tooltip } from '@mui/material'
 import { deleteVideoScreenshot, fetchVideoScreenshots } from '@/api'
 import { getVideoDisplayName } from '@/utils/display'
 import { zh } from '@/utils/i18n'
+import {
+  PLAYER_HOTKEY_ACTIONS,
+  formatPlayerHotkeyKey,
+  parsePlayerHotkeys,
+} from '@/utils/playerHotkeys'
 
-export default function VideoScreenshotsModal({ video, onClose, onPlayAtTime }) {
+export default function VideoScreenshotsModal({ video, playerHotkeys, onClose, onPlayAtTime }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -16,6 +21,13 @@ export default function VideoScreenshotsModal({ video, onClose, onPlayAtTime }) 
   const [deletingName, setDeletingName] = useState('')
   const open = Boolean(video?.id)
   const title = useMemo(() => getVideoDisplayName(video), [video])
+  const screenshotKey = useMemo(() => {
+    const hotkeys = parsePlayerHotkeys(playerHotkeys)
+    const screenshotHotkey = hotkeys.find(
+      (item) => item.action === PLAYER_HOTKEY_ACTIONS.SCREENSHOT
+    )
+    return formatPlayerHotkeyKey(screenshotHotkey?.key || 'e')
+  }, [playerHotkeys])
 
   useEffect(() => {
     let cancelled = false
@@ -115,8 +127,11 @@ export default function VideoScreenshotsModal({ video, onClose, onPlayAtTime }) 
               {error}
             </div>
           ) : items.length === 0 ? (
-            <div className="flex min-h-48 items-center justify-center rounded border border-dashed border-gray-200 text-sm text-gray-500">
-              {zh('暂无截图', 'No screenshots')}
+            <div className="flex min-h-48 items-center justify-center rounded border border-dashed border-gray-200 px-4 text-center text-sm text-gray-500">
+              {zh(
+                `暂无截图。播放时按 ${screenshotKey} 键截图，会显示在此处。`,
+                `No screenshots yet. Press ${screenshotKey} during playback to capture one, and it will appear here.`
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
