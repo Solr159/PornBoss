@@ -51,8 +51,9 @@ Pornboss integrates mpv playback, so clicking a video can launch a lightweight, 
 - Supports playback options such as default volume, window size, and always-on-top behavior.
 - Supports custom hotkeys for actions such as seeking and volume adjustment.
 - Supports taking screenshots at any moment during mpv playback, saved per video under `data/video/{video_id}/screenshot/`.
-- In both the video library and JAV library, you can view mpv screenshots, enlarge them, delete them, or resume playback from the screenshot timestamp.
-- Keeps browser preview support, plus one-click actions to open the original file or reveal its containing folder.
+- In both the video library and JAV library, the screenshot panel previews all mpv screenshots in timestamp order.
+- The screenshot panel supports enlarged previews, deleting screenshots, and resuming playback directly from a screenshot timestamp.
+- Lets you choose the default player in global settings, supports playback through mpv or the system player, and can reveal the file in its containing folder.
 
 ### 4. Simple, Practical UI
 
