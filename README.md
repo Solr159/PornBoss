@@ -141,6 +141,10 @@ port = 17654
   <img src="screenshot/image1_9.png" style="width: 100%; height: auto;">
 </p>
 
+<p align="center">
+  <img src="screenshot/image1_10.png" style="width: 100%; height: auto;">
+</p>
+
 ## 如何升级版本
 
 下载并解压新版本后，把旧版本目录中的 `data/` 复制到新版本目录即可。建议先保留旧版本和旧数据备份，确认新版本稳定运行后再清理旧目录。
