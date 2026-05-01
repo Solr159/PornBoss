@@ -107,43 +107,43 @@ port = 17654
 ## 部分截图
 
 <p align="center">
-  <img src="screenshot/image1_1.png" style="width: 100%; height: auto;">
+  <img src="screenshot/image2_1.png" style="width: 100%; height: auto;">
 </p>
 
 <p align="center">
-  <img src="screenshot/image1_2.png" style="width: 100%; height: auto;">
+  <img src="screenshot/image2_2.png" style="width: 100%; height: auto;">
 </p>
 
 <p align="center">
-  <img src="screenshot/image1_3.png" style="width: 100%; height: auto;">
+  <img src="screenshot/image2_3.png" style="width: 100%; height: auto;">
 </p>
 
 <p align="center">
-  <img src="screenshot/image1_4.png" style="width: 100%; height: auto;">
+  <img src="screenshot/image2_4.png" style="width: 100%; height: auto;">
 </p>
 
 <p align="center">
-  <img src="screenshot/image1_5.png" style="width: 100%; height: auto;">
+  <img src="screenshot/image2_5.png" style="width: 100%; height: auto;">
 </p>
 
 <p align="center">
-  <img src="screenshot/image1_6.png" style="width: 100%; height: auto;">
+  <img src="screenshot/image2_6.png" style="width: 100%; height: auto;">
 </p>
 
 <p align="center">
-  <img src="screenshot/image1_7.png" style="width: 100%; height: auto;">
+  <img src="screenshot/image2_7.png" style="width: 100%; height: auto;">
 </p>
 
 <p align="center">
-  <img src="screenshot/image1_8.png" style="width: 100%; height: auto;">
+  <img src="screenshot/image2_8.png" style="width: 100%; height: auto;">
 </p>
 
 <p align="center">
-  <img src="screenshot/image1_9.png" style="width: 100%; height: auto;">
+  <img src="screenshot/image2_9.png" style="width: 100%; height: auto;">
 </p>
 
 <p align="center">
-  <img src="screenshot/image1_10.png" style="width: 100%; height: auto;">
+  <img src="screenshot/image2_10.png" style="width: 100%; height: auto;">
 </p>
 
 ## 如何升级版本
