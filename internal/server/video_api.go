@@ -554,6 +554,32 @@ func getVideoScreenshot(c *gin.Context) {
 	c.File(screenshotPath)
 }
 
+func deleteVideoScreenshot(c *gin.Context) {
+	_, screenshotDir, ok := resolveVideoScreenshotDir(c)
+	if !ok {
+		return
+	}
+
+	name := filepath.Base(strings.TrimSpace(c.Param("name")))
+	if !isScreenshotImageName(name) || name != strings.TrimSpace(c.Param("name")) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid screenshot name"})
+		return
+	}
+
+	screenshotPath := filepath.Join(screenshotDir, name)
+	if err := os.Remove(screenshotPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		logging.Error("delete video screenshot error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
 func resolveVideoScreenshotDir(c *gin.Context) (int64, string, bool) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || id <= 0 {

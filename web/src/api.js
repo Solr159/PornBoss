@@ -196,6 +196,16 @@ export async function fetchVideoScreenshots(id) {
   return Array.isArray(data?.items) ? data.items : []
 }
 
+export async function deleteVideoScreenshot(videoId, name) {
+  const res = await fetch(`/videos/${videoId}/screenshots/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('删除截图失败', 'Failed to delete screenshot'))
+  }
+}
+
 // Directories
 export async function fetchDirectories() {
   const res = await fetch('/directories')

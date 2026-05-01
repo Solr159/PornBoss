@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import CloseIcon from '@mui/icons-material/Close'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import ZoomInIcon from '@mui/icons-material/ZoomIn'
 import { IconButton, Tooltip } from '@mui/material'
-import { fetchVideoScreenshots } from '@/api'
+import { deleteVideoScreenshot, fetchVideoScreenshots } from '@/api'
 import { getVideoDisplayName } from '@/utils/display'
 import { zh } from '@/utils/i18n'
 
@@ -12,6 +13,7 @@ export default function VideoScreenshotsModal({ video, onClose, onPlayAtTime }) 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [previewItem, setPreviewItem] = useState(null)
+  const [deletingName, setDeletingName] = useState('')
   const open = Boolean(video?.id)
   const title = useMemo(() => getVideoDisplayName(video), [video])
 
@@ -23,6 +25,7 @@ export default function VideoScreenshotsModal({ video, onClose, onPlayAtTime }) 
     setError('')
     setItems([])
     setPreviewItem(null)
+    setDeletingName('')
     fetchVideoScreenshots(video.id)
       .then((nextItems) => {
         if (!cancelled) setItems(nextItems)
@@ -63,6 +66,22 @@ export default function VideoScreenshotsModal({ video, onClose, onPlayAtTime }) 
       Number.parseInt(match[3], 10) +
       Number.parseFloat(match[4] || '0')
     )
+  }
+
+  const handleDeleteScreenshot = async (item) => {
+    if (!video?.id || !item?.name || deletingName) return
+    setDeletingName(item.name)
+    setError('')
+    try {
+      await deleteVideoScreenshot(video.id, item.name)
+      setItems((current) => current.filter((candidate) => candidate.name !== item.name))
+      setPreviewItem((current) => (current?.name === item.name ? null : current))
+    } catch (err) {
+      console.error(zh('删除截图失败', 'Failed to delete screenshot'), err)
+      setError(err?.message || zh('删除截图失败', 'Failed to delete screenshot'))
+    } finally {
+      setDeletingName('')
+    }
   }
 
   return (
@@ -117,6 +136,17 @@ export default function VideoScreenshotsModal({ video, onClose, onPlayAtTime }) 
                         loading="lazy"
                         className="h-full w-full object-contain"
                       />
+                      <Tooltip title={zh('删除截图', 'Delete screenshot')}>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDeleteScreenshot(item)}
+                          disabled={deletingName === item.name}
+                          aria-label={zh('删除截图', 'Delete screenshot')}
+                          className="!absolute !right-2 !top-2 !z-10 !bg-white/90 !text-red-600 !opacity-0 hover:!bg-white disabled:!opacity-50 group-hover:!opacity-100"
+                        >
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                       <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/0 opacity-0 transition group-hover:bg-black/35 group-hover:opacity-100">
                         <Tooltip title={zh('放大图片', 'Enlarge image')}>
                           <IconButton
