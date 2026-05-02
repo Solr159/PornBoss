@@ -31,6 +31,7 @@ export default function JavView({
   setJavPage,
   setJavTempSort,
   javItems,
+  javGridColumns,
   onPlay,
   onIdolClick,
   onTagClick,
@@ -163,6 +164,7 @@ export default function JavView({
         <div className={contentClass}>
           <JavGrid
             items={javItems}
+            columns={javGridColumns}
             onPlay={onPlay}
             onIdolClick={onIdolClick}
             onTagClick={onTagClick}

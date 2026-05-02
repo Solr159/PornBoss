@@ -22,6 +22,7 @@ import { zh } from '@/utils/i18n'
 
 const VIDEO_PAGE_SIZE = 25
 const JAV_PAGE_SIZE = 24
+const JAV_GRID_COLUMNS_AUTO = 0
 let videoLoadSeq = 0
 let lastVideoFetchKey = null
 let lastJavFetchKey = null
@@ -60,6 +61,12 @@ export const useStore = create((set, get) => ({
   javTab: 'list', // list | idol
   javPage: 1,
   javPageSize: JAV_PAGE_SIZE,
+  javGridColumns: JAV_GRID_COLUMNS_AUTO,
+  setJavGridColumns: (columns) => {
+    const n = Math.floor(Number(columns))
+    const next = Number.isFinite(n) && n > 0 ? Math.min(n, 12) : JAV_GRID_COLUMNS_AUTO
+    set({ javGridColumns: next })
+  },
   setJavPageSize: (size) => {
     const next = Math.max(1, Math.floor(Number(size) || JAV_PAGE_SIZE))
     set({
@@ -259,6 +266,11 @@ export const useStore = create((set, get) => ({
       const videoSize = clamp(cfg?.video_page_size)
       const videoSort = normalizeVideoSort((cfg?.video_sort || '').toLowerCase(), '')
       const javSize = clamp(cfg?.jav_page_size)
+      const javGridColumnsRaw = parseInt(cfg?.jav_grid_columns, 10)
+      const javGridColumns =
+        Number.isFinite(javGridColumnsRaw) && javGridColumnsRaw > 0
+          ? Math.min(javGridColumnsRaw, 12)
+          : JAV_GRID_COLUMNS_AUTO
       const idolSize = clamp(cfg?.idol_page_size)
       const javSort = normalizeJavSort((cfg?.jav_sort || '').toLowerCase(), '')
       const idolSort = normalizeIdolSort((cfg?.idol_sort || '').toLowerCase(), '')
@@ -276,6 +288,9 @@ export const useStore = create((set, get) => ({
       }
       if (javSize && javSize !== state.javPageSize) {
         updates.javPageSize = javSize
+      }
+      if (javGridColumns !== state.javGridColumns) {
+        updates.javGridColumns = javGridColumns
       }
       if (idolSize && idolSize !== state.idolPageSize) {
         updates.idolPageSize = idolSize

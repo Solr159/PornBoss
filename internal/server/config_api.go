@@ -36,6 +36,7 @@ func updateConfig(c *gin.Context) {
 	var req struct {
 		VideoPageSize          *int                  `json:"video_page_size"`
 		JavPageSize            *int                  `json:"jav_page_size"`
+		JavGridColumns         *int                  `json:"jav_grid_columns"`
 		IdolPageSize           *int                  `json:"idol_page_size"`
 		VideoSort              string                `json:"video_sort"`
 		JavSort                string                `json:"jav_sort"`
@@ -76,6 +77,16 @@ func updateConfig(c *gin.Context) {
 		if v, ok := clampSize(*req.JavPageSize); ok {
 			entries["jav_page_size"] = v
 		}
+	}
+	if req.JavGridColumns != nil {
+		columns := *req.JavGridColumns
+		if columns < 0 {
+			columns = 0
+		}
+		if columns > 12 {
+			columns = 12
+		}
+		entries["jav_grid_columns"] = strconv.Itoa(columns)
 	}
 	if req.IdolPageSize != nil {
 		if v, ok := clampSize(*req.IdolPageSize); ok {

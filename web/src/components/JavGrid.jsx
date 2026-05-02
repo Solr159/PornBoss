@@ -63,6 +63,7 @@ function ReleaseIcon() {
 
 export default function JavGrid({
   items,
+  columns = 0,
   onPlay,
   onIdolClick,
   onTagClick,
@@ -75,6 +76,14 @@ export default function JavGrid({
   const idolPreviewCacheRef = useRef(new Map())
   const idolPreviewInflightRef = useRef(new Map())
   const hasItems = Array.isArray(items) && items.length > 0
+  const columnCount = Number.isFinite(Number(columns)) ? Math.floor(Number(columns)) : 0
+  const fixedColumnCount = columnCount > 0 ? Math.min(columnCount, 12) : 0
+  const gridClassName = fixedColumnCount
+    ? 'grid gap-4'
+    : 'grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4'
+  const gridStyle = fixedColumnCount
+    ? { gridTemplateColumns: `repeat(${fixedColumnCount}, minmax(0, 1fr))` }
+    : undefined
 
   const loadIdolPreview = async (idol) => {
     const idolId = Number(idol?.id)
@@ -113,7 +122,7 @@ export default function JavGrid({
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4">
+    <div className={gridClassName} style={gridStyle}>
       {items.map((item) => (
         <JavCard
           key={item.id || item.code}
