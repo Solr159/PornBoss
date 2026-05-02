@@ -137,12 +137,13 @@ func buildInputConfContent() (string, error) {
 		case "seek":
 			lines = append(lines, fmt.Sprintf("%s no-osd seek %s exact", keyName, formatAmount(item.Amount)))
 		case "volume":
-			lines = append(lines, fmt.Sprintf("%s add volume %s", keyName, formatAmount(item.Amount)))
+			lines = append(lines, fmt.Sprintf("%s no-osd add volume %s", keyName, formatAmount(item.Amount)))
 		case "screenshot":
 			lines = append(lines, fmt.Sprintf("%s screenshot", keyName))
 		}
 	}
 
+	lines = append(lines, "SPACE cycle pause")
 	lines = append(lines, "ESC quit")
 	return strings.Join(lines, "\n") + "\n", nil
 }
@@ -381,6 +382,7 @@ func buildConfigContent() (string, error) {
 
 	lines := []string{
 		"osc=no",
+		"input-default-bindings=no",
 		"keep-open=yes",
 		fmt.Sprintf("ontop=%s", mpvBool(ontop)),
 		fmt.Sprintf("osd-playing-msg-duration=%d", startupHintDuration),
