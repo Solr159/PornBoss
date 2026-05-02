@@ -24,8 +24,8 @@ const playerOntopConfigKey = "player_ontop"
 const playerShowHotkeyHintConfigKey = "player_show_hotkey_hint"
 
 const (
-	defaultWindowWidth  = 70
-	defaultWindowHeight = 70
+	defaultWindowWidth  = 80
+	defaultWindowHeight = 80
 	defaultVolume       = 70
 	defaultOntop        = true
 	startupHintDuration = 5000

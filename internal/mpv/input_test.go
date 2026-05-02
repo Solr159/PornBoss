@@ -48,7 +48,7 @@ func TestBuildConfigContentIncludesRequiredDefaults(t *testing.T) {
 	if !strings.Contains(content, "watch-later-options-remove=sub-pos,osd-margin-y\n") {
 		t.Fatalf("expected watch-later overrides in mpv config, got %q", content)
 	}
-	if !strings.Contains(content, "geometry=70%x70%+50%+50%\n") {
+	if !strings.Contains(content, "geometry=80%x80%+50%+50%\n") {
 		t.Fatalf("expected centered default geometry in mpv config, got %q", content)
 	}
 }
@@ -179,7 +179,7 @@ func TestBuildConfigContentUsesOnlyAutofitForAutomaticWindowSize(t *testing.T) {
 		t.Fatalf("buildConfigContent returned error: %v", err)
 	}
 
-	if !strings.Contains(content, "autofit=70%x70%\n") {
+	if !strings.Contains(content, "autofit=80%x80%\n") {
 		t.Fatalf("expected default autofit size in mpv config, got %q", content)
 	}
 	if strings.Contains(content, "auto-window-resize=no\n") {
