@@ -1,0 +1,167 @@
+package jav
+
+import (
+	"strings"
+	"testing"
+	"time"
+
+	"golang.org/x/net/html"
+)
+
+func TestFindJavDBSearchResultURLMatchesFirstExactCode(t *testing.T) {
+	doc, err := html.Parse(strings.NewReader(`
+<!doctype html>
+<html>
+<body>
+  <div class="movie-list h cols-4 vcols-8">
+    <div class="item">
+      <a href="/v/kKdRm" class="box">
+        <div class="video-title"><strong>IPX-228</strong> Title</div>
+      </a>
+    </div>
+    <div class="item">
+      <a href="/v/zKmWJ" class="box">
+        <div class="video-title"><strong>IPX-128</strong> Other</div>
+      </a>
+    </div>
+  </div>
+</body>
+</html>`))
+	if err != nil {
+		t.Fatalf("parse html: %v", err)
+	}
+
+	got := findJavDBSearchResultURL(doc, "ipx228", "https://javdb.com/search?q=ipx-228&f=all")
+	if got != "https://javdb.com/v/kKdRm" {
+		t.Fatalf("unexpected detail url: %q", got)
+	}
+}
+
+func TestParseJavDBMovieInfo(t *testing.T) {
+	doc, err := html.Parse(strings.NewReader(`
+<!doctype html>
+<html>
+<head><title> IPX-228 Fallback | JavDB 成人影片數據庫 </title></head>
+<body>
+  <div class="video-detail">
+    <h2 class="title is-4">
+      <strong>IPX-228 </strong>
+      <strong class="current-title">中年オヤジと制服美少女の汗だく唾液みどろ特濃ベロキス性交 岬ななみ </strong>
+    </h2>
+    <nav class="panel movie-panel-info">
+      <div class="panel-block first-block">
+        <strong>番號:</strong>
+        <span class="value"><a href="/video_codes/IPX">IPX</a>-228</span>
+      </div>
+      <div class="panel-block">
+        <strong>日期:</strong>
+        <span class="value">2018-11-13</span>
+      </div>
+      <div class="panel-block">
+        <strong>時長:</strong>
+        <span class="value">170 分鍾</span>
+      </div>
+      <div class="panel-block">
+        <strong>導演:</strong>
+        <span class="value"><a href="/directors/6DD">五右衛門</a></span>
+      </div>
+      <div class="panel-block">
+        <strong>片商:</strong>
+        <span class="value"><a href="/makers/ZXX">IDEA POCKET</a></span>
+      </div>
+      <div class="panel-block">
+        <strong>發行:</strong>
+        <span class="value"><a href="/publishers/8V9">ティッシュ</a></span>
+      </div>
+      <div class="panel-block">
+        <strong>系列:</strong>
+        <span class="value"><a href="/series/w54b">中年オヤジ</a></span>
+      </div>
+      <div class="panel-block">
+        <strong>評分:</strong>
+        <span class="value">4.41分, 由558人評價</span>
+      </div>
+      <div class="panel-block">
+        <strong>類別:</strong>
+        <span class="value"><a href="/tags?c7=28">單體作品</a>, <a href="/tags?c2=5">美少女</a></span>
+      </div>
+      <div class="panel-block">
+        <strong>演員:</strong>
+        <span class="value">
+          <a href="/actors/QNen">岬ななみ</a><strong class="symbol female">♀</strong>
+          <a href="/actors/zXAE">吉村卓</a><strong class="symbol male">♂</strong>
+        </span>
+      </div>
+    </nav>
+  </div>
+</body>
+</html>`))
+	if err != nil {
+		t.Fatalf("parse html: %v", err)
+	}
+
+	info := parseJavDBMovieInfo(doc)
+	if info == nil {
+		t.Fatal("expected info, got nil")
+	}
+	if info.Provider != ProviderJavDB {
+		t.Fatalf("unexpected provider: %s", info.Provider.String())
+	}
+	if info.Code != "IPX-228" {
+		t.Fatalf("unexpected code: %q", info.Code)
+	}
+	if info.Title != "中年オヤジと制服美少女の汗だく唾液みどろ特濃ベロキス性交 岬ななみ" {
+		t.Fatalf("unexpected title: %q", info.Title)
+	}
+
+	wantRelease := time.Date(2018, 11, 13, 0, 0, 0, 0, time.UTC).Unix()
+	if info.ReleaseUnix != wantRelease {
+		t.Fatalf("unexpected release unix: got %d want %d", info.ReleaseUnix, wantRelease)
+	}
+	if info.DurationMin != 170 {
+		t.Fatalf("unexpected duration: %d", info.DurationMin)
+	}
+
+	wantTags := []string{"單體作品", "美少女"}
+	if len(info.Tags) != len(wantTags) {
+		t.Fatalf("unexpected tags length: got %d want %d", len(info.Tags), len(wantTags))
+	}
+	for i, tag := range wantTags {
+		if info.Tags[i] != tag {
+			t.Fatalf("unexpected tag at %d: got %q want %q", i, info.Tags[i], tag)
+		}
+	}
+
+	wantActors := []string{"岬ななみ", "吉村卓"}
+	if len(info.Actors) != len(wantActors) {
+		t.Fatalf("unexpected actors length: got %d want %d", len(info.Actors), len(wantActors))
+	}
+	for i, actor := range wantActors {
+		if info.Actors[i] != actor {
+			t.Fatalf("unexpected actor at %d: got %q want %q", i, info.Actors[i], actor)
+		}
+	}
+
+	fields := extractJavDBMovieFields(doc)
+	if fields.Director != "五右衛門" || fields.Maker != "IDEA POCKET" || fields.Publisher != "ティッシュ" || fields.Series != "中年オヤジ" || fields.Rating != "4.41分, 由558人評價" {
+		t.Fatalf("unexpected extra fields: %#v", fields)
+	}
+}
+
+func TestParseJavDBCoverURL(t *testing.T) {
+	doc, err := html.Parse(strings.NewReader(`
+<!doctype html>
+<html>
+<body>
+  <img src="https://c0.jdbstatic.com/covers/kk/kKdRm.jpg" class="video-cover">
+</body>
+</html>`))
+	if err != nil {
+		t.Fatalf("parse html: %v", err)
+	}
+
+	got := parseJavDBCoverURL(doc, "https://javdb.com/v/kKdRm")
+	if got != "https://c0.jdbstatic.com/covers/kk/kKdRm.jpg" {
+		t.Fatalf("unexpected cover url: %q", got)
+	}
+}
