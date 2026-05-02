@@ -19,8 +19,8 @@ export const JAV_SORT_OPTIONS = [
     ascValue: 'code',
     descValue: 'code_desc',
     label: ['番号', 'Code'],
-    asc: ['小→大', 'A→Z'],
-    desc: ['大→小', 'Z→A'],
+    asc: ['A-Z', 'A-Z'],
+    desc: ['Z-A', 'Z-A'],
   },
   {
     base: 'duration',
