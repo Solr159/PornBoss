@@ -371,7 +371,7 @@ function JavCard({
                 type="button"
                 onClick={handleOpenCoverPreview}
                 aria-label={zh('放大封面', 'Enlarge cover')}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/80 bg-black/70 text-white shadow-lg shadow-black/60 hover:bg-black/85"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-white shadow-lg shadow-black/60 hover:bg-black/85"
               >
                 <SearchIcon className="h-5 w-5 text-white" fontSize="inherit" />
               </button>
