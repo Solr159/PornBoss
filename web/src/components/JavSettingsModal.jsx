@@ -56,6 +56,8 @@ export default function JavSettingsModal({
   onClose,
   javPageSizeInput,
   onJavPageSizeChange,
+  javGridColumnsInput,
+  onJavGridColumnsChange,
   idolPageSizeInput,
   onIdolPageSizeChange,
   javSortInput,
@@ -93,6 +95,21 @@ export default function JavSettingsModal({
                 onChange={(e) => onJavPageSizeChange?.(e.target.value)}
                 className="w-24 rounded border px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
+            </label>
+            <label className="flex items-center justify-between gap-3 text-sm font-medium text-gray-700">
+              <span>{zh('每行 JAV 数量', 'JAVs per row')}</span>
+              <select
+                value={String(javGridColumnsInput ?? 0)}
+                onChange={(e) => onJavGridColumnsChange?.(e.target.value)}
+                className="w-24 rounded border bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="0">{zh('自适应', 'Auto')}</option>
+                {Array.from({ length: 12 }, (_, index) => index + 1).map((count) => (
+                  <option key={count} value={String(count)}>
+                    {count}
+                  </option>
+                ))}
+              </select>
             </label>
             <div className="text-sm font-medium text-gray-700">
               {zh('默认排序', 'Default sort')}

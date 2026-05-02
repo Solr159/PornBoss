@@ -13,9 +13,9 @@ export const VIDEO_SORT_OPTIONS = [
     defaultValue: 'filename',
     ascValue: 'filename',
     descValue: 'filename_desc',
-    label: ['文件名', 'Filename'],
-    asc: ['A→Z', 'A→Z'],
-    desc: ['Z→A', 'Z→A'],
+    label: ['文件名字典序', 'Filename lexicographic'],
+    asc: ['小→大', 'low→high'],
+    desc: ['大→小', 'high→low'],
   },
   {
     base: 'duration',

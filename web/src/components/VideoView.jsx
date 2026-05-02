@@ -33,11 +33,11 @@ export default function VideoView({
   canNext,
   loading,
   randomMode,
-  videoPageSort,
+  videoTempSort,
   videoGlobalSort,
   buildVideoUrl,
   setPage,
-  setVideoPageSort,
+  setVideoTempSort,
   goToLastPage,
   videos,
   selectedVideoIds,
@@ -55,7 +55,7 @@ export default function VideoView({
   const pageSelectable = pageIds.length > 0
   const pageAllSelected = pageSelectable && pageIds.every((id) => selectedVideoIds.has(id))
   const hasSelection = selectedCount > 0
-  const effectiveSort = videoPageSort || videoGlobalSort
+  const effectiveSort = videoTempSort || videoGlobalSort
   const currentOption = findVideoSortOption(effectiveSort) || VIDEO_SORT_OPTIONS[0]
 
   const isOptionActive = (option) => {
@@ -176,7 +176,7 @@ export default function VideoView({
                       type="button"
                       onClick={() => {
                         closeSortMenu()
-                        setVideoPageSort?.(displayValue)
+                        setVideoTempSort?.(displayValue)
                       }}
                       className="min-w-0 flex-1 px-2 py-1 text-left text-xs"
                     >
@@ -186,7 +186,7 @@ export default function VideoView({
                       type="button"
                       onClick={() => {
                         closeSortMenu()
-                        setVideoPageSort?.(reverseVideoSortValue(displayValue, option.defaultValue))
+                        setVideoTempSort?.(reverseVideoSortValue(displayValue, option.defaultValue))
                       }}
                       className="mr-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-white hover:text-blue-700"
                       title={zh('反转排序', 'Reverse sort')}

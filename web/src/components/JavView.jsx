@@ -25,12 +25,13 @@ export default function JavView({
   javHasNext,
   javLoading,
   javRandomMode,
-  javPageSort,
+  javTempSort,
   javGlobalSort,
   buildJavUrl,
   setJavPage,
-  setJavPageSort,
+  setJavTempSort,
   javItems,
+  javGridColumns,
   onPlay,
   onIdolClick,
   onTagClick,
@@ -42,7 +43,7 @@ export default function JavView({
 }) {
   const contentClass = javRandomMode ? 'mt-4' : ''
   const [sortAnchorEl, setSortAnchorEl] = useState(null)
-  const effectiveSort = javPageSort || javGlobalSort
+  const effectiveSort = javTempSort || javGlobalSort
   const currentOption = findSortOption(JAV_SORT_OPTIONS, effectiveSort) || JAV_SORT_OPTIONS[0]
 
   const isOptionActive = (option) => {
@@ -122,7 +123,7 @@ export default function JavView({
                         type="button"
                         onClick={() => {
                           closeSortMenu()
-                          setJavPageSort?.(displayValue)
+                          setJavTempSort?.(displayValue)
                         }}
                         className="min-w-0 flex-1 px-2 py-1 text-left text-xs"
                       >
@@ -132,7 +133,7 @@ export default function JavView({
                         type="button"
                         onClick={() => {
                           closeSortMenu()
-                          setJavPageSort?.(
+                          setJavTempSort?.(
                             reverseSortValue([option], displayValue, option.defaultValue)
                           )
                         }}
@@ -163,6 +164,7 @@ export default function JavView({
         <div className={contentClass}>
           <JavGrid
             items={javItems}
+            columns={javGridColumns}
             onPlay={onPlay}
             onIdolClick={onIdolClick}
             onTagClick={onTagClick}

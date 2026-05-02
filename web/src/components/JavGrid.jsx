@@ -6,6 +6,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined'
+import SearchIcon from '@mui/icons-material/Search'
 
 import { fetchJavIdolPreview } from '@/api'
 import { IdolCard, getIdolCardLayoutProps } from '@/components/JavIdolGrid'
@@ -63,6 +64,7 @@ function ReleaseIcon() {
 
 export default function JavGrid({
   items,
+  columns = 0,
   onPlay,
   onIdolClick,
   onTagClick,
@@ -74,7 +76,16 @@ export default function JavGrid({
 }) {
   const idolPreviewCacheRef = useRef(new Map())
   const idolPreviewInflightRef = useRef(new Map())
+  const [coverPreview, setCoverPreview] = useState(null)
   const hasItems = Array.isArray(items) && items.length > 0
+  const columnCount = Number.isFinite(Number(columns)) ? Math.floor(Number(columns)) : 0
+  const fixedColumnCount = columnCount > 0 ? Math.min(columnCount, 12) : 0
+  const gridClassName = fixedColumnCount
+    ? 'grid gap-4'
+    : 'grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4'
+  const gridStyle = fixedColumnCount
+    ? { gridTemplateColumns: `repeat(${fixedColumnCount}, minmax(0, 1fr))` }
+    : undefined
 
   const loadIdolPreview = async (idol) => {
     const idolId = Number(idol?.id)
@@ -113,7 +124,7 @@ export default function JavGrid({
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4">
+    <div className={gridClassName} style={gridStyle}>
       {items.map((item) => (
         <JavCard
           key={item.id || item.code}
@@ -127,8 +138,45 @@ export default function JavGrid({
           onRevealFile={onRevealFile}
           onOpenScreenshots={onOpenScreenshots}
           loadIdolPreview={loadIdolPreview}
+          onOpenCoverPreview={setCoverPreview}
         />
       ))}
+      {coverPreview ? (
+        <CoverPreviewModal preview={coverPreview} onClose={() => setCoverPreview(null)} />
+      ) : null}
+    </div>
+  )
+}
+
+function CoverPreviewModal({ preview, onClose }) {
+  if (!preview?.src) return null
+
+  return (
+    <div
+      className="fixed inset-0 z-[1500] flex items-center justify-center bg-black/80 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={zh('封面预览', 'Cover preview')}
+    >
+      <button
+        type="button"
+        className="absolute inset-0 cursor-default"
+        aria-label={zh('关闭封面预览', 'Close cover preview')}
+        onClick={onClose}
+      />
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-4 top-4 z-10 rounded bg-black/50 px-3 py-1 text-xl leading-none text-white hover:bg-black/70"
+        aria-label={zh('关闭封面预览', 'Close cover preview')}
+      >
+        ×
+      </button>
+      <img
+        src={preview.src}
+        alt={preview.alt || zh('JAV 封面', 'JAV cover')}
+        className="relative z-10 max-h-[92vh] max-w-[94vw] object-contain shadow-2xl"
+      />
     </div>
   )
 }
@@ -144,6 +192,7 @@ function JavCard({
   onRevealFile,
   onOpenScreenshots,
   loadIdolPreview,
+  onOpenCoverPreview,
 }) {
   const primaryVideo = useMemo(() => (item?.videos || [])[0], [item])
   const { bgWidthPercent, coverAspectPercent } = useMemo(() => getIdolCardLayoutProps(), [])
@@ -214,6 +263,21 @@ function JavCard({
     onOpenScreenshots?.(openableVideos[0] || primaryVideo, item)
   }
 
+  const handleOpenCoverPreview = (event) => {
+    event.stopPropagation()
+    if (!cover) return
+    onOpenCoverPreview?.({ src: cover, alt: titleText })
+  }
+
+  const handleToggleExternalMenu = (event) => {
+    event.stopPropagation()
+    setExternalAnchorEl((current) => (current ? null : event.currentTarget))
+  }
+
+  const closeExternalMenu = () => {
+    setExternalAnchorEl(null)
+  }
+
   const canPlay = Boolean(primaryVideo && primaryVideo.id)
   const handlePlay = (event) => {
     event?.stopPropagation()
@@ -228,8 +292,11 @@ function JavCard({
   const showEditTags = typeof onEditTags === 'function'
   const [previewIdol, setPreviewIdol] = useState(null)
   const [hoverAnchorEl, setHoverAnchorEl] = useState(null)
+  const [externalAnchorEl, setExternalAnchorEl] = useState(null)
   const closeTimerRef = useRef(null)
   const activeHoverIdRef = useRef(null)
+  const externalMenuRef = useRef(null)
+  const externalMenuOpen = Boolean(externalAnchorEl)
 
   useEffect(() => {
     return () => {
@@ -238,6 +305,25 @@ function JavCard({
       }
     }
   }, [])
+
+  useEffect(() => {
+    if (!externalMenuOpen) return undefined
+
+    const handleOutsideClick = (event) => {
+      const target = event.target
+      if (externalAnchorEl?.contains(target) || externalMenuRef.current?.contains(target)) {
+        return
+      }
+      setExternalAnchorEl(null)
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+    document.addEventListener('touchstart', handleOutsideClick)
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+      document.removeEventListener('touchstart', handleOutsideClick)
+    }
+  }, [externalAnchorEl, externalMenuOpen])
 
   const clearHoverCloseTimer = () => {
     if (closeTimerRef.current) {
@@ -281,7 +367,7 @@ function JavCard({
 
   return (
     <div className="flex flex-col overflow-hidden rounded-lg border bg-white shadow-sm transition hover:shadow-lg">
-      <div className="group relative aspect-[800/538] bg-gray-100">
+      <div className="group relative aspect-[800/538] overflow-hidden bg-gray-100">
         {cover ? (
           <img src={cover} alt={item?.code} className="h-full w-full object-cover" loading="lazy" />
         ) : (
@@ -309,6 +395,19 @@ function JavCard({
             </svg>
           </button>
         </div>
+        {cover ? (
+          <div className="absolute bottom-2 left-2 z-10 opacity-0 transition-opacity group-hover:opacity-100">
+            <button
+              type="button"
+              onClick={handleOpenCoverPreview}
+              title={zh('放大封面', 'Enlarge cover')}
+              aria-label={zh('放大封面', 'Enlarge cover')}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-white shadow-lg shadow-black/60 hover:bg-black/85"
+            >
+              <SearchIcon className="h-5 w-5 text-white" fontSize="inherit" />
+            </button>
+          </div>
+        ) : null}
       </div>
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div className="line-clamp-2 text-sm leading-tight" title={titleText}>
@@ -401,38 +500,63 @@ function JavCard({
             </span>
           )}
           {externalLinks.length > 0 && (
-            <div className="group relative flex items-center">
+            <div className="relative flex items-center">
               <IconButton
                 size="small"
                 aria-label={zh('外部站点', 'External links')}
+                aria-haspopup="menu"
+                aria-expanded={externalMenuOpen}
                 className="h-6 w-6"
-                onClick={(event) => event.stopPropagation()}
+                onClick={handleToggleExternalMenu}
               >
                 <OpenInNewIcon fontSize="inherit" />
               </IconButton>
-              <div className="pointer-events-none absolute bottom-full left-0 z-20 flex items-center gap-2 rounded-full border border-gray-200 bg-white/95 px-2 py-1 text-xs text-gray-700 opacity-0 shadow-lg backdrop-blur transition group-hover:pointer-events-auto group-hover:opacity-100">
-                {externalLinks.map((site) => (
-                  <Tooltip
-                    key={site.key}
-                    title={zh(`在 ${site.name} 中打开`, `Open in ${site.name}`)}
-                    placement="top"
-                    arrow
-                    TransitionComponent={Fade}
-                    TransitionProps={{ timeout: 0 }}
-                  >
-                    <a
-                      href={site.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 transition hover:bg-gray-200"
-                      aria-label={zh(`在 ${site.name} 中打开`, `Open in ${site.name}`)}
-                      onClick={(event) => event.stopPropagation()}
+              <Popper
+                open={externalMenuOpen}
+                anchorEl={externalAnchorEl}
+                placement="top-start"
+                className="z-[1300]"
+                modifiers={[
+                  {
+                    name: 'offset',
+                    options: {
+                      offset: [0, 8],
+                    },
+                  },
+                ]}
+              >
+                <div
+                  ref={externalMenuRef}
+                  role="menu"
+                  className="flex items-center gap-2 rounded-full border border-gray-200 bg-white/95 px-2 py-1 text-xs text-gray-700 shadow-lg backdrop-blur"
+                >
+                  {externalLinks.map((site) => (
+                    <Tooltip
+                      key={site.key}
+                      title={zh(`在 ${site.name} 中打开`, `Open in ${site.name}`)}
+                      placement="top"
+                      arrow
+                      TransitionComponent={Fade}
+                      TransitionProps={{ timeout: 0 }}
                     >
-                      <img src={site.icon} alt={site.name} className="h-4 w-4" loading="lazy" />
-                    </a>
-                  </Tooltip>
-                ))}
-              </div>
+                      <a
+                        href={site.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        role="menuitem"
+                        className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 transition hover:bg-gray-200"
+                        aria-label={zh(`在 ${site.name} 中打开`, `Open in ${site.name}`)}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          closeExternalMenu()
+                        }}
+                      >
+                        <img src={site.icon} alt={site.name} className="h-4 w-4" loading="lazy" />
+                      </a>
+                    </Tooltip>
+                  ))}
+                </div>
+              </Popper>
             </div>
           )}
           <Tooltip title={openFileLabel || zh('用默认程序打开', 'Open with default app')}>

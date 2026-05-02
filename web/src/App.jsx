@@ -75,8 +75,8 @@ export default function App() {
     searchTerm,
     setSearchTerm,
     sortOrder,
-    videoPageSort,
-    setVideoPageSort,
+    videoTempSort,
+    setVideoTempSort,
     loadJavRandom,
     randomMode,
     randomSeed,
@@ -86,15 +86,16 @@ export default function App() {
     javPage,
     setJavPage,
     javPageSize,
+    javGridColumns,
     javSearchTerm,
     javActors,
     javTags,
     javSort,
-    javPageSort,
+    javTempSort,
     javRandomMode,
     javRandomSeed,
     idolSort,
-    setJavPageSort,
+    setJavTempSort,
     loadJavs,
     javItems,
     javTotal,
@@ -154,6 +155,7 @@ export default function App() {
   const [videoPageSizeInput, setVideoPageSizeInput] = useState(pageSize)
   const [videoSortInput, setVideoSortInput] = useState(sortOrder)
   const [javPageSizeInput, setJavPageSizeInput] = useState(javPageSize)
+  const [javGridColumnsInput, setJavGridColumnsInput] = useState(javGridColumns)
   const [idolPageSizeInput, setIdolPageSizeInput] = useState(idolPageSize)
   const [javSortInput, setJavSortInput] = useState(javSort)
   const [idolSortInput, setIdolSortInput] = useState(idolSort)
@@ -397,13 +399,15 @@ export default function App() {
     }
   }, [loadConfig])
   const buildVideoUrl = useCallback(
-    ({
-      page: pageOverride,
-      search: searchOverride,
-      random: randomOverride,
-      seed: seedOverride,
-      tagIds: tagIdsOverride,
-    } = {}) => {
+    (options = {}) => {
+      const {
+        page: pageOverride,
+        search: searchOverride,
+        random: randomOverride,
+        seed: seedOverride,
+        tagIds: tagIdsOverride,
+        tempSort: tempSortOverride,
+      } = options
       const sp = new URLSearchParams()
       sp.set('view', 'video')
       const searchVal = (searchOverride ?? searchTerm).trim()
@@ -413,6 +417,10 @@ export default function App() {
       if (sortOrder && sortOrder !== 'recent') {
         sp.set('sort', sortOrder)
       }
+      const hasTempSortOverride = Object.prototype.hasOwnProperty.call(options, 'tempSort')
+      const tempSortVal = hasTempSortOverride
+        ? normalizeVideoSort(tempSortOverride, '')
+        : videoTempSort
       const tagIds = tagIdsOverride ?? selectedTagIds
       if (tagIds.length > 0) {
         sp.set('tag_ids', [...tagIds].sort((a, b) => a - b).join(','))
@@ -425,6 +433,9 @@ export default function App() {
           sp.set('seed', String(seedValue))
         }
       } else {
+        if (tempSortVal) {
+          sp.set('temp_sort', tempSortVal)
+        }
         sp.delete('random')
         sp.delete('seed')
         const targetPage = pageOverride ?? page
@@ -433,7 +444,7 @@ export default function App() {
       const query = sp.toString()
       return `${window.location.pathname}${query ? `?${query}` : ''}`
     },
-    [page, randomMode, randomSeed, searchTerm, selectedTagIds, sortOrder]
+    [page, randomMode, randomSeed, searchTerm, selectedTagIds, sortOrder, videoTempSort]
   )
 
   const buildJavUrl = useCallback(
@@ -447,6 +458,7 @@ export default function App() {
         tagIds: tagIdsOverride,
         random: randomOverride,
         seed: seedOverride,
+        tempSort: tempSortOverride,
       } = options
       const sp = new URLSearchParams()
       sp.set('view', 'jav')
@@ -483,6 +495,8 @@ export default function App() {
       } else if (sortVal && sortVal !== 'recent') {
         sp.set('sort', sortVal)
       }
+      const hasTempSortOverride = Object.prototype.hasOwnProperty.call(options, 'tempSort')
+      const tempSortVal = hasTempSortOverride ? normalizeJavSort(tempSortOverride, '') : javTempSort
       const randomFlag = randomOverride ?? javRandomMode
       if (tab !== 'idol' && randomFlag) {
         sp.set('random', '1')
@@ -491,6 +505,9 @@ export default function App() {
           sp.set('seed', String(seedValue))
         }
       } else {
+        if (tab !== 'idol' && tempSortVal) {
+          sp.set('temp_sort', tempSortVal)
+        }
         sp.delete('random')
         sp.delete('seed')
         const targetPage = pageOverride ?? (tab === 'idol' ? idolPage : javPage)
@@ -503,6 +520,7 @@ export default function App() {
       idolPage,
       javActors,
       javPage,
+      javTempSort,
       javSearchTerm,
       javTab,
       javSort,
@@ -523,9 +541,9 @@ export default function App() {
     )
     useStore.setState({
       viewMode: 'jav',
-      videoPageSort: '',
+      videoTempSort: '',
       javTab: 'list',
-      javPageSort: '',
+      javTempSort: '',
       javRandomMode: false,
       javRandomSeed: null,
       javActors: [],
@@ -551,7 +569,7 @@ export default function App() {
         const currentIdolSort = useStore.getState().idolSort
         useStore.setState({
           viewMode: 'jav',
-          videoPageSort: '',
+          videoTempSort: '',
           javTab: jav.tab,
           javRandomMode: jav.tab === 'idol' ? false : jav.random,
           javRandomSeed: jav.tab === 'idol' ? null : jav.random ? jav.seed : null,
@@ -561,7 +579,7 @@ export default function App() {
           javPage: jav.random ? 1 : jav.page,
           idolPage: jav.tab === 'idol' ? jav.page : 1,
           javSort: jav.tab === 'idol' ? 'recent' : jav.sort,
-          javPageSort: '',
+          javTempSort: jav.tab === 'idol' || jav.random ? '' : jav.tempSort,
           idolSort: jav.tab === 'idol' ? jav.idolSort : currentIdolSort,
         })
         setJavSearchInput(jav.search)
@@ -575,9 +593,9 @@ export default function App() {
       const { video } = parsed
       useStore.setState({
         viewMode: 'video',
-        javPageSort: '',
+        javTempSort: '',
         sortOrder: video.sort,
-        videoPageSort: '',
+        videoTempSort: video.random ? '' : video.tempSort,
         randomMode: video.random,
         randomSeed: video.random ? video.seed : null,
         searchTerm: video.random ? '' : video.search,
@@ -586,7 +604,7 @@ export default function App() {
       setSearchInput(video.search)
       const names = mapTagIdsToNamesFromStore(video.tagIds)
       if (names.length || video.tagIds.length === 0) {
-        useStore.getState().setSelectedTags(names, { resetPage: false })
+        useStore.getState().setSelectedTags(names, { resetPage: false, preserveTempSort: true })
       } else {
         pendingVideoTagIdsRef.current = video.tagIds
       }
@@ -631,7 +649,7 @@ export default function App() {
   useEffect(() => {
     if (!pendingVideoTagIdsRef.current || !tags.length) return
     const names = mapTagIdsToNames(pendingVideoTagIdsRef.current)
-    setSelectedTags(names, { resetPage: false })
+    setSelectedTags(names, { resetPage: false, preserveTempSort: true })
     pendingVideoTagIdsRef.current = null
   }, [mapTagIdsToNames, setSelectedTags, tags])
 
@@ -651,7 +669,7 @@ export default function App() {
     searchTerm,
     selectedTags,
     sortOrder,
-    videoPageSort,
+    videoTempSort,
   ])
 
   useEffect(() => {
@@ -671,7 +689,7 @@ export default function App() {
     javActors,
     javTags,
     javSort,
-    javPageSort,
+    javTempSort,
     javRandomMode,
     javRandomSeed,
     idolSort,
@@ -707,7 +725,7 @@ export default function App() {
           page,
           searchTerm,
           sortOrder,
-          videoPageSort,
+          videoTempSort,
           selectedTags,
           randomMode,
           randomSeed,
@@ -717,6 +735,7 @@ export default function App() {
           javActors,
           javTags,
           javSort,
+          javTempSort,
           javRandomMode,
           javRandomSeed,
           idolSort,
@@ -733,6 +752,7 @@ export default function App() {
       javRandomSeed,
       javSearchTerm,
       javSort,
+      javTempSort,
       javTab,
       javTags,
       page,
@@ -741,7 +761,7 @@ export default function App() {
       searchTerm,
       selectedTags,
       sortOrder,
-      videoPageSort,
+      videoTempSort,
       tagsByName,
       viewMode,
     ]
@@ -803,7 +823,13 @@ export default function App() {
     () => (javTagOptions || []).filter((tag) => isUserJavTag(tag)),
     [javTagOptions]
   )
-  const searchHref = buildVideoUrl({ search: searchInput, page: 1, random: false, tagIds: [] })
+  const searchHref = buildVideoUrl({
+    search: searchInput,
+    page: 1,
+    random: false,
+    tagIds: [],
+    tempSort: '',
+  })
   const randomHref = buildVideoUrl({ random: true, page: 1, tagIds: [], search: '' })
   const javSearchHref = buildJavUrl({
     search: javSearchInput,
@@ -812,6 +838,7 @@ export default function App() {
     actors: [],
     tagIds: [],
     random: false,
+    tempSort: '',
   })
   const javRandomHref = buildJavUrl({
     random: true,
@@ -825,9 +852,9 @@ export default function App() {
     const nextSeed = generateRandomSeed()
     useStore.setState({
       viewMode: 'jav',
-      videoPageSort: '',
+      videoTempSort: '',
       javTab: 'list',
-      javPageSort: '',
+      javTempSort: '',
       javActors: [],
       javTags: [],
       javSearchTerm: '',
@@ -845,7 +872,7 @@ export default function App() {
       viewMode: 'video',
       selectedTags: [],
       searchTerm: '',
-      videoPageSort: '',
+      videoTempSort: '',
       page: 1,
       randomMode: true,
       randomSeed: nextSeed,
@@ -900,7 +927,7 @@ export default function App() {
       viewMode: 'video',
       selectedTags: [],
       searchTerm: nextSearch,
-      videoPageSort: '',
+      videoTempSort: '',
       page: 1,
       randomMode: false,
       randomSeed: null,
@@ -911,8 +938,8 @@ export default function App() {
     e?.preventDefault()
     useStore.setState({
       viewMode: 'jav',
-      videoPageSort: '',
-      javPageSort: '',
+      videoTempSort: '',
+      javTempSort: '',
       javRandomMode: false,
       javRandomSeed: null,
       javActors: [],
@@ -936,7 +963,7 @@ export default function App() {
       useStore.setState({
         pageSize: size,
         sortOrder: normalizedSort,
-        videoPageSort: '',
+        videoTempSort: '',
         page: nextPage,
         randomMode: false,
         randomSeed: null,
@@ -949,12 +976,18 @@ export default function App() {
 
   const handleSaveJavSettings = async () => {
     const javSize = Math.max(1, parseInt(javPageSizeInput, 10) || javPageSize)
+    const javGridColumnsRaw = parseInt(javGridColumnsInput, 10)
+    const javColumns =
+      Number.isFinite(javGridColumnsRaw) && javGridColumnsRaw > 0
+        ? Math.min(javGridColumnsRaw, 12)
+        : 0
     const idolSize = Math.max(1, parseInt(idolPageSizeInput, 10) || idolPageSize)
     const normalizedSort = normalizeJavSort(javSortInput)
     const normalizedIdolSort = normalizeIdolSort(idolSortInput)
     try {
       await updateConfig({
         jav_page_size: javSize,
+        jav_grid_columns: javColumns,
         idol_page_size: idolSize,
         jav_sort: normalizedSort,
         idol_sort: normalizedIdolSort,
@@ -965,9 +998,10 @@ export default function App() {
       const idolLast = Math.max(1, Math.ceil((idolTotal || 0) / idolSize))
       useStore.setState({
         javPageSize: javSize,
+        javGridColumns: javColumns,
         idolPageSize: idolSize,
         javSort: normalizedSort,
-        javPageSort: '',
+        javTempSort: '',
         idolSort: normalizedIdolSort,
         javPage: Math.min(prevJavPage, javLast),
         idolPage: Math.min(prevIdolPage, idolLast),
@@ -990,11 +1024,12 @@ export default function App() {
   useEffect(() => {
     if (javSettingsOpen) {
       setJavPageSizeInput(javPageSize)
+      setJavGridColumnsInput(javGridColumns)
       setIdolPageSizeInput(idolPageSize)
       setJavSortInput(javSort)
       setIdolSortInput(idolSort)
     }
-  }, [javSettingsOpen, javPageSize, idolPageSize, javSort, idolSort])
+  }, [javSettingsOpen, javPageSize, javGridColumns, idolPageSize, javSort, idolSort])
 
   useEffect(() => {
     if (selectedCount !== 0) return
@@ -1232,8 +1267,8 @@ export default function App() {
     if (isJavMode) {
       useStore.setState({
         viewMode: 'jav',
-        videoPageSort: '',
-        javPageSort: '',
+        videoTempSort: '',
+        javTempSort: '',
         javRandomMode: false,
         javRandomSeed: null,
         javActors: [],
@@ -1247,7 +1282,7 @@ export default function App() {
     } else {
       useStore.setState({
         viewMode: 'video',
-        videoPageSort: '',
+        videoTempSort: '',
         randomMode: false,
         randomSeed: null,
         selectedTags: [],
@@ -1264,24 +1299,30 @@ export default function App() {
 
   const handleSwitchToJav = () => {
     const targetTab = javTab === 'idol' ? 'idol' : 'list'
-    useStore.setState({ viewMode: 'jav', videoPageSort: '', javTab: targetTab, javPageSort: '' })
+    useStore.setState({ viewMode: 'jav', videoTempSort: '', javTab: targetTab, javTempSort: '' })
     forceReloadJavByTab(targetTab)
   }
 
   const handleSwitchJavTab = (tab) => {
     const nextTab = tab === 'idol' ? 'idol' : 'list'
+    const shouldClearSearch = nextTab !== javTab
     const nextRandomMode = nextTab === 'idol' ? false : javRandomMode
     const nextRandomSeed = nextTab === 'idol' ? null : javRandomSeed
-    useStore.setState({
+    const updates = {
       javTab: nextTab,
-      javPageSort: '',
+      javTempSort: '',
       javActors: [],
       javTags: [],
       javRandomMode: nextRandomMode,
       javRandomSeed: nextRandomSeed,
       javPage: 1,
       idolPage: 1,
-    })
+    }
+    if (shouldClearSearch) {
+      updates.javSearchTerm = ''
+      setJavSearchInput('')
+    }
+    useStore.setState(updates)
     forceReloadJavByTab(nextTab)
   }
 
@@ -1298,9 +1339,9 @@ export default function App() {
     if (!idol || !idol.name) return
     useStore.setState({
       viewMode: 'jav',
-      videoPageSort: '',
+      videoTempSort: '',
       javTab: 'list',
-      javPageSort: '',
+      javTempSort: '',
       javRandomMode: false,
       javRandomSeed: null,
       javActors: [idol.name],
@@ -1316,9 +1357,9 @@ export default function App() {
     if (!trimmed) return
     useStore.setState({
       viewMode: 'jav',
-      videoPageSort: '',
+      videoTempSort: '',
       javTab: 'list',
-      javPageSort: '',
+      javTempSort: '',
       javRandomMode: false,
       javRandomSeed: null,
       javActors: [trimmed],
@@ -1453,7 +1494,14 @@ export default function App() {
                 buildJavUrl({ page: targetPage, tab: 'idol' })
               }
               buildIdolUrl={(idol) =>
-                buildJavUrl({ page: 1, search: '', tab: 'list', actors: [idol.name], tagIds: [] })
+                buildJavUrl({
+                  page: 1,
+                  search: '',
+                  tab: 'list',
+                  actors: [idol.name],
+                  tagIds: [],
+                  tempSort: '',
+                })
               }
               onFirst={() => setIdolPage(1)}
               onPrev={() => idolHasPrev && setIdolPage(idolPage - 1)}
@@ -1471,12 +1519,13 @@ export default function App() {
               javHasNext={javHasNext}
               javLoading={activeJavLoading}
               javRandomMode={javRandomMode}
-              javPageSort={javPageSort}
+              javTempSort={javTempSort}
               javGlobalSort={javSort}
               buildJavUrl={buildJavUrl}
               setJavPage={setJavPage}
-              setJavPageSort={setJavPageSort}
+              setJavTempSort={setJavTempSort}
               javItems={javItems}
+              javGridColumns={javGridColumns}
               onPlay={handleJavPlay}
               onOpenFile={handleJavOpenFile}
               openFileLabel={alternatePlayerLabel}
@@ -1498,11 +1547,11 @@ export default function App() {
             canNext={canNext}
             loading={loading}
             randomMode={randomMode}
-            videoPageSort={videoPageSort}
+            videoTempSort={videoTempSort}
             videoGlobalSort={sortOrder}
             buildVideoUrl={buildVideoUrl}
             setPage={navigateVideoPage}
-            setVideoPageSort={setVideoPageSort}
+            setVideoTempSort={setVideoTempSort}
             goToLastPage={() => navigateVideoPage(lastPage)}
             videos={videos}
             selectedVideoIds={selectedVideoIds}
@@ -1540,6 +1589,8 @@ export default function App() {
         onClose={() => setJavSettingsOpen(false)}
         javPageSizeInput={javPageSizeInput}
         onJavPageSizeChange={setJavPageSizeInput}
+        javGridColumnsInput={javGridColumnsInput}
+        onJavGridColumnsChange={setJavGridColumnsInput}
         idolPageSizeInput={idolPageSizeInput}
         onIdolPageSizeChange={setIdolPageSizeInput}
         javSortInput={javSortInput}
