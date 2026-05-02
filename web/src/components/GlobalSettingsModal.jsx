@@ -29,8 +29,8 @@ const SETTINGS_SECTIONS = [
 ]
 
 const PLAYER_BASIC_DEFAULTS = {
-  windowWidth: 70,
-  windowHeight: 70,
+  windowWidth: 80,
+  windowHeight: 80,
   windowUseAutofit: false,
   ontop: true,
   volume: 70,

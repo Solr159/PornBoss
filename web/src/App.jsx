@@ -1800,12 +1800,12 @@ export default function App() {
         playerWindowWidth={
           Number.parseInt(config?.player_window_width, 10) ||
           Number.parseInt(config?.player_window_size, 10) ||
-          70
+          80
         }
         playerWindowHeight={
           Number.parseInt(config?.player_window_height, 10) ||
           Number.parseInt(config?.player_window_size, 10) ||
-          70
+          80
         }
         playerWindowUseAutofit={
           config?.player_window_use_autofit == null
