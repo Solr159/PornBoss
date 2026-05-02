@@ -453,9 +453,61 @@ func assignJavDBMovieField(out *javDBMovieFields, label string, block, strong *h
 		}
 	case "演员", "演員":
 		if len(out.Actors) == 0 {
-			out.Actors = collectAnchorTexts(block)
+			out.Actors = collectJavDBActorTexts(block)
 		}
 	}
+}
+
+func collectJavDBActorTexts(root *html.Node) []string {
+	if root == nil {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	var texts []string
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "a" {
+			if isJavDBMaleActorLink(n) {
+				return
+			}
+			text := strings.TrimSpace(flattenText(n))
+			if text != "" {
+				if _, ok := seen[text]; !ok {
+					seen[text] = struct{}{}
+					texts = append(texts, text)
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(root)
+	return texts
+}
+
+func isJavDBMaleActorLink(anchor *html.Node) bool {
+	for cur := anchor.NextSibling; cur != nil; cur = cur.NextSibling {
+		text := strings.TrimSpace(flattenText(cur))
+		if cur.Type == html.TextNode {
+			if text == "" {
+				continue
+			}
+			return false
+		}
+		if cur.Type != html.ElementNode {
+			continue
+		}
+		if cur.Data == "strong" && hasClass(cur, "symbol") && hasClass(cur, "male") {
+			return true
+		}
+		if cur.Data == "strong" && text == "♂" {
+			return true
+		}
+		return false
+	}
+	return false
 }
 
 func normalizeJavDBLabel(label string) string {

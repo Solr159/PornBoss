@@ -132,7 +132,7 @@ func TestParseJavDBMovieInfo(t *testing.T) {
 		}
 	}
 
-	wantActors := []string{"岬ななみ", "吉村卓"}
+	wantActors := []string{"岬ななみ"}
 	if len(info.Actors) != len(wantActors) {
 		t.Fatalf("unexpected actors length: got %d want %d", len(info.Actors), len(wantActors))
 	}
