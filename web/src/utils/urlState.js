@@ -26,11 +26,13 @@ export const parseUrlState = (searchString = window.location.search) => {
 
   const videoSortRaw = (sp.get('sort') || '').trim()
   const videoSort = normalizeVideoSort(videoSortRaw)
+  const videoTempSort = normalizeVideoSort((sp.get('temp_sort') || '').trim(), '')
 
   const video = {
     page: parseIntSafe(sp.get('page'), 1),
     search: (sp.get('search') || '').trim(),
     sort: videoSort,
+    tempSort: videoTempSort,
     tagIds: parseIds(sp.get('tag_ids')),
     random: sp.get('random') === '1',
     seed: clampSeed(sp.get('seed')),
@@ -39,6 +41,7 @@ export const parseUrlState = (searchString = window.location.search) => {
   const sortParam = (sp.get('sort') || '').trim().toLowerCase()
   const javSort = normalizeJavSort(sortParam)
   const idolSort = normalizeIdolSort(sortParam)
+  const javTempSort = normalizeJavSort((sp.get('temp_sort') || '').trim(), '')
 
   const jav = {
     tab: sp.get('tab') === 'idol' ? 'idol' : 'list',
@@ -50,6 +53,7 @@ export const parseUrlState = (searchString = window.location.search) => {
       .filter(Boolean),
     tagIds: parseIds(sp.get('tag_ids')),
     sort: javSort,
+    tempSort: javTempSort,
     idolSort,
     random: sp.get('random') === '1',
     seed: clampSeed(sp.get('seed')),
@@ -76,6 +80,9 @@ export const buildUrlFromState = (state, basePath = window.location.pathname) =>
     } else if (sortVal && sortVal !== 'recent') {
       sp.set('sort', sortVal)
     }
+    if (state.jav.tab !== 'idol' && !state.jav.random && state.jav.tempSort) {
+      sp.set('temp_sort', state.jav.tempSort)
+    }
     if (state.jav.tab !== 'idol' && state.jav.random) {
       sp.set('random', '1')
       if (state.jav.seed) sp.set('seed', String(state.jav.seed))
@@ -89,6 +96,7 @@ export const buildUrlFromState = (state, basePath = window.location.pathname) =>
   sp.set('view', 'video')
   if (state.video.search) sp.set('search', state.video.search)
   if (state.video.sort && state.video.sort !== 'recent') sp.set('sort', state.video.sort)
+  if (!state.video.random && state.video.tempSort) sp.set('temp_sort', state.video.tempSort)
   if (state.video.tagIds?.length) {
     sp.set('tag_ids', [...state.video.tagIds].sort((a, b) => a - b).join(','))
   }
@@ -115,6 +123,7 @@ export const normalizeUrlStateFromStore = (store, tagsByName) => {
       page: store.randomMode ? 1 : store.page,
       search: store.randomMode ? '' : (store.searchTerm || '').trim(),
       sort: store.sortOrder || 'recent',
+      tempSort: store.randomMode ? '' : store.videoTempSort || '',
       tagIds: selectedIds,
       random: store.randomMode,
       seed: store.randomMode ? store.randomSeed : null,
@@ -126,6 +135,7 @@ export const normalizeUrlStateFromStore = (store, tagsByName) => {
       actors: store.javActors || [],
       tagIds: store.javTags || [],
       sort: store.javSort || 'recent',
+      tempSort: store.javTab !== 'idol' && !store.javRandomMode ? store.javTempSort || '' : '',
       idolSort: store.idolSort || 'work',
       random: store.javTab !== 'idol' && store.javRandomMode,
       seed: store.javTab !== 'idol' && store.javRandomMode ? store.javRandomSeed : null,
