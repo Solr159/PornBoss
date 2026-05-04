@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
@@ -6,6 +6,7 @@ import ShuffleOutlinedIcon from '@mui/icons-material/ShuffleOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import SwapHorizOutlinedIcon from '@mui/icons-material/SwapHorizOutlined'
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded'
+import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded'
 import { zh } from '@/utils/i18n'
 
 export default function TopBar({
@@ -35,11 +36,46 @@ export default function TopBar({
   onSwitchJavTab,
   filterSummary,
   showDirectorySetupHint,
+  directories = [],
+  enabledDirectoryIds = [],
+  onEnabledDirectoryIdsChange,
 }) {
   const headerRef = useRef(null)
+  const directoryMenuRef = useRef(null)
+  const [directoryMenuOpen, setDirectoryMenuOpen] = useState(false)
   const headerClassName = ['sticky top-0 z-40 border-b bg-white/80 backdrop-blur']
     .filter(Boolean)
     .join(' ')
+  const activeDirectories = useMemo(
+    () =>
+      Array.isArray(directories) ? directories.filter((directory) => !directory?.is_delete) : [],
+    [directories]
+  )
+  const enabledDirectorySet = useMemo(
+    () => new Set((enabledDirectoryIds || []).map((id) => Number(id))),
+    [enabledDirectoryIds]
+  )
+  const activeDirectoryIds = useMemo(
+    () =>
+      activeDirectories
+        .map((directory) => Number(directory.id))
+        .filter((id) => Number.isFinite(id)),
+    [activeDirectories]
+  )
+  const enabledDirectoryCount = activeDirectoryIds.filter((id) =>
+    enabledDirectorySet.has(id)
+  ).length
+  const directorySummary =
+    activeDirectories.length === 0
+      ? zh('无目录', 'No directories')
+      : enabledDirectoryCount === activeDirectories.length
+        ? zh('全部目录', 'All directories')
+        : enabledDirectoryCount === 0
+          ? zh('未启用目录', 'No directories enabled')
+          : zh(
+              `启用 ${enabledDirectoryCount}/${activeDirectories.length}`,
+              `${enabledDirectoryCount}/${activeDirectories.length} enabled`
+            )
 
   const updateTopbarOffset = () => {
     const height = headerRef.current?.getBoundingClientRect().height || 0
@@ -56,6 +92,27 @@ export default function TopBar({
     updateTopbarOffset()
   }, [isJavMode, javTab, javRandomMode])
 
+  useEffect(() => {
+    if (!directoryMenuOpen) return
+
+    const handlePointerDown = (event) => {
+      if (directoryMenuRef.current?.contains(event.target)) return
+      setDirectoryMenuOpen(false)
+    }
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setDirectoryMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [directoryMenuOpen])
+
   const handleSettingsClick = () => {
     if (isJavMode) {
       onOpenJavSettings?.()
@@ -65,6 +122,16 @@ export default function TopBar({
   }
 
   const filterLabelPrefix = zh('筛选条件：', 'Filters:')
+
+  const setDirectoryEnabled = (id, checked) => {
+    const next = new Set(enabledDirectorySet)
+    if (checked) {
+      next.add(id)
+    } else {
+      next.delete(id)
+    }
+    onEnabledDirectoryIdsChange?.(Array.from(next))
+  }
 
   return (
     <header ref={headerRef} className={headerClassName}>
@@ -252,14 +319,101 @@ export default function TopBar({
                 />
               </div>
             ) : null}
-            <Button
-              startIcon={<SettingsOutlinedIcon fontSize="small" />}
-              variant="outlined"
-              onClick={onOpenGlobalSettings}
-              title={zh('全局设置', 'Global settings')}
-            >
-              {zh('全局设置', 'Global Settings')}
-            </Button>
+            <div ref={directoryMenuRef} className="relative inline-flex">
+              <div className="inline-flex overflow-hidden rounded border border-blue-500 bg-white">
+                <button
+                  type="button"
+                  onClick={onOpenGlobalSettings}
+                  title={zh('全局设置', 'Global settings')}
+                  className="inline-flex h-9 items-center gap-1.5 px-3 text-sm font-medium text-blue-600 hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                >
+                  <SettingsOutlinedIcon fontSize="small" />
+                  <span>{zh('全局设置', 'Global Settings')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDirectoryMenuOpen((open) => !open)}
+                  aria-label={zh('选择启用目录', 'Choose enabled directories')}
+                  aria-haspopup="menu"
+                  aria-expanded={directoryMenuOpen}
+                  title={zh('选择启用目录', 'Choose enabled directories')}
+                  className="inline-flex h-9 w-9 items-center justify-center border-l border-blue-500 text-blue-600 hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                >
+                  <KeyboardArrowDownRoundedIcon
+                    fontSize="small"
+                    className={
+                      directoryMenuOpen ? 'rotate-180 transition-transform' : 'transition-transform'
+                    }
+                  />
+                </button>
+              </div>
+
+              {directoryMenuOpen ? (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded border border-gray-200 bg-white text-left shadow-lg"
+                >
+                  <div className="flex items-center justify-between gap-2 border-b bg-gray-50 px-3 py-2">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-gray-700">
+                        {zh('启用目录', 'Enabled directories')}
+                      </div>
+                      <div className="truncate text-xs text-gray-500">{directorySummary}</div>
+                    </div>
+                    {activeDirectories.length > 0 ? (
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onEnabledDirectoryIdsChange?.(activeDirectoryIds)}
+                          className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
+                        >
+                          {zh('全选', 'All')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onEnabledDirectoryIdsChange?.([])}
+                          className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
+                        >
+                          {zh('清空', 'None')}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="max-h-[60vh] overflow-y-auto py-1">
+                    {activeDirectories.length === 0 ? (
+                      <div className="px-3 py-3 text-sm text-gray-500">
+                        {zh('还没有添加目录', 'No directories yet')}
+                      </div>
+                    ) : (
+                      activeDirectories.map((directory) => {
+                        const id = Number(directory.id)
+                        const checked = enabledDirectorySet.has(id)
+                        return (
+                          <label
+                            key={directory.id}
+                            className="flex cursor-pointer items-start gap-2 px-3 py-2 text-sm hover:bg-gray-50"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(event) => setDirectoryEnabled(id, event.target.checked)}
+                              className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600"
+                              aria-label={zh(
+                                `启用目录 ${directory.path}`,
+                                `Enable directory ${directory.path}`
+                              )}
+                            />
+                            <span className="min-w-0 flex-1 break-all text-gray-700">
+                              {directory.path}
+                            </span>
+                          </label>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
             <Button
               variant="contained"
               color={isJavMode ? 'secondary' : 'primary'}
