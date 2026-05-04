@@ -47,40 +47,30 @@ func makePathKey(directoryID int64, relativePath string) string {
 }
 
 type syncState struct {
-	existingByFingerprint  map[string]*models.Video
 	existingByID           map[int64]*models.Video
 	existingLocationByPath map[string]*models.VideoLocation
 	processedLocationIDs   map[int64]struct{}
 }
 
-func newSyncState(ctx context.Context) (*syncState, error) {
-	existing, err := db.AllVideos(ctx)
+func newSyncState(ctx context.Context, directoryID int64) (*syncState, error) {
+	existingLocations, err := db.VideoLocationsByDirectory(ctx, directoryID)
 	if err != nil {
 		return nil, err
 	}
-	existingByFingerprint := make(map[string]*models.Video, len(existing))
-	existingByID := make(map[int64]*models.Video, len(existing))
-	for i := range existing {
-		video := &existing[i]
-		existingByID[video.ID] = video
-		if video.Fingerprint != "" {
-			existingByFingerprint[video.Fingerprint] = video
-		}
-	}
-
-	existingLocations, err := db.AllVideoLocations(ctx)
-	if err != nil {
-		return nil, err
-	}
+	existingByID := make(map[int64]*models.Video, len(existingLocations))
 	existingLocationByPath := make(map[string]*models.VideoLocation, len(existingLocations))
 	processedLocationIDs := make(map[int64]struct{}, len(existingLocations))
 	for i := range existingLocations {
 		loc := &existingLocations[i]
 		existingLocationByPath[makePathKey(loc.DirectoryID, loc.RelativePath)] = loc
+		if loc.Video.ID == 0 {
+			continue
+		}
+		video := &loc.Video
+		existingByID[video.ID] = video
 	}
 
 	return &syncState{
-		existingByFingerprint:  existingByFingerprint,
 		existingByID:           existingByID,
 		existingLocationByPath: existingLocationByPath,
 		processedLocationIDs:   processedLocationIDs,
@@ -103,7 +93,7 @@ func SyncDirectory(ctx context.Context, directory models.Directory) (*Summary, e
 	start := time.Now()
 	summary := &Summary{}
 
-	state, err := newSyncState(ctx)
+	state, err := newSyncState(ctx, directory.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +101,7 @@ func SyncDirectory(ctx context.Context, directory models.Directory) (*Summary, e
 	if err != nil {
 		return nil, err
 	}
-	if err := hideUnprocessedVideoLocations(ctx, state.processedLocationIDs, summary, []int64{directory.ID}); err != nil {
+	if err := hideUnprocessedVideoLocations(ctx, state.processedLocationIDs, summary, directory.ID); err != nil {
 		return nil, err
 	}
 
@@ -186,14 +176,14 @@ func syncDirectoryWithState(ctx context.Context, dir models.Directory, state *sy
 		}
 	}
 
-	if err := walkDirectoryAndSync(ctx, dir, state.existingByID, state.existingByFingerprint, state.existingLocationByPath, state.processedLocationIDs, summary); err != nil {
+	if err := walkDirectoryAndSync(ctx, dir, state.existingByID, state.existingLocationByPath, state.processedLocationIDs, summary); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
 // walkDirectoryAndSync 扫描单个目录下的文件，实时 upsert 并记录统计/缩略图任务。
-func walkDirectoryAndSync(ctx context.Context, directory models.Directory, existingByID map[int64]*models.Video, existingByFingerprint map[string]*models.Video, existingLocationByPath map[string]*models.VideoLocation, processedLocationIDs map[int64]struct{}, summary *Summary) error {
+func walkDirectoryAndSync(ctx context.Context, directory models.Directory, existingByID map[int64]*models.Video, existingLocationByPath map[string]*models.VideoLocation, processedLocationIDs map[int64]struct{}, summary *Summary) error {
 	// 边遍历文件边做指纹计算和 DB 更新，避免一次性构建全量快照
 	normalizedRoot := filepath.Clean(directory.Path)
 	return filepath.WalkDir(normalizedRoot, func(candidatePath string, entry fs.DirEntry, walkErr error) error {
@@ -282,11 +272,11 @@ func walkDirectoryAndSync(ctx context.Context, directory models.Directory, exist
 			DurationSec:   durationSec,
 		}
 
-		return upsertVideo(ctx, fileEntry, existingByID, existingByFingerprint, existingLocationByPath, processedLocationIDs, summary)
+		return upsertVideo(ctx, fileEntry, existingByID, existingLocationByPath, processedLocationIDs, summary)
 	})
 }
 
-func upsertVideo(ctx context.Context, entry *FileEntry, existingByID map[int64]*models.Video, existingByFingerprint map[string]*models.Video, existingLocationByPath map[string]*models.VideoLocation, processedLocationIDs map[int64]struct{}, summary *Summary) error {
+func upsertVideo(ctx context.Context, entry *FileEntry, existingByID map[int64]*models.Video, existingLocationByPath map[string]*models.VideoLocation, processedLocationIDs map[int64]struct{}, summary *Summary) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -294,24 +284,18 @@ func upsertVideo(ctx context.Context, entry *FileEntry, existingByID map[int64]*
 	// 已存在：检测元信息/文件是否变化，必要时更新
 	var video *models.Video
 	if entry.Fingerprint != "" {
-		if existingVideo, ok := existingByFingerprint[entry.Fingerprint]; ok {
+		existingVideo, err := db.GetVideoByFingerprint(ctx, entry.Fingerprint)
+		if err != nil {
+			logging.Error("lookup video by fingerprint failed, skip: path=%s err=%v", entry.AbsolutePath, err)
+			return nil
+		}
+		if existingVideo != nil {
 			video = existingVideo
+			existingByID[video.ID] = video
 		}
 	}
 
 	if video != nil {
-		if video.Size != entry.Size || video.DurationSec != entry.DurationSec || video.Fingerprint != entry.Fingerprint {
-			video.Size = entry.Size
-			video.Fingerprint = entry.Fingerprint
-			video.DurationSec = entry.DurationSec
-
-			if err := db.SaveVideo(ctx, video); err != nil {
-				logging.Error("save video failed, skip: path=%s err=%v", entry.AbsolutePath, err)
-				return nil
-			}
-			summary.Updated++
-		}
-
 		if err := upsertLocationForEntry(ctx, video, entry, existingByID, existingLocationByPath, processedLocationIDs); err != nil {
 			logging.Error("save video location failed, skip: path=%s err=%v", entry.AbsolutePath, err)
 			return nil
@@ -332,9 +316,6 @@ func upsertVideo(ctx context.Context, entry *FileEntry, existingByID map[int64]*
 	}
 	summary.Inserted++
 	existingByID[video.ID] = video
-	if video.Fingerprint != "" {
-		existingByFingerprint[video.Fingerprint] = video
-	}
 	if err := upsertLocationForEntry(ctx, video, entry, existingByID, existingLocationByPath, processedLocationIDs); err != nil {
 		logging.Error("save video location failed, skip: path=%s err=%v", entry.AbsolutePath, err)
 		return nil
@@ -357,9 +338,9 @@ func upsertLocationForEntry(ctx context.Context, video *models.Video, entry *Fil
 	return nil
 }
 
-// hideUnprocessedVideoLocations marks file locations missing from this scan as deleted.
-func hideUnprocessedVideoLocations(ctx context.Context, processedLocationIDs map[int64]struct{}, summary *Summary, directoryIDs []int64) error {
-	locations, err := db.AllVideoLocations(ctx)
+// hideUnprocessedVideoLocations marks file locations missing from this directory scan as deleted.
+func hideUnprocessedVideoLocations(ctx context.Context, processedLocationIDs map[int64]struct{}, summary *Summary, directoryID int64) error {
+	locations, err := db.VideoLocationsByDirectory(ctx, directoryID)
 	if err != nil {
 		return err
 	}
@@ -368,20 +349,9 @@ func hideUnprocessedVideoLocations(ctx context.Context, processedLocationIDs map
 	}
 
 	staleIDs := make([]int64, 0, len(locations))
-	directoryScope := make(map[int64]struct{}, len(directoryIDs))
-	for _, id := range directoryIDs {
-		if id != 0 {
-			directoryScope[id] = struct{}{}
-		}
-	}
 	for _, loc := range locations {
 		if loc.IsDelete {
 			continue
-		}
-		if len(directoryScope) > 0 {
-			if _, ok := directoryScope[loc.DirectoryID]; !ok {
-				continue
-			}
 		}
 		if _, ok := processedLocationIDs[loc.ID]; ok {
 			continue
