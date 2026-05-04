@@ -230,6 +230,25 @@ func AllVideos(ctx context.Context) ([]models.Video, error) {
 	return videos, nil
 }
 
+// GetVideoByFingerprint returns a video by its globally unique content fingerprint.
+func GetVideoByFingerprint(ctx context.Context, fingerprint string) (*models.Video, error) {
+	fingerprint = strings.TrimSpace(fingerprint)
+	if fingerprint == "" {
+		return nil, nil
+	}
+	var video models.Video
+	err := common.DB.WithContext(ctx).
+		Where("fingerprint = ?", fingerprint).
+		First(&video).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get video by fingerprint: %w", err)
+	}
+	return &video, nil
+}
+
 // SaveVideo inserts or updates a video based on its primary key.
 func SaveVideo(ctx context.Context, video *models.Video) error {
 	if video == nil {

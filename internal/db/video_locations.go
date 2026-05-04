@@ -24,6 +24,21 @@ func AllVideoLocations(ctx context.Context) ([]models.VideoLocation, error) {
 	return locations, nil
 }
 
+// VideoLocationsByDirectory returns every known location in a directory, including hidden rows.
+func VideoLocationsByDirectory(ctx context.Context, directoryID int64) ([]models.VideoLocation, error) {
+	if directoryID <= 0 {
+		return nil, errors.New("directory id cannot be zero")
+	}
+	var locations []models.VideoLocation
+	if err := common.DB.WithContext(ctx).
+		Where("directory_id = ?", directoryID).
+		Preload("Video").
+		Find(&locations).Error; err != nil {
+		return nil, fmt.Errorf("load video locations for directory %d: %w", directoryID, err)
+	}
+	return locations, nil
+}
+
 // UpsertVideoLocation records or updates the on-disk location for a video.
 func UpsertVideoLocation(ctx context.Context, videoID, directoryID int64, relativePath string, modifiedAt time.Time) (*models.VideoLocation, error) {
 	relativePath = cleanRelativePathForDB(relativePath)
