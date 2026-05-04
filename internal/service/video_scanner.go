@@ -100,6 +100,7 @@ func SyncDirectory(ctx context.Context, directory models.Directory) (*Summary, e
 	}
 	scanned, err := syncDirectoryWithState(ctx, directory, state, summary)
 	if err != nil {
+		logging.Error("sync directory failed: id=%d path=%s err=%v", directory.ID, directory.Path, err)
 		return nil, err
 	}
 	if scanned {
@@ -199,10 +200,8 @@ func walkDirectoryAndSync(ctx context.Context, directory models.Directory, exist
 	normalizedRoot := filepath.Clean(directory.Path)
 	return filepath.WalkDir(normalizedRoot, func(candidatePath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			if errors.Is(walkErr, fs.ErrPermission) {
-				return nil
-			}
-			return walkErr
+			logging.Error("walk directory entry failed, skip: root=%s path=%s err=%v", normalizedRoot, candidatePath, walkErr)
+			return nil
 		}
 
 		if err := ctx.Err(); err != nil {
