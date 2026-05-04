@@ -46,36 +46,14 @@ func makePathKey(directoryID int64, relativePath string) string {
 	return strconv.FormatInt(directoryID, 10) + ":" + relativePath
 }
 
-// SyncAllDirectories scans multiple directories in a single pass so cross-directory moves keep tags/metadata.
-func SyncAllDirectories(ctx context.Context, directories []models.Directory) (*Summary, error) {
-	if common.DB == nil {
-		return nil, errors.New("nil database")
-	}
-	if len(directories) == 0 {
-		return &Summary{}, nil
-	}
+type syncState struct {
+	existingByFingerprint  map[string]*models.Video
+	existingByID           map[int64]*models.Video
+	existingLocationByPath map[string]*models.VideoLocation
+	processedLocationIDs   map[int64]struct{}
+}
 
-	locked := make([]int64, 0, len(directories))
-	unlockAll := func() {
-		for _, id := range locked {
-			unlockDirectory(id)
-		}
-	}
-	for _, dir := range directories {
-		if dir.ID == 0 || dir.IsDelete {
-			continue
-		}
-		if !tryLockDirectory(dir.ID) {
-			unlockAll()
-			return nil, ErrDirectoryScanInProgress
-		}
-		locked = append(locked, dir.ID)
-	}
-	defer unlockAll()
-
-	start := time.Now()
-	summary := &Summary{}
-
+func newSyncState(ctx context.Context) (*syncState, error) {
 	existing, err := db.AllVideos(ctx)
 	if err != nil {
 		return nil, err
@@ -89,6 +67,7 @@ func SyncAllDirectories(ctx context.Context, directories []models.Directory) (*S
 			existingByFingerprint[video.Fingerprint] = video
 		}
 	}
+
 	existingLocations, err := db.AllVideoLocations(ctx)
 	if err != nil {
 		return nil, err
@@ -100,7 +79,61 @@ func SyncAllDirectories(ctx context.Context, directories []models.Directory) (*S
 		existingLocationByPath[makePathKey(loc.DirectoryID, loc.RelativePath)] = loc
 	}
 
-	scanned := make(map[int64]struct{}, len(directories))
+	return &syncState{
+		existingByFingerprint:  existingByFingerprint,
+		existingByID:           existingByID,
+		existingLocationByPath: existingLocationByPath,
+		processedLocationIDs:   processedLocationIDs,
+	}, nil
+}
+
+// SyncDirectory scans one directory and hides stale locations only inside that directory.
+func SyncDirectory(ctx context.Context, directory models.Directory) (*Summary, error) {
+	if common.DB == nil {
+		return nil, errors.New("nil database")
+	}
+	if directory.ID == 0 || directory.IsDelete {
+		return &Summary{}, nil
+	}
+	if !tryLockDirectory(directory.ID) {
+		return nil, ErrDirectoryScanInProgress
+	}
+	defer unlockDirectory(directory.ID)
+
+	start := time.Now()
+	summary := &Summary{}
+
+	state, err := newSyncState(ctx)
+	if err != nil {
+		return nil, err
+	}
+	scanned, err := syncDirectoryWithState(ctx, directory, state, summary)
+	if err != nil {
+		return nil, err
+	}
+	if err := hideUnprocessedVideoLocations(ctx, state.processedLocationIDs, summary, []int64{directory.ID}); err != nil {
+		return nil, err
+	}
+
+	if scanned {
+		summary.Directories = 1
+	}
+	summary.Duration = time.Since(start)
+	return summary, nil
+}
+
+// SyncAllDirectories scans directories one by one. Fingerprints are still matched globally,
+// so cross-directory moves keep tags/metadata while stale location cleanup stays directory-scoped.
+func SyncAllDirectories(ctx context.Context, directories []models.Directory) (*Summary, error) {
+	if common.DB == nil {
+		return nil, errors.New("nil database")
+	}
+	if len(directories) == 0 {
+		return &Summary{}, nil
+	}
+
+	start := time.Now()
+	summary := &Summary{}
 	for _, dir := range directories {
 		if dir.ID == 0 || dir.IsDelete {
 			continue
@@ -108,42 +141,55 @@ func SyncAllDirectories(ctx context.Context, directories []models.Directory) (*S
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-
-		info, statErr := os.Stat(dir.Path)
-		if statErr != nil {
-			if util.IsPathUnavailable(statErr) {
-				if err := db.SetDirectoryMissingAndHideVideos(ctx, dir.ID, true); err != nil {
-					logging.Error("mark directory missing failed id=%d path=%s err=%v", dir.ID, dir.Path, err)
-				}
+		dirSummary, err := SyncDirectory(ctx, dir)
+		if err != nil {
+			if errors.Is(err, ErrDirectoryScanInProgress) {
 				continue
 			}
-			return nil, fmt.Errorf("stat directory %s: %w", dir.Path, statErr)
+			return nil, err
 		}
-		if !info.IsDir() {
+		summary.FilesSeen += dirSummary.FilesSeen
+		summary.Inserted += dirSummary.Inserted
+		summary.Updated += dirSummary.Updated
+		summary.Removed += dirSummary.Removed
+		summary.Directories += dirSummary.Directories
+	}
+
+	summary.Duration = time.Since(start)
+	return summary, nil
+}
+
+func syncDirectoryWithState(ctx context.Context, dir models.Directory, state *syncState, summary *Summary) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+
+	info, statErr := os.Stat(dir.Path)
+	if statErr != nil {
+		if util.IsPathUnavailable(statErr) {
 			if err := db.SetDirectoryMissingAndHideVideos(ctx, dir.ID, true); err != nil {
 				logging.Error("mark directory missing failed id=%d path=%s err=%v", dir.ID, dir.Path, err)
 			}
-			continue
+			return false, nil
 		}
-		if dir.Missing {
-			if err := db.SetDirectoryMissingAndHideVideos(ctx, dir.ID, false); err != nil {
-				logging.Error("clear directory missing failed id=%d path=%s err=%v", dir.ID, dir.Path, err)
-			}
+		return false, fmt.Errorf("stat directory %s: %w", dir.Path, statErr)
+	}
+	if !info.IsDir() {
+		if err := db.SetDirectoryMissingAndHideVideos(ctx, dir.ID, true); err != nil {
+			logging.Error("mark directory missing failed id=%d path=%s err=%v", dir.ID, dir.Path, err)
 		}
-
-		scanned[dir.ID] = struct{}{}
-		if err := walkDirectoryAndSync(ctx, dir, existingByID, existingByFingerprint, existingLocationByPath, processedLocationIDs, summary); err != nil {
-			return nil, err
+		return false, nil
+	}
+	if dir.Missing {
+		if err := db.SetDirectoryMissingAndHideVideos(ctx, dir.ID, false); err != nil {
+			logging.Error("clear directory missing failed id=%d path=%s err=%v", dir.ID, dir.Path, err)
 		}
 	}
 
-	if err := hideUnprocessedVideoLocations(ctx, processedLocationIDs, summary); err != nil {
-		return nil, err
+	if err := walkDirectoryAndSync(ctx, dir, state.existingByID, state.existingByFingerprint, state.existingLocationByPath, state.processedLocationIDs, summary); err != nil {
+		return false, err
 	}
-
-	summary.Directories = len(scanned)
-	summary.Duration = time.Since(start)
-	return summary, nil
+	return true, nil
 }
 
 // walkDirectoryAndSync 扫描单个目录下的文件，实时 upsert 并记录统计/缩略图任务。
@@ -312,7 +358,7 @@ func upsertLocationForEntry(ctx context.Context, video *models.Video, entry *Fil
 }
 
 // hideUnprocessedVideoLocations marks file locations missing from this scan as deleted.
-func hideUnprocessedVideoLocations(ctx context.Context, processedLocationIDs map[int64]struct{}, summary *Summary) error {
+func hideUnprocessedVideoLocations(ctx context.Context, processedLocationIDs map[int64]struct{}, summary *Summary, directoryIDs []int64) error {
 	locations, err := db.AllVideoLocations(ctx)
 	if err != nil {
 		return err
@@ -322,9 +368,20 @@ func hideUnprocessedVideoLocations(ctx context.Context, processedLocationIDs map
 	}
 
 	staleIDs := make([]int64, 0, len(locations))
+	directoryScope := make(map[int64]struct{}, len(directoryIDs))
+	for _, id := range directoryIDs {
+		if id != 0 {
+			directoryScope[id] = struct{}{}
+		}
+	}
 	for _, loc := range locations {
 		if loc.IsDelete {
 			continue
+		}
+		if len(directoryScope) > 0 {
+			if _, ok := directoryScope[loc.DirectoryID]; !ok {
+				continue
+			}
 		}
 		if _, ok := processedLocationIDs[loc.ID]; ok {
 			continue
