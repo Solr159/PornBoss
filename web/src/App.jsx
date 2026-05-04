@@ -1630,6 +1630,9 @@ export default function App() {
         onSwitchJavTab={handleSwitchJavTab}
         filterSummary={filterSummary}
         showDirectorySetupHint={showDirectorySetupHint}
+        directories={directories}
+        enabledDirectoryIds={enabledDirectoryIds}
+        onEnabledDirectoryIdsChange={setEnabledDirectoryIds}
       />
 
       <main className="mx-auto max-w-screen-2xl px-6 pb-6 pt-0">
