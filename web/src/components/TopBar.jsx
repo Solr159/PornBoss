@@ -325,7 +325,7 @@ export default function TopBar({
                 variant="outlined"
                 onClick={onOpenGlobalSettings}
                 title={zh('全局设置', 'Global settings')}
-                sx={{ pr: 3.75 }}
+                sx={{ pr: 3.5 }}
               >
                 {zh('全局设置', 'Global Settings')}
               </Button>
