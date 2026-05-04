@@ -92,6 +92,7 @@ func SyncDirectory(ctx context.Context, directory models.Directory) (*Summary, e
 
 	start := time.Now()
 	summary := &Summary{}
+	logging.Info("sync directory start: id=%d path=%s", directory.ID, directory.Path)
 
 	state, err := newSyncState(ctx, directory.ID)
 	if err != nil {
