@@ -1,11 +1,13 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `cmd/server`: Go entrypoint wiring config, DB, thumbnail worker, and HTTP router.
-- `internal/`: domain packages; key folders: `config`, `db` (GORM models/store), `scanner` (directory sync + fingerprinting), `server` (Gin handlers/router), `thumbnail` (ffmpeg-backed jobs), `logging` (shared logger).
-- `web/`: React + Tailwind frontend (Vite). Components in `web/src/components`, state in `web/src/store.js`, API helpers in `web/src/api.js`.
-- `scripts/`: `cli/` stores CLI sources; `scripts/cli.sh` launches the bundled CLI from `scripts/cli/build/` and auto-builds if missing.
-- `data/`: runtime DB/thumbnails; keep generated files out of commits.
+- `cmd/server`: Go entrypoint that loads config, opens the DB, starts background scanners, and serves the Gin API plus optional static frontend.
+- `cmd/javprovider`: small Go utility for exercising JAV provider lookups outside the main server.
+- `internal/`: application packages; key folders include `common` (shared config/globals/logging), `db` (GORM setup and stores), `models` (domain structs), `server` (Gin router and handlers), `service` (directory/video/JAV scanners), `jav` (metadata providers), `manager` (cover and screenshot helpers), `mpv` (player integration), and `util` (filesystem, locale, proxy, playback, and platform helpers).
+- `web/`: React + Tailwind frontend (Vite). Components live in `web/src/components`, shared state in `web/src/store.js`, API helpers in `web/src/api.js`, constants in `web/src/constants`, utilities in `web/src/utils`, and static icons in `web/public/ico`.
+- `scripts/`: development/release helpers. `scripts/cli.sh` wraps common workflows, while `scripts/cli/` contains the Node CLI source and generated `scripts/cli/build/` output.
+- `bin/`, `internal/bin/`, and `modernz/`: bundled runtime player/tool assets used by releases and mpv integration.
+- `data/`, `web/dist/`, `release/`, `screenshot/`, `temp/`, `.gocache/`, and other scratch/build output directories are generated or runtime artifacts; keep them out of commits unless a release workflow explicitly requires them.
 
 ## Build, Test, and Development Commands
 - Backend: `go run ./cmd/server -addr :17654 -static web/dist` to serve API (and built frontend when desired).

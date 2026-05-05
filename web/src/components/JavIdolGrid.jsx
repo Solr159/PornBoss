@@ -12,7 +12,7 @@ export function getIdolCardLayoutProps() {
   return { bgWidthPercent, coverAspectPercent }
 }
 
-export default function JavIdolGrid({ items, onSelectIdol, buildIdolUrl }) {
+export default function JavIdolGrid({ items, onSelectIdol, buildIdolUrl, javMetadataLanguage }) {
   const { bgWidthPercent, coverAspectPercent } = getIdolCardLayoutProps()
 
   const hasItems = Array.isArray(items) && items.length > 0
@@ -34,6 +34,7 @@ export default function JavIdolGrid({ items, onSelectIdol, buildIdolUrl }) {
           href={buildIdolUrl?.(item)}
           bgWidthPercent={bgWidthPercent}
           coverAspectPercent={coverAspectPercent}
+          javMetadataLanguage={javMetadataLanguage}
         />
       ))}
     </div>
@@ -47,6 +48,7 @@ export function IdolCard({
   bgWidthPercent,
   coverAspectPercent,
   showWorkCount = true,
+  javMetadataLanguage = 'zh',
 }) {
   const chineseLocale = isChineseLocale()
   const cover = item?.sample_code ? `/jav/${encodeURIComponent(item.sample_code)}/cover` : null
@@ -65,6 +67,7 @@ export function IdolCard({
     japaneseName,
     chineseName,
     chineseLocale,
+    javMetadataLanguage,
   })
   const metaRows = buildMetaRows({ birthDate, height, bwh, cup, secondaryName })
 
@@ -227,7 +230,28 @@ function buildMetaRows({ birthDate, height, bwh, cup, secondaryName }) {
   return rows
 }
 
-function buildDisplayNames({ name, romanName, japaneseName, chineseName, chineseLocale }) {
+function buildDisplayNames({
+  name,
+  romanName,
+  japaneseName,
+  chineseName,
+  chineseLocale,
+  javMetadataLanguage,
+}) {
+  if (javMetadataLanguage === 'en') {
+    const primaryName = firstNonEmpty(
+      romanName,
+      name,
+      japaneseName,
+      chineseName,
+      zh('Unknown idol', 'Unknown idol')
+    )
+    return {
+      primaryName,
+      secondaryName: joinUniqueDisplayParts([japaneseName, chineseName], [primaryName]),
+    }
+  }
+
   if (chineseLocale) {
     const primaryName = firstNonEmpty(
       japaneseName,

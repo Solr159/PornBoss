@@ -22,6 +22,11 @@ const SETTINGS_SECTIONS = [
     summary: { zh: '代理端口与连接行为', en: 'Proxy port and connection behavior' },
   },
   {
+    id: 'jav',
+    title: { zh: 'JAV设置', en: 'JAV Settings' },
+    summary: { zh: '元数据语言', en: 'Metadata language' },
+  },
+  {
     id: 'player',
     title: { zh: 'MPV播放器', en: 'MPV Player' },
     summary: { zh: 'mpv 快捷键与播放控制', en: 'mpv shortcuts and playback controls' },
@@ -48,6 +53,8 @@ export default function GlobalSettingsModal({
   onDeleteDirectory,
   proxyPort,
   onSaveProxyPort,
+  javMetadataLanguage,
+  onSaveJavMetadataLanguage,
   defaultPlayer,
   onSaveDefaultPlayer,
   playerWindowWidth,
@@ -65,6 +72,9 @@ export default function GlobalSettingsModal({
   const [savingProxy, setSavingProxy] = useState(false)
   const [proxyEditing, setProxyEditing] = useState(false)
   const [proxyEnabledInput, setProxyEnabledInput] = useState(false)
+  const [javMetadataLanguageInput, setJavMetadataLanguageInput] = useState('zh')
+  const [javMetadataLanguageError, setJavMetadataLanguageError] = useState('')
+  const [savingJavMetadataLanguage, setSavingJavMetadataLanguage] = useState(false)
   const [activeSection, setActiveSection] = useState('basic')
   const [defaultPlayerInput, setDefaultPlayerInput] = useState('mpv')
   const [defaultPlayerError, setDefaultPlayerError] = useState('')
@@ -99,6 +109,8 @@ export default function GlobalSettingsModal({
       setProxyEnabledInput(Boolean(proxyPort))
       setProxyEditing(false)
       setProxyError('')
+      setJavMetadataLanguageInput(javMetadataLanguage === 'en' ? 'en' : 'zh')
+      setJavMetadataLanguageError('')
       setDefaultPlayerInput(defaultPlayer === 'system' ? 'system' : 'mpv')
       setDefaultPlayerError('')
       setPlayerTab('basic')
@@ -116,6 +128,7 @@ export default function GlobalSettingsModal({
   }, [
     open,
     proxyPort,
+    javMetadataLanguage,
     defaultPlayer,
     playerWindowWidth,
     playerWindowHeight,
@@ -323,6 +336,76 @@ export default function GlobalSettingsModal({
       </section>
     </div>
   )
+
+  const handleSaveJavMetadataLanguage = async () => {
+    const next = javMetadataLanguageInput === 'en' ? 'en' : 'zh'
+    setJavMetadataLanguageError('')
+    setSavingJavMetadataLanguage(true)
+    try {
+      await onSaveJavMetadataLanguage?.(next)
+    } catch (err) {
+      setJavMetadataLanguageError(err.message || zh('保存失败', 'Save failed'))
+    } finally {
+      setSavingJavMetadataLanguage(false)
+    }
+  }
+
+  const renderJavPanel = () => {
+    const currentLanguage = javMetadataLanguage === 'en' ? 'en' : 'zh'
+    const unchanged = javMetadataLanguageInput === currentLanguage
+
+    return (
+      <div className="space-y-5">
+        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <h4 className="text-sm font-semibold text-zinc-800">
+                {zh('元数据语言', 'Metadata Language')}
+              </h4>
+              <span className="relative inline-block">
+                <select
+                  value={javMetadataLanguageInput}
+                  onChange={(event) => {
+                    setJavMetadataLanguageInput(event.target.value === 'en' ? 'en' : 'zh')
+                    setJavMetadataLanguageError('')
+                  }}
+                  className="w-auto appearance-none rounded-xl border border-zinc-200 bg-white py-1.5 pl-3 pr-7 text-sm text-zinc-800 outline-none focus:border-zinc-200 focus:outline-none focus:ring-0 focus-visible:outline-none"
+                >
+                  <option value="zh">{zh('中文', 'Chinese')}</option>
+                  <option value="en">{zh('英文', 'English')}</option>
+                </select>
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute right-4 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rotate-45 border-b border-r border-zinc-500"
+                />
+              </span>
+            </div>
+            <p className="text-sm text-zinc-500">
+              {zh(
+                '控制后台扫描时抓取的 JAV 标题与标签语言，默认使用中文。',
+                'Controls the language used for JAV titles and tags fetched by background scans. Chinese is the default.'
+              )}
+            </p>
+
+            {javMetadataLanguageError && (
+              <div className="text-sm text-red-600">{javMetadataLanguageError}</div>
+            )}
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleSaveJavMetadataLanguage}
+                disabled={savingJavMetadataLanguage || unchanged}
+                className="rounded-xl bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+              >
+                {savingJavMetadataLanguage ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    )
+  }
 
   const renderPlayerPanel = () => (
     <div className="space-y-5">
@@ -628,11 +711,15 @@ export default function GlobalSettingsModal({
                     ? proxyPort
                       ? String(proxyPort)
                       : zh('自动', 'Auto')
-                    : section.id === 'player'
-                      ? ''
-                      : section.id === 'directories'
-                        ? String(directories.length)
-                        : ''
+                    : section.id === 'jav'
+                      ? javMetadataLanguage === 'en'
+                        ? 'EN'
+                        : '中文'
+                      : section.id === 'player'
+                        ? ''
+                        : section.id === 'directories'
+                          ? String(directories.length)
+                          : ''
 
                 return (
                   <button
@@ -666,6 +753,7 @@ export default function GlobalSettingsModal({
           <section className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-6">
             {activeSection === 'basic' && renderBasicPanel()}
             {activeSection === 'proxy' && renderProxyPanel()}
+            {activeSection === 'jav' && renderJavPanel()}
             {activeSection === 'player' && renderPlayerPanel()}
             {activeSection === 'directories' && renderDirectoriesPanel()}
           </section>

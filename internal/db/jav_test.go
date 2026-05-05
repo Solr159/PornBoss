@@ -2,11 +2,13 @@ package db
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"pornboss/internal/common"
+	"pornboss/internal/jav"
 	"pornboss/internal/models"
 
 	"gorm.io/gorm"
@@ -111,6 +113,498 @@ func TestListJavIdolsOnlyIncludesIdolsWithVisibleSoloWorks(t *testing.T) {
 	}
 	if items[0].SampleCode != soloJav.Code {
 		t.Fatalf("unexpected sample code: got %q want %q", items[0].SampleCode, soloJav.Code)
+	}
+}
+
+func TestSaveJavInfoAppendsIdolsOnlyWhenLanguageMappingMissing(t *testing.T) {
+	gdb := openTestDB(t)
+	now := time.Unix(1710000000, 0).UTC()
+
+	save := func(info *jav.Info) {
+		t.Helper()
+		if err := gdb.Transaction(func(tx *gorm.DB) error {
+			_, err := saveJavInfoTx(tx, info, now)
+			return err
+		}); err != nil {
+			t.Fatalf("save jav info: %v", err)
+		}
+	}
+
+	save(&jav.Info{
+		Code:     "AAA-001",
+		Title:    "Japanese metadata",
+		Actors:   []string{"岬ななみ"},
+		Provider: jav.ProviderJavBus,
+	})
+	assertJavIdolMaps(t, gdb, "AAA-001", map[string]bool{
+		"岬ななみ": false,
+	})
+
+	save(&jav.Info{
+		Code:     "AAA-001",
+		Title:    "Japanese metadata refreshed",
+		Actors:   []string{"別の女優"},
+		Provider: jav.ProviderJavBus,
+	})
+	assertJavIdolMaps(t, gdb, "AAA-001", map[string]bool{
+		"岬ななみ": false,
+	})
+
+	save(&jav.Info{
+		Code:     "AAA-001",
+		Title:    "English metadata",
+		Actors:   []string{"Nanami Misaki"},
+		Provider: jav.ProviderJavDatabase,
+	})
+	assertJavIdolMaps(t, gdb, "AAA-001", map[string]bool{
+		"岬ななみ":          false,
+		"Nanami Misaki": true,
+	})
+
+	save(&jav.Info{
+		Code:     "AAA-001",
+		Title:    "English metadata refreshed",
+		Actors:   []string{"Other Actress"},
+		Provider: jav.ProviderJavDatabase,
+	})
+	assertJavIdolMaps(t, gdb, "AAA-001", map[string]bool{
+		"岬ななみ":          false,
+		"Nanami Misaki": true,
+	})
+
+	save(&jav.Info{
+		Code:     "BBB-001",
+		Title:    "Shared-name metadata",
+		Actors:   []string{"Shared Name"},
+		Provider: jav.ProviderJavBus,
+	})
+	save(&jav.Info{
+		Code:     "BBB-001",
+		Title:    "Shared-name metadata refreshed",
+		Actors:   []string{"Shared Name"},
+		Provider: jav.ProviderJavDatabase,
+	})
+	assertJavIdolLanguageCount(t, gdb, "Shared Name", 2)
+	assertJavIdolMapLanguages(t, gdb, "BBB-001", "Shared Name", []bool{false, true})
+
+	save(&jav.Info{
+		Code:     "CCC-001",
+		Title:    "Japanese-name English-provider metadata",
+		Actors:   []string{"三上悠亜"},
+		Provider: jav.ProviderJavDatabase,
+	})
+	assertJavIdolMaps(t, gdb, "CCC-001", map[string]bool{
+		"三上悠亜": true,
+	})
+
+	save(&jav.Info{
+		Code:     "DDD-001",
+		Title:    "English alias metadata",
+		Actors:   []string{"Ameri Ichinose (Ayaka Misora)"},
+		Provider: jav.ProviderJavDatabase,
+	})
+	assertJavIdolMaps(t, gdb, "DDD-001", map[string]bool{
+		"Ameri Ichinose (Ayaka Misora)": true,
+	})
+
+	save(&jav.Info{
+		Code:     "EEE-001",
+		Title:    "JavBus romanized stage name",
+		Actors:   []string{"AIKA"},
+		Provider: jav.ProviderJavBus,
+	})
+	assertJavIdolMaps(t, gdb, "EEE-001", map[string]bool{
+		"AIKA": false,
+	})
+	save(&jav.Info{
+		Code:     "EEE-001",
+		Title:    "English romanized stage name",
+		Actors:   []string{"AIKA"},
+		Provider: jav.ProviderJavDatabase,
+	})
+	assertJavIdolLanguageCount(t, gdb, "AIKA", 2)
+	assertJavIdolMapLanguages(t, gdb, "EEE-001", "AIKA", []bool{false, true})
+}
+
+func TestSaveJavInfoReplacesOnlyCurrentProviderTags(t *testing.T) {
+	gdb := openTestDB(t)
+	now := time.Unix(1710000000, 0).UTC()
+
+	save := func(info *jav.Info) {
+		t.Helper()
+		if err := gdb.Transaction(func(tx *gorm.DB) error {
+			_, err := saveJavInfoTx(tx, info, now)
+			return err
+		}); err != nil {
+			t.Fatalf("save jav info: %v", err)
+		}
+	}
+
+	save(&jav.Info{
+		Code:     "TAG-001",
+		Title:    "Initial metadata",
+		Tags:     []string{"Drama", "Featured Actress"},
+		Provider: jav.ProviderJavBus,
+	})
+
+	var javRec models.Jav
+	if err := gdb.Where("code = ?", "TAG-001").First(&javRec).Error; err != nil {
+		t.Fatalf("load jav: %v", err)
+	}
+	englishTag := models.JavTag{Name: "Plot Based", Provider: int(jav.ProviderJavDatabase)}
+	userTag := models.JavTag{Name: "Favorite", Provider: int(jav.ProviderUser)}
+	if err := gdb.Create(&englishTag).Error; err != nil {
+		t.Fatalf("create english tag: %v", err)
+	}
+	if err := gdb.Create(&userTag).Error; err != nil {
+		t.Fatalf("create user tag: %v", err)
+	}
+	if err := gdb.Create(&[]models.JavTagMap{
+		{JavID: javRec.ID, JavTagID: englishTag.ID},
+		{JavID: javRec.ID, JavTagID: userTag.ID},
+	}).Error; err != nil {
+		t.Fatalf("create extra tag maps: %v", err)
+	}
+
+	save(&jav.Info{
+		Code:     "TAG-001",
+		Title:    "Refreshed metadata",
+		Tags:     []string{"Cosplay"},
+		Provider: jav.ProviderJavBus,
+	})
+
+	assertJavTagMaps(t, gdb, "TAG-001", map[string]int{
+		"Cosplay":    int(jav.ProviderJavBus),
+		"Plot Based": int(jav.ProviderJavDatabase),
+		"Favorite":   int(jav.ProviderUser),
+	})
+}
+
+func TestSetVideoLocationJavIDAllowsStaleNoop(t *testing.T) {
+	gdb := openTestDB(t)
+	now := time.Unix(1710000000, 0).UTC()
+
+	dir := models.Directory{Path: "/tmp/media"}
+	if err := gdb.Create(&dir).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+	video := models.Video{
+		DirectoryID: dir.ID,
+		Path:        "noop.mp4",
+		Filename:    "noop.mp4",
+		Fingerprint: "fp-noop",
+		DurationSec: 7200,
+		ModifiedAt:  now,
+	}
+	if err := gdb.Create(&video).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	currentJav := models.Jav{Code: "NOOP-001", Title: "Current", Provider: int(jav.ProviderJavBus), FetchedAt: now}
+	otherJav := models.Jav{Code: "NOOP-002", Title: "Other", Provider: int(jav.ProviderJavDatabase), FetchedAt: now}
+	if err := gdb.Create(&currentJav).Error; err != nil {
+		t.Fatalf("create current jav: %v", err)
+	}
+	if err := gdb.Create(&otherJav).Error; err != nil {
+		t.Fatalf("create other jav: %v", err)
+	}
+	loc := models.VideoLocation{
+		VideoID:      video.ID,
+		DirectoryID:  dir.ID,
+		RelativePath: "noop.mp4",
+		ModifiedAt:   now,
+		JavID:        int64Ptr(currentJav.ID),
+	}
+	if err := gdb.Create(&loc).Error; err != nil {
+		t.Fatalf("create video location: %v", err)
+	}
+
+	staleUpdatedAt := now.Add(-time.Hour)
+	if err := setVideoLocationJavIDTx(gdb, loc.ID, currentJav.ID, staleUpdatedAt); err != nil {
+		t.Fatalf("same jav id should be accepted as noop: %v", err)
+	}
+	if err := setVideoLocationJavIDTx(gdb, loc.ID, otherJav.ID, staleUpdatedAt); err == nil {
+		t.Fatal("different jav id with stale updated_at should fail")
+	}
+}
+
+func TestSearchJavPreloadsOnlyCurrentLanguageIdols(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+	prevLang := jav.CurrentMetadataLanguage()
+	t.Cleanup(func() {
+		jav.SetMetadataLanguage(string(prevLang))
+	})
+
+	dir := models.Directory{Path: "/tmp/media"}
+	if err := gdb.Create(&dir).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+
+	javRec := models.Jav{Code: "LANG-001", Title: "Language Work", Provider: 1, FetchedAt: now}
+	if err := gdb.Create(&javRec).Error; err != nil {
+		t.Fatalf("create jav: %v", err)
+	}
+
+	japaneseIdol := models.JavIdol{Name: "岬ななみ", IsEnglish: false}
+	englishIdol := models.JavIdol{Name: "Nanami Misaki", IsEnglish: true}
+	if err := gdb.Create(&japaneseIdol).Error; err != nil {
+		t.Fatalf("create japanese idol: %v", err)
+	}
+	if err := gdb.Create(&englishIdol).Error; err != nil {
+		t.Fatalf("create english idol: %v", err)
+	}
+	if err := gdb.Create(&[]models.JavIdolMap{
+		{JavID: javRec.ID, JavIdolID: japaneseIdol.ID},
+		{JavID: javRec.ID, JavIdolID: englishIdol.ID},
+	}).Error; err != nil {
+		t.Fatalf("create idol maps: %v", err)
+	}
+
+	video := models.Video{
+		DirectoryID: dir.ID,
+		Path:        "lang-001.mp4",
+		Filename:    "lang-001.mp4",
+		Fingerprint: "fp-lang",
+		DurationSec: 7200,
+		ModifiedAt:  now,
+	}
+	if err := gdb.Create(&video).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	loc := models.VideoLocation{
+		VideoID:      video.ID,
+		DirectoryID:  dir.ID,
+		RelativePath: "lang-001.mp4",
+		ModifiedAt:   now,
+		JavID:        int64Ptr(javRec.ID),
+	}
+	if err := gdb.Create(&loc).Error; err != nil {
+		t.Fatalf("create video location: %v", err)
+	}
+
+	jav.SetMetadataLanguage("zh")
+	items, total, err := SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil)
+	if err != nil {
+		t.Fatalf("SearchJav zh: %v", err)
+	}
+	assertSearchJavIdols(t, items, total, []string{"岬ななみ"})
+
+	jav.SetMetadataLanguage("en")
+	items, total, err = SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil)
+	if err != nil {
+		t.Fatalf("SearchJav en: %v", err)
+	}
+	assertSearchJavIdols(t, items, total, []string{"Nanami Misaki"})
+}
+
+func TestJavIdolAPIFiltersCurrentLanguageIdols(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+	prevLang := jav.CurrentMetadataLanguage()
+	t.Cleanup(func() {
+		jav.SetMetadataLanguage(string(prevLang))
+	})
+
+	dir := models.Directory{Path: "/tmp/media"}
+	if err := gdb.Create(&dir).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+
+	javRec := models.Jav{Code: "IDOL-001", Title: "Idol Language Work", Provider: 1, FetchedAt: now}
+	if err := gdb.Create(&javRec).Error; err != nil {
+		t.Fatalf("create jav: %v", err)
+	}
+
+	japaneseIdol := models.JavIdol{Name: "一ノ瀬アメリ", IsEnglish: false}
+	englishIdol := models.JavIdol{Name: "Ameri Ichinose (Ayaka Misora)", IsEnglish: true}
+	if err := gdb.Create(&japaneseIdol).Error; err != nil {
+		t.Fatalf("create japanese idol: %v", err)
+	}
+	if err := gdb.Create(&englishIdol).Error; err != nil {
+		t.Fatalf("create english idol: %v", err)
+	}
+	if err := gdb.Create(&[]models.JavIdolMap{
+		{JavID: javRec.ID, JavIdolID: japaneseIdol.ID},
+		{JavID: javRec.ID, JavIdolID: englishIdol.ID},
+	}).Error; err != nil {
+		t.Fatalf("create idol maps: %v", err)
+	}
+
+	video := models.Video{
+		DirectoryID: dir.ID,
+		Path:        "idol-001.mp4",
+		Filename:    "idol-001.mp4",
+		Fingerprint: "fp-idol-language",
+		DurationSec: 7200,
+		ModifiedAt:  now,
+	}
+	if err := gdb.Create(&video).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	loc := models.VideoLocation{
+		VideoID:      video.ID,
+		DirectoryID:  dir.ID,
+		RelativePath: "idol-001.mp4",
+		ModifiedAt:   now,
+		JavID:        int64Ptr(javRec.ID),
+	}
+	if err := gdb.Create(&loc).Error; err != nil {
+		t.Fatalf("create video location: %v", err)
+	}
+
+	jav.SetMetadataLanguage("zh")
+	idols, total, err := ListJavIdols(ctx, "", "work", 20, 0, nil)
+	if err != nil {
+		t.Fatalf("ListJavIdols zh: %v", err)
+	}
+	assertJavIdolSummaries(t, idols, total, []string{"一ノ瀬アメリ"})
+	if _, err := GetJavIdolSummary(ctx, englishIdol.ID, nil); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("expected english idol to be hidden in zh mode, got err=%v", err)
+	}
+
+	jav.SetMetadataLanguage("en")
+	idols, total, err = ListJavIdols(ctx, "", "work", 20, 0, nil)
+	if err != nil {
+		t.Fatalf("ListJavIdols en: %v", err)
+	}
+	assertJavIdolSummaries(t, idols, total, []string{"Ameri Ichinose (Ayaka Misora)"})
+	if _, err := GetJavIdolSummary(ctx, japaneseIdol.ID, nil); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("expected japanese idol to be hidden in en mode, got err=%v", err)
+	}
+}
+
+func TestListIdolsMissingProfileFiltersCurrentLanguage(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+	prevLang := jav.CurrentMetadataLanguage()
+	t.Cleanup(func() {
+		jav.SetMetadataLanguage(string(prevLang))
+	})
+
+	dir := models.Directory{Path: "/tmp/media"}
+	if err := gdb.Create(&dir).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+	javRec := models.Jav{Code: "MISS-001", Title: "Missing Profile Work", Provider: 1, FetchedAt: now}
+	if err := gdb.Create(&javRec).Error; err != nil {
+		t.Fatalf("create jav: %v", err)
+	}
+	japaneseIdol := models.JavIdol{Name: "あいか", IsEnglish: false}
+	englishIdol := models.JavIdol{Name: "AIKA", IsEnglish: true}
+	if err := gdb.Create(&japaneseIdol).Error; err != nil {
+		t.Fatalf("create japanese idol: %v", err)
+	}
+	if err := gdb.Create(&englishIdol).Error; err != nil {
+		t.Fatalf("create english idol: %v", err)
+	}
+	if err := gdb.Create(&[]models.JavIdolMap{
+		{JavID: javRec.ID, JavIdolID: japaneseIdol.ID},
+		{JavID: javRec.ID, JavIdolID: englishIdol.ID},
+	}).Error; err != nil {
+		t.Fatalf("create idol maps: %v", err)
+	}
+	video := models.Video{
+		DirectoryID: dir.ID,
+		Path:        "miss-001.mp4",
+		Filename:    "miss-001.mp4",
+		Fingerprint: "fp-missing-profile",
+		DurationSec: 7200,
+		ModifiedAt:  now,
+	}
+	if err := gdb.Create(&video).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	loc := models.VideoLocation{
+		VideoID:      video.ID,
+		DirectoryID:  dir.ID,
+		RelativePath: "miss-001.mp4",
+		ModifiedAt:   now,
+		JavID:        int64Ptr(javRec.ID),
+	}
+	if err := gdb.Create(&loc).Error; err != nil {
+		t.Fatalf("create video location: %v", err)
+	}
+
+	jav.SetMetadataLanguage("zh")
+	idols, err := ListIdolsMissingProfile(ctx)
+	if err != nil {
+		t.Fatalf("ListIdolsMissingProfile zh: %v", err)
+	}
+	assertJavIdolNames(t, idols, []string{"あいか"})
+
+	jav.SetMetadataLanguage("en")
+	idols, err = ListIdolsMissingProfile(ctx)
+	if err != nil {
+		t.Fatalf("ListIdolsMissingProfile en: %v", err)
+	}
+	assertJavIdolNames(t, idols, []string{"AIKA"})
+	code, err := FindIdolSoloCode(ctx, englishIdol.ID)
+	if err != nil {
+		t.Fatalf("FindIdolSoloCode english: %v", err)
+	}
+	if code != javRec.Code {
+		t.Fatalf("unexpected english solo code: got %q want %q", code, javRec.Code)
+	}
+}
+
+func TestBackfillJavIdolEnglishFlagsMarksJavDatabaseIdols(t *testing.T) {
+	gdb := openTestDB(t)
+	now := time.Unix(1710000000, 0).UTC()
+
+	if err := gdb.Where("key = ?", javIdolEnglishFlagsBackfillMarkerKey).Delete(&models.Config{}).Error; err != nil {
+		t.Fatalf("delete marker: %v", err)
+	}
+
+	javBusRec := models.Jav{Code: "BF-JB-001", Title: "JavBus Work", Provider: int(jav.ProviderJavBus), FetchedAt: now}
+	javDatabaseRec := models.Jav{Code: "BF-JD-001", Title: "JavDatabase Work", Provider: int(jav.ProviderJavDatabase), FetchedAt: now}
+	if err := gdb.Create(&javBusRec).Error; err != nil {
+		t.Fatalf("create javbus jav: %v", err)
+	}
+	if err := gdb.Create(&javDatabaseRec).Error; err != nil {
+		t.Fatalf("create javdatabase jav: %v", err)
+	}
+	javBusIdol := models.JavIdol{Name: "AIKA", IsEnglish: false}
+	javDatabaseIdol := models.JavIdol{Name: "Ameri Ichinose (Ayaka Misora)", IsEnglish: false}
+	if err := gdb.Create(&javBusIdol).Error; err != nil {
+		t.Fatalf("create javbus idol: %v", err)
+	}
+	if err := gdb.Create(&javDatabaseIdol).Error; err != nil {
+		t.Fatalf("create javdatabase idol: %v", err)
+	}
+	if err := gdb.Create(&[]models.JavIdolMap{
+		{JavID: javBusRec.ID, JavIdolID: javBusIdol.ID},
+		{JavID: javDatabaseRec.ID, JavIdolID: javDatabaseIdol.ID},
+	}).Error; err != nil {
+		t.Fatalf("create idol maps: %v", err)
+	}
+
+	if err := backfillJavIdolEnglishFlags(gdb); err != nil {
+		t.Fatalf("backfill jav idol english flags: %v", err)
+	}
+
+	var gotJavBus models.JavIdol
+	if err := gdb.First(&gotJavBus, javBusIdol.ID).Error; err != nil {
+		t.Fatalf("load javbus idol: %v", err)
+	}
+	if gotJavBus.IsEnglish {
+		t.Fatal("expected JavBus idol to stay non-english")
+	}
+	var gotJavDatabase models.JavIdol
+	if err := gdb.First(&gotJavDatabase, javDatabaseIdol.ID).Error; err != nil {
+		t.Fatalf("load javdatabase idol: %v", err)
+	}
+	if !gotJavDatabase.IsEnglish {
+		t.Fatal("expected JavDatabase-only idol to be marked english")
+	}
+	done, err := configValueEquals(gdb, javIdolEnglishFlagsBackfillMarkerKey, "1")
+	if err != nil {
+		t.Fatalf("read marker: %v", err)
+	}
+	if !done {
+		t.Fatal("expected marker to be set")
 	}
 }
 
@@ -490,4 +984,141 @@ func openTestDB(t *testing.T) *gorm.DB {
 
 func int64Ptr(v int64) *int64 {
 	return &v
+}
+
+func assertJavIdolMaps(t *testing.T, db *gorm.DB, code string, want map[string]bool) {
+	t.Helper()
+
+	var rows []struct {
+		Name      string
+		IsEnglish bool
+	}
+	if err := db.Table("jav_idol_map jim").
+		Select("ji.name, ji.is_english").
+		Joins("JOIN jav j ON j.id = jim.jav_id").
+		Joins("JOIN jav_idol ji ON ji.id = jim.jav_idol_id").
+		Where("j.code = ?", code).
+		Order("ji.name").
+		Scan(&rows).Error; err != nil {
+		t.Fatalf("list jav idol maps: %v", err)
+	}
+	if len(rows) != len(want) {
+		t.Fatalf("unexpected idol map count: got %d want %d rows=%#v", len(rows), len(want), rows)
+	}
+	for _, row := range rows {
+		wantEnglish, ok := want[row.Name]
+		if !ok {
+			t.Fatalf("unexpected idol map row: %#v", row)
+		}
+		if row.IsEnglish != wantEnglish {
+			t.Fatalf("unexpected is_english for %q: got %t want %t", row.Name, row.IsEnglish, wantEnglish)
+		}
+	}
+}
+
+func assertJavIdolLanguageCount(t *testing.T, db *gorm.DB, name string, want int64) {
+	t.Helper()
+
+	var got int64
+	if err := db.Model(&models.JavIdol{}).Where("name = ?", name).Count(&got).Error; err != nil {
+		t.Fatalf("count jav idol languages: %v", err)
+	}
+	if got != want {
+		t.Fatalf("unexpected language row count for %q: got %d want %d", name, got, want)
+	}
+}
+
+func assertJavIdolMapLanguages(t *testing.T, db *gorm.DB, code, name string, want []bool) {
+	t.Helper()
+
+	var got []bool
+	if err := db.Table("jav_idol_map jim").
+		Select("ji.is_english").
+		Joins("JOIN jav j ON j.id = jim.jav_id").
+		Joins("JOIN jav_idol ji ON ji.id = jim.jav_idol_id").
+		Where("j.code = ? AND ji.name = ?", code, name).
+		Order("ji.is_english").
+		Pluck("ji.is_english", &got).Error; err != nil {
+		t.Fatalf("list jav idol map languages: %v", err)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("unexpected language count for %q/%q: got %v want %v", code, name, got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("unexpected language at %d for %q/%q: got %v want %v", i, code, name, got, want)
+		}
+	}
+}
+
+func assertJavIdolNames(t *testing.T, idols []models.JavIdol, want []string) {
+	t.Helper()
+
+	if len(idols) != len(want) {
+		t.Fatalf("unexpected idol count: got %d want %d idols=%#v", len(idols), len(want), idols)
+	}
+	for i, name := range want {
+		if idols[i].Name != name {
+			t.Fatalf("unexpected idol at %d: got %q want %q", i, idols[i].Name, name)
+		}
+	}
+}
+
+func assertJavTagMaps(t *testing.T, db *gorm.DB, code string, want map[string]int) {
+	t.Helper()
+
+	var rows []struct {
+		Name     string
+		Provider int
+	}
+	if err := db.Table("jav_tag_map jtm").
+		Select("jt.name, jt.provider").
+		Joins("JOIN jav j ON j.id = jtm.jav_id").
+		Joins("JOIN jav_tag jt ON jt.id = jtm.jav_tag_id").
+		Where("j.code = ?", code).
+		Order("jt.name").
+		Scan(&rows).Error; err != nil {
+		t.Fatalf("list jav tag maps: %v", err)
+	}
+	if len(rows) != len(want) {
+		t.Fatalf("unexpected tag map count: got %d want %d rows=%#v", len(rows), len(want), rows)
+	}
+	for _, row := range rows {
+		wantProvider, ok := want[row.Name]
+		if !ok {
+			t.Fatalf("unexpected tag map row: %#v", row)
+		}
+		if row.Provider != wantProvider {
+			t.Fatalf("unexpected provider for %q: got %d want %d", row.Name, row.Provider, wantProvider)
+		}
+	}
+}
+
+func assertSearchJavIdols(t *testing.T, items []models.Jav, total int64, want []string) {
+	t.Helper()
+
+	if total != 1 || len(items) != 1 {
+		t.Fatalf("unexpected jav result size: len=%d total=%d", len(items), total)
+	}
+	if len(items[0].Idols) != len(want) {
+		t.Fatalf("unexpected idol count: got %d want %d idols=%#v", len(items[0].Idols), len(want), items[0].Idols)
+	}
+	for i, name := range want {
+		if items[0].Idols[i].Name != name {
+			t.Fatalf("unexpected idol at %d: got %q want %q", i, items[0].Idols[i].Name, name)
+		}
+	}
+}
+
+func assertJavIdolSummaries(t *testing.T, items []JavIdolSummary, total int64, want []string) {
+	t.Helper()
+
+	if total != int64(len(want)) || len(items) != len(want) {
+		t.Fatalf("unexpected idol result size: len=%d total=%d want=%d items=%#v", len(items), total, len(want), items)
+	}
+	for i, name := range want {
+		if items[i].Name != name {
+			t.Fatalf("unexpected idol at %d: got %q want %q", i, items[i].Name, name)
+		}
+	}
 }

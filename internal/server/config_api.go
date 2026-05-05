@@ -10,6 +10,7 @@ import (
 
 	"pornboss/internal/common/logging"
 	dbpkg "pornboss/internal/db"
+	"pornboss/internal/jav"
 	"pornboss/internal/mpv"
 	"pornboss/internal/util"
 )
@@ -41,6 +42,7 @@ func updateConfig(c *gin.Context) {
 		VideoSort              string                `json:"video_sort"`
 		JavSort                string                `json:"jav_sort"`
 		IdolSort               string                `json:"idol_sort"`
+		JavMetadataLanguage    string                `json:"jav_metadata_language"`
 		DefaultPlayer          string                `json:"default_player"`
 		ProxyPort              *int                  `json:"proxy_port"`
 		PlayerWindowSize       *int                  `json:"player_window_size"`
@@ -116,6 +118,14 @@ func updateConfig(c *gin.Context) {
 		default:
 			// ignore invalid values
 		}
+	}
+	if s := strings.TrimSpace(req.JavMetadataLanguage); s != "" {
+		lang, ok := jav.ParseMetadataLanguage(s)
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid jav metadata language"})
+			return
+		}
+		entries["jav_metadata_language"] = string(lang)
 	}
 	if s := strings.ToLower(strings.TrimSpace(req.DefaultPlayer)); s != "" {
 		switch s {
@@ -247,6 +257,7 @@ func updateConfig(c *gin.Context) {
 		return
 	}
 	util.SetProxyPortFromString(cfg["proxy_port"])
+	jav.SetMetadataLanguage(cfg["jav_metadata_language"])
 	c.JSON(http.StatusOK, cfg)
 }
 

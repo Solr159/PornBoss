@@ -89,6 +89,12 @@ func Open(path string) (*gorm.DB, error) {
 	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_jav_tag_provider ON jav_tag(provider)").Error; err != nil {
 		return nil, fmt.Errorf("create jav tag provider index: %w", err)
 	}
+	if err := backfillJavIdolEnglishFlags(db); err != nil {
+		return nil, fmt.Errorf("backfill jav idol english flags: %w", err)
+	}
+	if err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_jav_idol_name_language ON jav_idol(name, is_english)").Error; err != nil {
+		return nil, fmt.Errorf("create jav idol name language index: %w", err)
+	}
 	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_jav_idol_map_jav_idol_id_jav_id ON jav_idol_map(jav_idol_id, jav_id)").Error; err != nil {
 		return nil, fmt.Errorf("create jav idol map reverse index: %w", err)
 	}
@@ -122,6 +128,7 @@ func Open(path string) (*gorm.DB, error) {
 }
 
 const videoLocationBackfillMarkerKey = "migration.video_locations.backfilled"
+const javIdolEnglishFlagsBackfillMarkerKey = "migration.jav_idol_english_flags.v3.backfilled"
 
 func backfillVideoLocationsOnce(db *gorm.DB) error {
 	if db == nil {
@@ -283,6 +290,37 @@ func backfillJavIdolJapaneseNames(db *gorm.DB) error {
 		Where("id IN ?", ids).
 		Where("japanese_name IS NULL OR japanese_name = ''").
 		Update("japanese_name", gorm.Expr("name")).Error
+}
+
+func backfillJavIdolEnglishFlags(db *gorm.DB) error {
+	if db == nil {
+		return fmt.Errorf("nil db")
+	}
+	done, err := configValueEquals(db, javIdolEnglishFlagsBackfillMarkerKey, "1")
+	if err != nil {
+		return err
+	}
+	if done {
+		return nil
+	}
+
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`
+			UPDATE jav_idol
+			SET is_english = 1
+			WHERE COALESCE(is_english, 0) = 0
+			  AND id IN (
+			    SELECT jim.jav_idol_id
+			    FROM jav_idol_map jim
+			    JOIN jav j ON j.id = jim.jav_id
+			    WHERE j.provider = ?
+			  )
+		`, int(jav.ProviderJavDatabase)).Error; err != nil {
+			return err
+		}
+
+		return setConfigValue(tx, javIdolEnglishFlagsBackfillMarkerKey, "1")
+	})
 }
 
 func sqliteColumnExists(db *gorm.DB, table, column string) (bool, error) {

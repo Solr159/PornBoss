@@ -1672,6 +1672,7 @@ export default function App() {
               onNext={() => idolHasNext && setIdolPage(idolPage + 1)}
               onLast={() => setIdolPage(idolLastPage)}
               items={idolItems}
+              javMetadataLanguage={config?.jav_metadata_language === 'en' ? 'en' : 'zh'}
               onSelectIdol={handleSelectIdol}
             />
           ) : (
@@ -1980,6 +1981,22 @@ export default function App() {
         onSaveProxyPort={async (port) => {
           const cfg = await updateConfig({ proxy_port: port })
           useStore.setState({ config: cfg })
+        }}
+        javMetadataLanguage={config?.jav_metadata_language === 'en' ? 'en' : 'zh'}
+        onSaveJavMetadataLanguage={async (language) => {
+          const cfg = await updateConfig({
+            jav_metadata_language: language === 'en' ? 'en' : 'zh',
+          })
+          useStore.setState({
+            config: cfg,
+            javTempSort: '',
+            javTags: [],
+            javPage: 1,
+            javRandomMode: false,
+            javRandomSeed: null,
+          })
+          await loadJavTags({ force: true })
+          forceReloadJavByTab(javTab)
         }}
         defaultPlayer={defaultPlayer}
         onSaveDefaultPlayer={async (player) => {

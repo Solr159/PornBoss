@@ -2,8 +2,8 @@ package jav
 
 import (
 	"errors"
-
-	"pornboss/internal/util"
+	"strings"
+	"sync"
 )
 
 // ResourceNotFonud indicates the requested resource is not available.
@@ -46,15 +46,73 @@ func ParseProvider(value int) Provider {
 	}
 }
 
-// PreferredProvider chooses the metadata source based on the system language.
-func PreferredProvider() Provider {
-	if util.SystemPrefersChinese() {
-		return ProviderJavBus
+// MetadataLanguage identifies the preferred language for fetched JAV metadata.
+type MetadataLanguage string
+
+const (
+	MetadataLanguageChinese MetadataLanguage = "zh"
+	MetadataLanguageEnglish MetadataLanguage = "en"
+)
+
+var metadataLanguageState = struct {
+	sync.RWMutex
+	value MetadataLanguage
+}{value: MetadataLanguageChinese}
+
+// ParseMetadataLanguage converts user config to a known metadata language.
+func ParseMetadataLanguage(value string) (MetadataLanguage, bool) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "en", "eng", "english", "en-us", "en-gb":
+		return MetadataLanguageEnglish, true
+	case "zh", "cn", "chi", "chinese", "zh-cn", "zh-hans", "zh-tw", "zh-hant":
+		return MetadataLanguageChinese, true
+	default:
+		return MetadataLanguageChinese, false
 	}
-	return ProviderJavDatabase
 }
 
-// PreferredLookupProvider returns the scraper that matches the current system language.
+// NormalizeMetadataLanguage converts user config to a known metadata language.
+func NormalizeMetadataLanguage(value string) MetadataLanguage {
+	lang, ok := ParseMetadataLanguage(value)
+	if !ok {
+		return MetadataLanguageChinese
+	}
+	return lang
+}
+
+// SetMetadataLanguage updates the process-wide preferred JAV metadata language.
+func SetMetadataLanguage(value string) MetadataLanguage {
+	lang := NormalizeMetadataLanguage(value)
+	metadataLanguageState.Lock()
+	metadataLanguageState.value = lang
+	metadataLanguageState.Unlock()
+	return lang
+}
+
+// CurrentMetadataLanguage returns the process-wide preferred JAV metadata language.
+func CurrentMetadataLanguage() MetadataLanguage {
+	metadataLanguageState.RLock()
+	defer metadataLanguageState.RUnlock()
+	return metadataLanguageState.value
+}
+
+// PreferredProvider chooses the metadata source based on the configured language.
+func PreferredProvider() Provider {
+	if CurrentMetadataLanguage() == MetadataLanguageEnglish {
+		return ProviderJavDatabase
+	}
+	return ProviderJavBus
+}
+
+// ProviderForMetadataLanguage returns the metadata source used for a language.
+func ProviderForMetadataLanguage(value string) Provider {
+	if NormalizeMetadataLanguage(value) == MetadataLanguageEnglish {
+		return ProviderJavDatabase
+	}
+	return ProviderJavBus
+}
+
+// PreferredLookupProvider returns the scraper that matches the configured metadata language.
 func PreferredLookupProvider() JavLookupProvider {
 	switch PreferredProvider() {
 	case ProviderJavDatabase:

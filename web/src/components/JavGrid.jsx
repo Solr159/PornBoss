@@ -76,6 +76,9 @@ export default function JavGrid({
   onOpenScreenshots,
 }) {
   const directoryIds = useStore(directoryQueryIds)
+  const javMetadataLanguage = useStore((state) =>
+    state.config?.jav_metadata_language === 'en' ? 'en' : 'zh'
+  )
   const idolPreviewCacheRef = useRef(new Map())
   const idolPreviewInflightRef = useRef(new Map())
   const [coverPreview, setCoverPreview] = useState(null)
@@ -142,6 +145,7 @@ export default function JavGrid({
           onOpenScreenshots={onOpenScreenshots}
           loadIdolPreview={loadIdolPreview}
           onOpenCoverPreview={setCoverPreview}
+          javMetadataLanguage={javMetadataLanguage}
         />
       ))}
       {coverPreview ? (
@@ -196,6 +200,7 @@ function JavCard({
   onOpenScreenshots,
   loadIdolPreview,
   onOpenCoverPreview,
+  javMetadataLanguage,
 }) {
   const primaryVideo = useMemo(() => (item?.videos || [])[0], [item])
   const { bgWidthPercent, coverAspectPercent } = useMemo(() => getIdolCardLayoutProps(), [])
@@ -470,6 +475,7 @@ function JavCard({
                     bgWidthPercent={bgWidthPercent}
                     coverAspectPercent={coverAspectPercent}
                     showWorkCount={showIdolWorkCount}
+                    javMetadataLanguage={javMetadataLanguage}
                   />
                 ) : null}
               </div>

@@ -10,6 +10,7 @@ export default function JavIdolView({
   loading,
   buildPageUrl,
   buildIdolUrl,
+  javMetadataLanguage,
   onFirst,
   onPrev,
   onGoToPage,
@@ -40,7 +41,12 @@ export default function JavIdolView({
           {zh('加载中…', 'Loading...')}
         </div>
       ) : (
-        <JavIdolGrid items={items} onSelectIdol={onSelectIdol} buildIdolUrl={buildIdolUrl} />
+        <JavIdolGrid
+          items={items}
+          onSelectIdol={onSelectIdol}
+          buildIdolUrl={buildIdolUrl}
+          javMetadataLanguage={javMetadataLanguage}
+        />
       )}
     </>
   )

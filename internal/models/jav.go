@@ -28,7 +28,8 @@ type JavTag struct {
 
 type JavIdol struct {
 	ID           int64      `json:"id" gorm:"primaryKey"`
-	Name         string     `json:"name" gorm:"uniqueIndex"`
+	Name         string     `json:"name" gorm:"uniqueIndex:idx_jav_idol_name_language"`
+	IsEnglish    bool       `json:"is_english" gorm:"not null;default:0;uniqueIndex:idx_jav_idol_name_language"`
 	RomanName    string     `json:"roman_name"`
 	JapaneseName string     `json:"japanese_name"`
 	ChineseName  string     `json:"chinese_name"`
