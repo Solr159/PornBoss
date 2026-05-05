@@ -1,3 +1,5 @@
+<p align="center"><strong>Pornboss has native English support. English users can read the English README here: <a href="./README.en.md">README.en.md</a>.</strong></p>
+
 <h1 align="center">Pornboss</h1>
 
 <p align="center">面向本地成人视频收藏的一站式媒体库：自动识别 JAV、抓取元数据、管理目录与标签，并通过内置 mpv 快速播放。</p>
