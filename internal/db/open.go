@@ -92,6 +92,12 @@ func Open(path string) (*gorm.DB, error) {
 	if err := backfillJavIdolEnglishFlags(db); err != nil {
 		return nil, fmt.Errorf("backfill jav idol english flags: %w", err)
 	}
+	if err := db.Exec("DROP INDEX IF EXISTS idx_jav_idol_name").Error; err != nil {
+		return nil, fmt.Errorf("drop jav idol legacy name index: %w", err)
+	}
+	if err := db.Exec("DROP INDEX IF EXISTS uni_jav_idol_name").Error; err != nil {
+		return nil, fmt.Errorf("drop jav idol legacy unique name index: %w", err)
+	}
 	if err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_jav_idol_name_language ON jav_idol(name, is_english)").Error; err != nil {
 		return nil, fmt.Errorf("create jav idol name language index: %w", err)
 	}
