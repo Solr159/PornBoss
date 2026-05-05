@@ -30,8 +30,8 @@ If you want to browse your local collection like JavBus or JavLibrary, without m
 Pornboss extracts JAV codes from filenames, including common patterns such as `IPX-633`, `SSIS-001`, and `ipx633_ch`, then places recognized videos into the JAV library.
 
 - Automatically fetches JAV title, release date, cover art, actresses, tags, and other metadata.
-- Automatically completes actress profiles and supports actress-centric browsing.
-- Lets you choose the JAV metadata language.
+- Automatically fetches and completes actress profiles, with actress-centric browsing supported.
+- Supports Chinese and English JAV metadata fetching, freely switchable.
 - Supports filtering and sorting by code, title, actress, tag, duration, release date, play count, and more.
 - Keeps general videos and JAV titles separate, so homemade clips, short videos, compilations, and uncensored fragments do not get mixed with coded JAV titles.
 
@@ -40,7 +40,7 @@ Pornboss extracts JAV codes from filenames, including common patterns such as `I
 After you add local media folders, Pornboss continuously syncs their contents in the background. Folder changes are detected and refreshed promptly, so newly added, removed, or moved files are reflected in the media library. Indexed videos can be browsed immediately while scanning and metadata completion continue in the background.
 
 - Supports multiple media folders, including local disks, NAS mounts, and removable drives.
-- Lets you choose enabled folders, with disabled folder content hidden automatically.
+- Lets you freely choose enabled folders, with disabled folder content hidden automatically.
 - Keeps historical index data when a folder is temporarily unavailable, so removable-drive libraries reappear after the drive is connected again.
 - Binds tags, JAV associations, and metadata to video fingerprints, so common move and rename workflows do not require retagging.
 - Stores the database, covers, thumbnails, and runtime data under `data/`; copy this directory to upgrade or migrate.
@@ -100,8 +100,7 @@ Open `Global Settings` -> `Directory Management`, then add the local folders tha
 
 - Manage general adult videos, short clips, and compilations in `Video` mode.
 - Browse JAV titles by code, title, tag, and actress in `JAV` mode.
-- If you only want to browse part of your disks or folders, choose enabled folders from the top folder dropdown or `Directory Management`; all content from disabled folders is fully hidden.
-- Switch the JAV metadata language in `Global Settings` -> `JAV Metadata` if you prefer Chinese or English titles and tags.
+- Choose the folders you want to browse from the top folder dropdown or `Directory Management`.
 - Add custom tags such as `favorite`, `subtitled`, `uncensored`, or `must-watch`.
 - Use search, filters, sorting, and random browsing to find content quickly.
 
