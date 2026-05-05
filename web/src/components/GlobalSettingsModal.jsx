@@ -23,7 +23,7 @@ const SETTINGS_SECTIONS = [
   },
   {
     id: 'jav',
-    title: { zh: 'JAV设置', en: 'JAV Settings' },
+    title: { zh: 'JAV元数据', en: 'JAV Metadata' },
     summary: { zh: '元数据语言', en: 'Metadata language' },
   },
   {
@@ -371,8 +371,8 @@ export default function GlobalSettingsModal({
                   }}
                   className="w-auto appearance-none rounded-xl border border-zinc-200 bg-white py-1.5 pl-3 pr-7 text-sm text-zinc-800 outline-none focus:border-zinc-200 focus:outline-none focus:ring-0 focus-visible:outline-none"
                 >
-                  <option value="zh">{zh('中文', 'Chinese')}</option>
-                  <option value="en">{zh('英文', 'English')}</option>
+                  <option value="en">English</option>
+                  <option value="zh">中文</option>
                 </select>
                 <span
                   aria-hidden="true"
@@ -382,8 +382,8 @@ export default function GlobalSettingsModal({
             </div>
             <p className="text-sm text-zinc-500">
               {zh(
-                '控制后台扫描时抓取的 JAV 标题与标签语言，默认使用中文。',
-                'Controls the language used for JAV titles and tags fetched by background scans. Chinese is the default.'
+                '控制后台扫描时抓取的 JAV 标题与标签语言。',
+                'Controls the language used for JAV titles and tags fetched by background scans.'
               )}
             </p>
 
