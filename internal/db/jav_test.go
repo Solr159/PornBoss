@@ -85,9 +85,7 @@ func TestListJavIdolsOnlyIncludesIdolsWithVisibleSoloWorks(t *testing.T) {
 	if err := db.Create(&videos).Error; err != nil {
 		t.Fatalf("create videos: %v", err)
 	}
-	if err := backfillVideoLocations(db); err != nil {
-		t.Fatalf("backfill video locations: %v", err)
-	}
+	createVideoLocationsForVideos(t, db, videos...)
 	if err := db.Model(&models.VideoLocation{}).
 		Where("video_id = ?", videos[2].ID).
 		Update("is_delete", true).Error; err != nil {
@@ -550,64 +548,6 @@ func TestListIdolsMissingProfileFiltersCurrentLanguage(t *testing.T) {
 	}
 }
 
-func TestBackfillJavIdolEnglishFlagsMarksJavDatabaseIdols(t *testing.T) {
-	gdb := openTestDB(t)
-	now := time.Unix(1710000000, 0).UTC()
-
-	if err := gdb.Where("key = ?", javIdolEnglishFlagsBackfillMarkerKey).Delete(&models.Config{}).Error; err != nil {
-		t.Fatalf("delete marker: %v", err)
-	}
-
-	javBusRec := models.Jav{Code: "BF-JB-001", Title: "JavBus Work", Provider: int(jav.ProviderJavBus), FetchedAt: now}
-	javDatabaseRec := models.Jav{Code: "BF-JD-001", Title: "JavDatabase Work", Provider: int(jav.ProviderJavDatabase), FetchedAt: now}
-	if err := gdb.Create(&javBusRec).Error; err != nil {
-		t.Fatalf("create javbus jav: %v", err)
-	}
-	if err := gdb.Create(&javDatabaseRec).Error; err != nil {
-		t.Fatalf("create javdatabase jav: %v", err)
-	}
-	javBusIdol := models.JavIdol{Name: "AIKA", IsEnglish: false}
-	javDatabaseIdol := models.JavIdol{Name: "Ameri Ichinose (Ayaka Misora)", IsEnglish: false}
-	if err := gdb.Create(&javBusIdol).Error; err != nil {
-		t.Fatalf("create javbus idol: %v", err)
-	}
-	if err := gdb.Create(&javDatabaseIdol).Error; err != nil {
-		t.Fatalf("create javdatabase idol: %v", err)
-	}
-	if err := gdb.Create(&[]models.JavIdolMap{
-		{JavID: javBusRec.ID, JavIdolID: javBusIdol.ID},
-		{JavID: javDatabaseRec.ID, JavIdolID: javDatabaseIdol.ID},
-	}).Error; err != nil {
-		t.Fatalf("create idol maps: %v", err)
-	}
-
-	if err := backfillJavIdolEnglishFlags(gdb); err != nil {
-		t.Fatalf("backfill jav idol english flags: %v", err)
-	}
-
-	var gotJavBus models.JavIdol
-	if err := gdb.First(&gotJavBus, javBusIdol.ID).Error; err != nil {
-		t.Fatalf("load javbus idol: %v", err)
-	}
-	if gotJavBus.IsEnglish {
-		t.Fatal("expected JavBus idol to stay non-english")
-	}
-	var gotJavDatabase models.JavIdol
-	if err := gdb.First(&gotJavDatabase, javDatabaseIdol.ID).Error; err != nil {
-		t.Fatalf("load javdatabase idol: %v", err)
-	}
-	if !gotJavDatabase.IsEnglish {
-		t.Fatal("expected JavDatabase-only idol to be marked english")
-	}
-	done, err := configValueEquals(gdb, javIdolEnglishFlagsBackfillMarkerKey, "1")
-	if err != nil {
-		t.Fatalf("read marker: %v", err)
-	}
-	if !done {
-		t.Fatal("expected marker to be set")
-	}
-}
-
 func TestJavBindingUsesVideoLocationsAndCountsLocations(t *testing.T) {
 	gdb := openTestDB(t)
 	ctx := context.Background()
@@ -767,9 +707,7 @@ func TestGetJavIdolSummaryReturnsSampleCodeAndWorkCount(t *testing.T) {
 	if err := db.Create(&videos).Error; err != nil {
 		t.Fatalf("create videos: %v", err)
 	}
-	if err := backfillVideoLocations(db); err != nil {
-		t.Fatalf("backfill video locations: %v", err)
-	}
+	createVideoLocationsForVideos(t, db, videos...)
 
 	item, err := GetJavIdolSummary(ctx, idol.ID, nil)
 	if err != nil {
@@ -835,9 +773,7 @@ func TestSearchJavSortByDurationDesc(t *testing.T) {
 	if err := db.Create(&videos).Error; err != nil {
 		t.Fatalf("create videos: %v", err)
 	}
-	if err := backfillVideoLocations(db); err != nil {
-		t.Fatalf("backfill video locations: %v", err)
-	}
+	createVideoLocationsForVideos(t, db, videos...)
 
 	items, total, err := SearchJav(ctx, nil, nil, "", "duration", 20, 0, nil, nil)
 	if err != nil {
@@ -933,9 +869,7 @@ func TestListJavIdolsSortByAgeDirections(t *testing.T) {
 	if err := db.Create(&videos).Error; err != nil {
 		t.Fatalf("create videos: %v", err)
 	}
-	if err := backfillVideoLocations(db); err != nil {
-		t.Fatalf("backfill video locations: %v", err)
-	}
+	createVideoLocationsForVideos(t, db, videos...)
 
 	items, total, err := ListJavIdols(ctx, "", "birth", 20, 0, nil)
 	if err != nil {
