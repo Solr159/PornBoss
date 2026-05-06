@@ -47,9 +47,7 @@ func TestListVideosSortByDurationDirections(t *testing.T) {
 	if err := db.Create(&longVideo).Error; err != nil {
 		t.Fatalf("create long video: %v", err)
 	}
-	if err := backfillVideoLocations(db); err != nil {
-		t.Fatalf("backfill video locations: %v", err)
-	}
+	createVideoLocationsForVideos(t, db, shortVideo, longVideo)
 
 	items, err := ListVideos(ctx, 20, 0, nil, "", "duration", nil, nil)
 	if err != nil {
@@ -214,73 +212,6 @@ func TestVideoLocationsAllowSameVideoInMultipleDirectories(t *testing.T) {
 	}
 }
 
-func TestBackfillVideoLocationsOnceUsesMarker(t *testing.T) {
-	gdb := openTestDB(t)
-	now := time.Unix(1710000000, 0).UTC()
-
-	if err := gdb.Where("key = ?", videoLocationBackfillMarkerKey).Delete(&models.Config{}).Error; err != nil {
-		t.Fatalf("delete backfill marker: %v", err)
-	}
-	dir := models.Directory{Path: "/tmp/media"}
-	if err := gdb.Create(&dir).Error; err != nil {
-		t.Fatalf("create directory: %v", err)
-	}
-	javRec := models.Jav{Code: "AAA-001", Title: "A", Provider: 1, FetchedAt: now}
-	if err := gdb.Create(&javRec).Error; err != nil {
-		t.Fatalf("create jav: %v", err)
-	}
-	video := models.Video{
-		DirectoryID: dir.ID,
-		Path:        "aaa-001.mp4",
-		Filename:    "aaa-001.mp4",
-		Fingerprint: "legacy-fp",
-		ModifiedAt:  now,
-		JavID:       &javRec.ID,
-	}
-	if err := gdb.Create(&video).Error; err != nil {
-		t.Fatalf("create legacy-style video: %v", err)
-	}
-
-	if err := backfillVideoLocationsOnce(gdb); err != nil {
-		t.Fatalf("first backfill: %v", err)
-	}
-	var loc models.VideoLocation
-	if err := gdb.Where("video_id = ?", video.ID).First(&loc).Error; err != nil {
-		t.Fatalf("load backfilled location: %v", err)
-	}
-	if loc.JavID == nil || *loc.JavID != javRec.ID {
-		t.Fatalf("backfilled jav_id = %v, want %d", loc.JavID, javRec.ID)
-	}
-	if err := gdb.Model(&models.VideoLocation{}).Where("id = ?", loc.ID).Update("jav_id", nil).Error; err != nil {
-		t.Fatalf("clear location jav_id: %v", err)
-	}
-
-	if err := backfillVideoLocationsOnce(gdb); err != nil {
-		t.Fatalf("second backfill: %v", err)
-	}
-	var after models.VideoLocation
-	if err := gdb.Where("id = ?", loc.ID).First(&after).Error; err != nil {
-		t.Fatalf("reload location: %v", err)
-	}
-	if after.JavID != nil {
-		t.Fatalf("jav_id was backfilled again after marker: got %v", *after.JavID)
-	}
-
-	if err := gdb.Where("key = ?", videoLocationBackfillMarkerKey).Delete(&models.Config{}).Error; err != nil {
-		t.Fatalf("delete marker after existing locations: %v", err)
-	}
-	if err := backfillVideoLocationsOnce(gdb); err != nil {
-		t.Fatalf("backfill with existing locations and no marker: %v", err)
-	}
-	var existingAfter models.VideoLocation
-	if err := gdb.Where("id = ?", loc.ID).First(&existingAfter).Error; err != nil {
-		t.Fatalf("reload existing location: %v", err)
-	}
-	if existingAfter.JavID != nil {
-		t.Fatalf("jav_id was backfilled again for existing locations: got %v", *existingAfter.JavID)
-	}
-}
-
 type legacyVideoForMigration struct {
 	ID          int64  `gorm:"primaryKey"`
 	DirectoryID int64  `gorm:"index;not null"`
@@ -381,5 +312,30 @@ func TestOpenMigratesLegacyGormSchemaPreservesVideoTags(t *testing.T) {
 	}
 	if afterCount != 1 {
 		t.Fatalf("migrated video_tag count = %d, want 1", afterCount)
+	}
+}
+
+func createVideoLocationsForVideos(t *testing.T, db *gorm.DB, videos ...models.Video) {
+	t.Helper()
+
+	for _, video := range videos {
+		filename := video.Filename
+		if filename == "" {
+			filename = filepath.Base(video.Path)
+		}
+		loc := models.VideoLocation{
+			VideoID:      video.ID,
+			DirectoryID:  video.DirectoryID,
+			RelativePath: video.Path,
+			Filename:     filename,
+			ModifiedAt:   video.ModifiedAt,
+			JavID:        video.JavID,
+			IsDelete:     video.Hidden,
+			CreatedAt:    video.CreatedAt,
+			UpdatedAt:    video.UpdatedAt,
+		}
+		if err := db.Create(&loc).Error; err != nil {
+			t.Fatalf("create video location for video %d: %v", video.ID, err)
+		}
 	}
 }
