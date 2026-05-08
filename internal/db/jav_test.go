@@ -225,6 +225,17 @@ func TestSaveJavInfoAppendsIdolsOnlyWhenLanguageMappingMissing(t *testing.T) {
 	})
 	assertJavIdolLanguageCount(t, gdb, "AIKA", 2)
 	assertJavIdolMapLanguages(t, gdb, "EEE-001", "AIKA", []bool{false, true})
+
+	save(&jav.Info{
+		Code:     "FFF-001",
+		Title:    "ThePornDB metadata",
+		Actors:   []string{"English Performer"},
+		Provider: jav.ProviderThePornDB,
+	})
+	assertJavTitles(t, gdb, "FFF-001", "", "ThePornDB metadata")
+	assertJavIdolMaps(t, gdb, "FFF-001", map[string]bool{
+		"English Performer": true,
+	})
 }
 
 func TestSaveJavInfoReplacesOnlyCurrentProviderTags(t *testing.T) {

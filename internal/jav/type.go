@@ -73,6 +73,14 @@ var lookupProvidersByProvider = map[Provider]JavLookupProvider{
 	ProviderThePornDB:   ThePornDBProvider,
 }
 
+var metadataLanguageByProvider = map[Provider]MetadataLanguage{
+	ProviderJavBus:      MetadataLanguageChinese,
+	ProviderJavDB:       MetadataLanguageChinese,
+	ProviderAvmoo:       MetadataLanguageChinese,
+	ProviderJavDatabase: MetadataLanguageEnglish,
+	ProviderThePornDB:   MetadataLanguageEnglish,
+}
+
 // ParseMetadataLanguage converts user config to a known metadata language.
 func ParseMetadataLanguage(value string) (MetadataLanguage, bool) {
 	switch strings.ToLower(strings.TrimSpace(value)) {
@@ -110,9 +118,27 @@ func CurrentMetadataLanguage() MetadataLanguage {
 	return metadataLanguageState.value
 }
 
+// CurrentMetadataLanguageIsEnglish reports whether the process-wide metadata language is English.
+func CurrentMetadataLanguageIsEnglish() bool {
+	return CurrentMetadataLanguage() == MetadataLanguageEnglish
+}
+
+// ProviderMetadataLanguage returns the metadata language produced by a provider.
+func ProviderMetadataLanguage(provider Provider) MetadataLanguage {
+	if language, ok := metadataLanguageByProvider[ParseProvider(int(provider))]; ok {
+		return language
+	}
+	return MetadataLanguageChinese
+}
+
+// ProviderIsEnglish reports whether a provider stores English metadata.
+func ProviderIsEnglish(provider Provider) bool {
+	return ProviderMetadataLanguage(provider) == MetadataLanguageEnglish
+}
+
 // PreferredProvider chooses the metadata source based on the configured language.
 func PreferredProvider() Provider {
-	if CurrentMetadataLanguage() == MetadataLanguageEnglish {
+	if CurrentMetadataLanguageIsEnglish() {
 		return ProviderThePornDB
 	}
 	return ProviderJavBus

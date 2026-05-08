@@ -99,7 +99,7 @@ func SearchJav(ctx context.Context, actors []string, tagIDs []int64, search, sor
 	visibleTagProviders := visibleJavTagProviders()
 	query := filtered.
 		Preload("Tags", "provider IN ?", visibleTagProviders).
-		Preload("Idols", "COALESCE(is_english, 0) = ?", currentJavIdolLanguageIsEnglish()).
+		Preload("Idols", "COALESCE(is_english, 0) = ?", jav.CurrentMetadataLanguageIsEnglish()).
 		Limit(limit).
 		Offset(offset)
 	if useExpr {
@@ -190,10 +190,6 @@ func visibleJavTagProviders() []int {
 		current = int(jav.ProviderJavBus)
 	}
 	return []int{current, int(jav.ProviderUser)}
-}
-
-func currentJavIdolLanguageIsEnglish() bool {
-	return jav.CurrentMetadataLanguage() == jav.MetadataLanguageEnglish
 }
 
 // CreateJavTag creates a user-defined JAV tag.
@@ -410,7 +406,7 @@ func buildJavFilter(ctx context.Context, actors []string, tagIDs []int64, search
 	if search != "" {
 		like := fmt.Sprintf("%%%s%%", search)
 		titleColumn := "title"
-		if jav.CurrentMetadataLanguage() == jav.MetadataLanguageEnglish {
+		if jav.CurrentMetadataLanguageIsEnglish() {
 			titleColumn = "title_en"
 		}
 		q = q.Where("code LIKE ? OR "+titleColumn+" LIKE ?", like, like)
@@ -516,7 +512,7 @@ func GetJavIdolSummary(ctx context.Context, idolID int64, directoryIDs []int64) 
 	}
 
 	var item JavIdolSummary
-	isEnglish := currentJavIdolLanguageIsEnglish()
+	isEnglish := jav.CurrentMetadataLanguageIsEnglish()
 	tx := common.DB.WithContext(ctx).
 		Table("jav_idol ji").
 		Select("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, COALESCE(idol_work_counts.work_count, 0) AS work_count, solo_idols.sample_code").
@@ -545,7 +541,7 @@ func ListJavIdols(ctx context.Context, search, sort string, limit, offset int, d
 		offset = 0
 	}
 	sort = strings.ToLower(strings.TrimSpace(sort))
-	isEnglish := currentJavIdolLanguageIsEnglish()
+	isEnglish := jav.CurrentMetadataLanguageIsEnglish()
 	soloIdols := buildVisibleSoloIdolSampleQuery(ctx, directoryIDs, isEnglish)
 
 	countBase := common.DB.WithContext(ctx).
@@ -698,7 +694,7 @@ func FindIdolSoloCode(ctx context.Context, idolID int64) (string, error) {
 // ListIdolsMissingProfile returns idols that have no profile fields populated.
 func ListIdolsMissingProfile(ctx context.Context) ([]models.JavIdol, error) {
 	var idols []models.JavIdol
-	isEnglish := currentJavIdolLanguageIsEnglish()
+	isEnglish := jav.CurrentMetadataLanguageIsEnglish()
 	soloIdols := buildVisibleSoloIdolSampleQuery(ctx, nil, isEnglish)
 	if err := common.DB.WithContext(ctx).
 		Joins("JOIN (?) solo_idols ON solo_idols.jav_idol_id = jav_idol.id", soloIdols).
@@ -884,7 +880,7 @@ func saveJavInfoTx(tx *gorm.DB, info *jav.Info, now ...time.Time) (*models.Jav, 
 	}
 	provider := jav.ParseProvider(int(info.Provider))
 	javRec.Code = info.Code
-	if provider == jav.ProviderJavDatabase {
+	if jav.ProviderIsEnglish(provider) {
 		javRec.TitleEn = info.Title
 	} else {
 		javRec.Title = info.Title
@@ -986,7 +982,7 @@ func appendJavIdolsForProviderLanguageTx(tx *gorm.DB, javRec *models.Jav, names 
 		return errors.New("jav record is missing")
 	}
 
-	isEnglish := javIdolProviderIsEnglish(provider)
+	isEnglish := jav.ProviderIsEnglish(provider)
 	var existingCount int64
 	if err := tx.Model(&models.JavIdolMap{}).
 		Joins("JOIN jav_idol ji ON ji.id = jav_idol_map.jav_idol_id").
@@ -1010,10 +1006,6 @@ func appendJavIdolsForProviderLanguageTx(tx *gorm.DB, javRec *models.Jav, names 
 		return fmt.Errorf("append jav idols: %w", err)
 	}
 	return nil
-}
-
-func javIdolProviderIsEnglish(provider jav.Provider) bool {
-	return jav.ParseProvider(int(provider)) == jav.ProviderJavDatabase
 }
 
 func ensureJavIdolsTx(tx *gorm.DB, names []string, isEnglish bool) ([]models.JavIdol, error) {

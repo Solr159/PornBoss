@@ -14,15 +14,40 @@ func TestMetadataLanguageDefaultsToChinese(t *testing.T) {
 	}
 }
 
-func TestMetadataLanguageEnglishUsesJavDatabase(t *testing.T) {
+func TestMetadataLanguageEnglishUsesThePornDB(t *testing.T) {
 	SetMetadataLanguage("en")
 	t.Cleanup(func() { SetMetadataLanguage("zh") })
 
 	if got := CurrentMetadataLanguage(); got != MetadataLanguageEnglish {
 		t.Fatalf("CurrentMetadataLanguage() = %q, want %q", got, MetadataLanguageEnglish)
 	}
-	if got := PreferredProvider(); got != ProviderJavDatabase {
-		t.Fatalf("PreferredProvider() = %s, want %s", got.String(), ProviderJavDatabase.String())
+	if got := PreferredProvider(); got != ProviderThePornDB {
+		t.Fatalf("PreferredProvider() = %s, want %s", got.String(), ProviderThePornDB.String())
+	}
+}
+
+func TestProviderLanguageHelpers(t *testing.T) {
+	tests := []struct {
+		provider  Provider
+		language  MetadataLanguage
+		isEnglish bool
+	}{
+		{ProviderJavBus, MetadataLanguageChinese, false},
+		{ProviderJavDB, MetadataLanguageChinese, false},
+		{ProviderAvmoo, MetadataLanguageChinese, false},
+		{ProviderJavDatabase, MetadataLanguageEnglish, true},
+		{ProviderThePornDB, MetadataLanguageEnglish, true},
+		{ProviderUser, MetadataLanguageChinese, false},
+		{ProviderUnknown, MetadataLanguageChinese, false},
+	}
+
+	for _, tt := range tests {
+		if got := ProviderMetadataLanguage(tt.provider); got != tt.language {
+			t.Fatalf("ProviderMetadataLanguage(%s) = %q, want %q", tt.provider.String(), got, tt.language)
+		}
+		if got := ProviderIsEnglish(tt.provider); got != tt.isEnglish {
+			t.Fatalf("ProviderIsEnglish(%s) = %t, want %t", tt.provider.String(), got, tt.isEnglish)
+		}
 	}
 }
 
