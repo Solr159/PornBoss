@@ -718,8 +718,8 @@ func TestJavBindingUsesVideoLocationsAndCountsTagWorks(t *testing.T) {
 	if len(idols) != 1 || idols[0].ID != idol.ID {
 		t.Fatalf("unexpected idols: %#v", idols)
 	}
-	if idols[0].WorkCount != 3 {
-		t.Fatalf("idol work count = %d, want 3", idols[0].WorkCount)
+	if idols[0].WorkCount != 2 {
+		t.Fatalf("idol work count = %d, want 2", idols[0].WorkCount)
 	}
 }
 
@@ -782,6 +782,17 @@ func TestGetJavIdolSummaryReturnsSampleCodeAndWorkCount(t *testing.T) {
 		t.Fatalf("create videos: %v", err)
 	}
 	createVideoLocationsForVideos(t, db, videos...)
+	extraLocation := models.VideoLocation{
+		VideoID:      videos[0].ID,
+		DirectoryID:  dir.ID,
+		RelativePath: "solo-preview-copy.mp4",
+		Filename:     "solo-preview-copy.mp4",
+		ModifiedAt:   now.Add(time.Second),
+		JavID:        int64Ptr(soloJav.ID),
+	}
+	if err := db.Create(&extraLocation).Error; err != nil {
+		t.Fatalf("create extra location: %v", err)
+	}
 
 	item, err := GetJavIdolSummary(ctx, idol.ID, nil)
 	if err != nil {

@@ -500,7 +500,7 @@ func buildVisibleSoloIdolSampleQuery(ctx context.Context, directoryIDs []int64, 
 func buildVisibleIdolWorkCountQuery(ctx context.Context, directoryIDs []int64) *gorm.DB {
 	query := common.DB.WithContext(ctx).
 		Table("jav_idol_map jim").
-		Select("jim.jav_idol_id, COUNT(vl.id) AS work_count").
+		Select("jim.jav_idol_id, COUNT(DISTINCT jim.jav_id) AS work_count").
 		Joins("JOIN video_location vl ON vl.jav_id = jim.jav_id").
 		Joins("JOIN directory d ON d.id = vl.directory_id").
 		Where(activeLocationWhereSQL("vl", "d"))
@@ -607,7 +607,7 @@ func ListJavIdols(ctx context.Context, search, sort string, limit, offset int, d
 	base = applyDirectoryFilter(base, "vl", directoryIDs)
 	base = applyJavIdolSearch(base, search)
 	if err := base.
-		Select("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, COUNT(vl.id) AS work_count, solo_idols.sample_code").
+		Select("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, COUNT(DISTINCT j.id) AS work_count, solo_idols.sample_code").
 		Group("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, solo_idols.sample_code").
 		Order(order).
 		Limit(limit).
