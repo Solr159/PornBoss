@@ -139,7 +139,7 @@ func ProviderIsEnglish(provider Provider) bool {
 // PreferredProvider chooses the metadata source based on the configured language.
 func PreferredProvider() Provider {
 	if CurrentMetadataLanguageIsEnglish() {
-		return ProviderThePornDB
+		return ProviderJavDatabase
 	}
 	return ProviderJavBus
 }
