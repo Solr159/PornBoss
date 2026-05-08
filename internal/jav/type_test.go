@@ -35,6 +35,7 @@ func TestLookupProvidersByProviderIncludesMetadataProviders(t *testing.T) {
 		{ProviderJavDatabase, JavDatabase{}},
 		{ProviderJavDB, JavDB{}},
 		{ProviderAvmoo, Avmoo{}},
+		{ProviderThePornDB, ThePornDB{}},
 	}
 
 	for _, tt := range tests {

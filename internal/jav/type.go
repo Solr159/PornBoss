@@ -19,6 +19,7 @@ const (
 	ProviderUser
 	ProviderJavDB
 	ProviderAvmoo
+	ProviderThePornDB
 )
 
 func (p Provider) String() string {
@@ -33,6 +34,8 @@ func (p Provider) String() string {
 		return "javdb"
 	case ProviderAvmoo:
 		return "avmoo"
+	case ProviderThePornDB:
+		return "theporndb"
 	default:
 		return "unknown"
 	}
@@ -42,7 +45,7 @@ func (p Provider) String() string {
 func ParseProvider(value int) Provider {
 	p := Provider(value)
 	switch p {
-	case ProviderJavBus, ProviderJavDatabase, ProviderUser, ProviderJavDB, ProviderAvmoo:
+	case ProviderJavBus, ProviderJavDatabase, ProviderUser, ProviderJavDB, ProviderAvmoo, ProviderThePornDB:
 		return p
 	default:
 		return ProviderUnknown
@@ -67,6 +70,7 @@ var lookupProvidersByProvider = map[Provider]JavLookupProvider{
 	ProviderJavDatabase: JavDatabaseProvider,
 	ProviderJavDB:       JavDBProvider,
 	ProviderAvmoo:       AvmooProvider,
+	ProviderThePornDB:   ThePornDBProvider,
 }
 
 // ParseMetadataLanguage converts user config to a known metadata language.
