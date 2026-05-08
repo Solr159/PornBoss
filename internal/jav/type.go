@@ -18,6 +18,7 @@ const (
 	ProviderJavDatabase
 	ProviderUser
 	ProviderJavDB
+	ProviderAvmoo
 )
 
 func (p Provider) String() string {
@@ -30,6 +31,8 @@ func (p Provider) String() string {
 		return "user"
 	case ProviderJavDB:
 		return "javdb"
+	case ProviderAvmoo:
+		return "avmoo"
 	default:
 		return "unknown"
 	}
@@ -39,7 +42,7 @@ func (p Provider) String() string {
 func ParseProvider(value int) Provider {
 	p := Provider(value)
 	switch p {
-	case ProviderJavBus, ProviderJavDatabase, ProviderUser, ProviderJavDB:
+	case ProviderJavBus, ProviderJavDatabase, ProviderUser, ProviderJavDB, ProviderAvmoo:
 		return p
 	default:
 		return ProviderUnknown
