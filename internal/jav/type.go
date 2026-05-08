@@ -62,6 +62,13 @@ var metadataLanguageState = struct {
 	value MetadataLanguage
 }{value: MetadataLanguageChinese}
 
+var lookupProvidersByProvider = map[Provider]JavLookupProvider{
+	ProviderJavBus:      JavBusProvider,
+	ProviderJavDatabase: JavDatabaseProvider,
+	ProviderJavDB:       JavDBProvider,
+	ProviderAvmoo:       AvmooProvider,
+}
+
 // ParseMetadataLanguage converts user config to a known metadata language.
 func ParseMetadataLanguage(value string) (MetadataLanguage, bool) {
 	switch strings.ToLower(strings.TrimSpace(value)) {
@@ -117,14 +124,10 @@ func ProviderForMetadataLanguage(value string) Provider {
 
 // PreferredLookupProvider returns the scraper that matches the configured metadata language.
 func PreferredLookupProvider() JavLookupProvider {
-	switch PreferredProvider() {
-	case ProviderJavDatabase:
-		return JavDatabaseProvider
-	case ProviderJavDB:
-		return JavDBProvider
-	default:
-		return JavBusProvider
+	if provider, ok := lookupProvidersByProvider[PreferredProvider()]; ok {
+		return provider
 	}
+	return JavBusProvider
 }
 
 // Info holds basic metadata extracted from a JAV metadata provider.
