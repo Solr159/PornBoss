@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -29,6 +31,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pelletier/go-toml/v2"
+	"golang.org/x/term"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -155,14 +158,11 @@ func main() {
 		}
 		actualPort := listener.Addr().(*net.TCPAddr).Port
 		url := fmt.Sprintf("http://localhost:%d", actualPort)
-		if util.SystemPrefersChinese() {
-			fmt.Printf("Pornboss启动成功，浏览器访问地址：%s\n", url)
-		} else {
-			fmt.Printf("Pornboss started successfully. Open this URL in your browser: %s\n", url)
-		}
+		printReleaseStartupHint(url)
 		if err := util.OpenFile(url); err != nil {
 			logger.Printf("open browser failed: %v", err)
 		}
+		startReleaseKeyboardControls(ctx, stop, url, logger)
 		logger.Printf("server listening on %s", listener.Addr().String())
 		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
 			logger.Fatalf("server error: %v", err)
@@ -258,6 +258,63 @@ func releaseConfigPort(baseDir string) (int, bool, error) {
 		return 0, false, fmt.Errorf("invalid config port %d", cfg.Port)
 	}
 	return cfg.Port, true, nil
+}
+
+func printReleaseStartupHint(url string) {
+	if util.SystemPrefersChinese() {
+		fmt.Printf("Pornboss启动成功，浏览器访问地址：%s\n", url)
+		fmt.Println("按 1 打开新页面，按 2 或者关闭此窗口退出应用。")
+		return
+	}
+	fmt.Printf("Pornboss started successfully. Browser URL: %s\n", url)
+	fmt.Println("Press 1 to open a new page. Press 2 or close this window to exit the app.")
+}
+
+func startReleaseKeyboardControls(ctx context.Context, cancel context.CancelFunc, url string, logger *log.Logger) {
+	fd := int(os.Stdin.Fd())
+	restoreTerminal := func() {}
+	var restoreOnce sync.Once
+	if term.IsTerminal(fd) {
+		oldState, err := term.MakeRaw(fd)
+		if err != nil {
+			logger.Printf("enable release keyboard controls raw mode failed: %v", err)
+		} else {
+			restoreTerminal = func() {
+				if err := term.Restore(fd, oldState); err != nil {
+					logger.Printf("restore terminal failed: %v", err)
+				}
+			}
+			go func() {
+				<-ctx.Done()
+				restoreOnce.Do(restoreTerminal)
+			}()
+		}
+	}
+
+	go func() {
+		defer restoreOnce.Do(restoreTerminal)
+		reader := bufio.NewReader(os.Stdin)
+		for {
+			b, err := reader.ReadByte()
+			if err != nil {
+				if ctx.Err() == nil && !errors.Is(err, io.EOF) {
+					logger.Printf("release keyboard controls stopped: %v", err)
+				}
+				return
+			}
+			switch b {
+			case '1':
+				if err := util.OpenFile(url); err != nil {
+					logger.Printf("open browser from keyboard control failed: %v", err)
+				}
+			case '2', 3:
+				cancel()
+				return
+			case '\r', '\n':
+			default:
+			}
+		}
+	}()
 }
 
 func resolveBaseDir() (string, error) {
