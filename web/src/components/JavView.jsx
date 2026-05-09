@@ -34,6 +34,7 @@ export default function JavView({
   javGridColumns,
   onPlay,
   onIdolClick,
+  onStudioClick,
   onTagClick,
   onEditTags,
   onOpenFile,
@@ -167,6 +168,7 @@ export default function JavView({
             columns={javGridColumns}
             onPlay={onPlay}
             onIdolClick={onIdolClick}
+            onStudioClick={onStudioClick}
             onTagClick={onTagClick}
             onEditTags={onEditTags}
             onOpenFile={onOpenFile}

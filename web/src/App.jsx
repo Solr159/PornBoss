@@ -1835,6 +1835,7 @@ export default function App() {
               onRevealFile={handleJavRevealFile}
               onOpenScreenshots={handleJavOpenScreenshots}
               onIdolClick={handleJavActorClick}
+              onStudioClick={handleSelectStudio}
               onTagClick={handleJavTagClick}
               onEditTags={openJavTagEditor}
             />

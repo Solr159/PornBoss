@@ -70,6 +70,7 @@ export default function JavGrid({
   columns = 0,
   onPlay,
   onIdolClick,
+  onStudioClick,
   onTagClick,
   onEditTags,
   onOpenFile,
@@ -139,6 +140,7 @@ export default function JavGrid({
           item={item}
           onPlay={onPlay}
           onIdolClick={onIdolClick}
+          onStudioClick={onStudioClick}
           onTagClick={onTagClick}
           onEditTags={onEditTags}
           onOpenFile={onOpenFile}
@@ -194,6 +196,7 @@ function JavCard({
   item,
   onPlay,
   onIdolClick,
+  onStudioClick,
   onTagClick,
   onEditTags,
   onOpenFile,
@@ -217,6 +220,7 @@ function JavCard({
     ? zh(`${item.duration_min} 分钟`, `${item.duration_min} min`)
     : ''
   const studioText = String(item?.studio?.name || '').trim()
+  const canFilterStudio = studioText && typeof onStudioClick === 'function'
   const codeText = item?.code?.trim()
   const mainTitle = getJavDisplayTitle(item, javMetadataLanguage)
   const titleText = [codeText, mainTitle].filter(Boolean).join(' ')
@@ -450,9 +454,19 @@ function JavCard({
                   <VideocamOutlinedIcon sx={{ fontSize: 16 }} className="shrink-0 text-sky-600" />
                 </span>
               </Tooltip>
-              <span className="truncate" title={studioText}>
+              <button
+                type="button"
+                className={`min-w-0 truncate text-left ${
+                  canFilterStudio ? 'cursor-pointer hover:text-blue-700 hover:underline' : ''
+                }`}
+                title={studioText}
+                onClick={() => {
+                  if (canFilterStudio) onStudioClick(item.studio)
+                }}
+                disabled={!canFilterStudio}
+              >
                 {studioText}
-              </span>
+              </button>
             </span>
           ) : null}
         </div>
