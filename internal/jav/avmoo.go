@@ -26,7 +26,7 @@ var avmooProvider lookupProvider = avmoo{}
 const (
 	avmooBaseURL         = "https://avmoo.shop"
 	avmooUserAgent       = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-	avmooRequestInterval = 2000 * time.Millisecond
+	avmooRequestInterval = 1500 * time.Millisecond
 )
 
 var avmooRateLimiter = struct {
