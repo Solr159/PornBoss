@@ -428,16 +428,28 @@ function JavCard({
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">
           <span className="inline-flex items-center gap-1">
-            <DurationIcon />
+            <Tooltip title={zh('时长', 'Duration')} arrow>
+              <span className="inline-flex">
+                <DurationIcon />
+              </span>
+            </Tooltip>
             <span>{durationText || zh('时长未知', 'Unknown duration')}</span>
           </span>
           <span className="inline-flex items-center gap-1">
-            <ReleaseIcon />
+            <Tooltip title={zh('发行日期', 'Release date')} arrow>
+              <span className="inline-flex">
+                <ReleaseIcon />
+              </span>
+            </Tooltip>
             <span>{releaseText}</span>
           </span>
           {studioText ? (
             <span className="inline-flex min-w-0 items-center gap-1">
-              <VideocamOutlinedIcon sx={{ fontSize: 16 }} className="shrink-0 text-sky-600" />
+              <Tooltip title={zh('片商', 'Studio')} arrow>
+                <span className="inline-flex">
+                  <VideocamOutlinedIcon sx={{ fontSize: 16 }} className="shrink-0 text-sky-600" />
+                </span>
+              </Tooltip>
               <span className="truncate" title={studioText}>
                 {studioText}
               </span>
