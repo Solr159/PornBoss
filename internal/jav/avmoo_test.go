@@ -1,12 +1,20 @@
 package jav
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"golang.org/x/net/html"
 )
+
+func resetAvmooRateLimiterForTest() {
+	avmooRateLimiter.Lock()
+	avmooRateLimiter.next = time.Time{}
+	avmooRateLimiter.Unlock()
+}
 
 func TestFindAvmooSearchResultURLMatchesExactCode(t *testing.T) {
 	doc, err := html.Parse(strings.NewReader(`
@@ -99,6 +107,39 @@ func TestParseAvmooCoverURLFromFixture(t *testing.T) {
 	got := parseAvmooCoverURL(doc, "https://avmoo.shop/tw/movie/1a27d5e9cb82f32f")
 	if got != "https://jp.netcdn.space/digital/video/ipx00228/ipx00228pl.jpg" {
 		t.Fatalf("unexpected cover url: %q", got)
+	}
+}
+
+func TestAvmooRateLimiterSpacesRequests(t *testing.T) {
+	resetAvmooRateLimiterForTest()
+	t.Cleanup(resetAvmooRateLimiterForTest)
+
+	start := time.Now()
+	for i := 0; i < 3; i++ {
+		if err := waitForAvmooRateLimit(context.Background()); err != nil {
+			t.Fatalf("waitForAvmooRateLimit() request %d: %v", i+1, err)
+		}
+	}
+
+	if elapsed := time.Since(start); elapsed < (2*avmooRequestInterval - 50*time.Millisecond) {
+		t.Fatalf("rate limiter allowed 3 requests in %s", elapsed)
+	}
+}
+
+func TestAvmooRateLimiterHonorsContext(t *testing.T) {
+	resetAvmooRateLimiterForTest()
+	t.Cleanup(resetAvmooRateLimiterForTest)
+
+	avmooRateLimiter.Lock()
+	avmooRateLimiter.next = time.Now().Add(time.Hour)
+	avmooRateLimiter.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	err := waitForAvmooRateLimit(ctx)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("waitForAvmooRateLimit() err = %v, want context deadline exceeded", err)
 	}
 }
 

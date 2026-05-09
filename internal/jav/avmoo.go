@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/net/html"
@@ -23,9 +24,15 @@ type avmoo struct{}
 var avmooProvider lookupProvider = avmoo{}
 
 const (
-	avmooBaseURL   = "https://avmoo.shop"
-	avmooUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	avmooBaseURL         = "https://avmoo.shop"
+	avmooUserAgent       = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	avmooRequestInterval = 1000 * time.Millisecond
 )
+
+var avmooRateLimiter = struct {
+	sync.Mutex
+	next time.Time
+}{}
 
 // LookupActressByJapaneseName implements lookupProvider.
 func (avmoo) LookupActressByJapaneseName(name string) (*ActressInfo, error) {
@@ -115,7 +122,7 @@ func fetchAvmooHTML(ctx context.Context, targetURL, referer string) (*html.Node,
 	}
 
 	logging.Info("avmoo request: %s", targetURL)
-	resp, err := util.DoRequest(req)
+	resp, err := doAvmooRequest(req)
 	if err != nil {
 		if errors.Is(err, util.ErrCachedNotFound) {
 			return nil, http.StatusNotFound, nil
@@ -142,6 +149,40 @@ func fetchAvmooHTML(ctx context.Context, targetURL, referer string) (*html.Node,
 		return nil, resp.StatusCode, fmt.Errorf("avmoo: parse html: %w", err)
 	}
 	return doc, resp.StatusCode, nil
+}
+
+func doAvmooRequest(req *http.Request) (*http.Response, error) {
+	if err := waitForAvmooRateLimit(req.Context()); err != nil {
+		return nil, err
+	}
+	return util.DoRequest(req)
+}
+
+func waitForAvmooRateLimit(ctx context.Context) error {
+	for {
+		avmooRateLimiter.Lock()
+		now := time.Now()
+		if !now.Before(avmooRateLimiter.next) {
+			avmooRateLimiter.next = now.Add(avmooRequestInterval)
+			avmooRateLimiter.Unlock()
+			return nil
+		}
+		wait := time.Until(avmooRateLimiter.next)
+		avmooRateLimiter.Unlock()
+
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return fmt.Errorf("avmoo: rate limit wait: %w", ctx.Err())
+		case <-timer.C:
+		}
+	}
 }
 
 func buildAvmooRequest(ctx context.Context, targetURL, referer string) (*http.Request, error) {

@@ -1,12 +1,20 @@
 package jav
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"golang.org/x/net/html"
 )
+
+func resetJavDBRateLimiterForTest() {
+	javDBRateLimiter.Lock()
+	javDBRateLimiter.next = time.Time{}
+	javDBRateLimiter.Unlock()
+}
 
 func TestFindJavDBSearchResultURLMatchesFirstExactCode(t *testing.T) {
 	doc, err := html.Parse(strings.NewReader(`
@@ -163,5 +171,38 @@ func TestParseJavDBCoverURL(t *testing.T) {
 	got := parseJavDBCoverURL(doc, "https://javdb.com/v/kKdRm")
 	if got != "https://c0.jdbstatic.com/covers/kk/kKdRm.jpg" {
 		t.Fatalf("unexpected cover url: %q", got)
+	}
+}
+
+func TestJavDBRateLimiterSpacesRequests(t *testing.T) {
+	resetJavDBRateLimiterForTest()
+	t.Cleanup(resetJavDBRateLimiterForTest)
+
+	start := time.Now()
+	for i := 0; i < 3; i++ {
+		if err := waitForJavDBRateLimit(context.Background()); err != nil {
+			t.Fatalf("waitForJavDBRateLimit() request %d: %v", i+1, err)
+		}
+	}
+
+	if elapsed := time.Since(start); elapsed < (2*javDBRequestInterval - 50*time.Millisecond) {
+		t.Fatalf("rate limiter allowed 3 requests in %s", elapsed)
+	}
+}
+
+func TestJavDBRateLimiterHonorsContext(t *testing.T) {
+	resetJavDBRateLimiterForTest()
+	t.Cleanup(resetJavDBRateLimiterForTest)
+
+	javDBRateLimiter.Lock()
+	javDBRateLimiter.next = time.Now().Add(time.Hour)
+	javDBRateLimiter.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	err := waitForJavDBRateLimit(ctx)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("waitForJavDBRateLimit() err = %v, want context deadline exceeded", err)
 	}
 }

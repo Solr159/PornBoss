@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"pornboss/internal/common/logging"
@@ -21,6 +22,13 @@ import (
 type javBus struct{}
 
 var javBusProvider lookupProvider = javBus{}
+
+const javBusRequestInterval = 500 * time.Millisecond
+
+var javBusRateLimiter = struct {
+	sync.Mutex
+	next time.Time
+}{}
 
 // LookupActressByJapaneseName implements lookupProvider.
 func (javBus) LookupActressByJapaneseName(name string) (*ActressInfo, error) {
@@ -73,7 +81,7 @@ func fetchInfo(ctx context.Context, code string) (*JavInfo, error) {
 
 	logging.Info("javbus request: %s", url)
 
-	resp, err := util.DoRequest(req)
+	resp, err := doJavBusRequest(req)
 	// TODO: Should not return here, try curl fallback.
 	if err != nil {
 		if errors.Is(err, util.ErrCachedNotFound) {
@@ -115,6 +123,40 @@ func fetchInfo(ctx context.Context, code string) (*JavInfo, error) {
 	}
 	logging.Info("javbus parsed from %s: title=%q tags=%d actors=%d", url, info.Title, len(info.Tags), len(info.Actors))
 	return info, nil
+}
+
+func doJavBusRequest(req *http.Request) (*http.Response, error) {
+	if err := waitForJavBusRateLimit(req.Context()); err != nil {
+		return nil, err
+	}
+	return util.DoRequest(req)
+}
+
+func waitForJavBusRateLimit(ctx context.Context) error {
+	for {
+		javBusRateLimiter.Lock()
+		now := time.Now()
+		if !now.Before(javBusRateLimiter.next) {
+			javBusRateLimiter.next = now.Add(javBusRequestInterval)
+			javBusRateLimiter.Unlock()
+			return nil
+		}
+		wait := time.Until(javBusRateLimiter.next)
+		javBusRateLimiter.Unlock()
+
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return fmt.Errorf("javbus: rate limit wait: %w", ctx.Err())
+		case <-timer.C:
+		}
+	}
 }
 
 func buildRequest(ctx context.Context, url string) (*http.Request, error) {

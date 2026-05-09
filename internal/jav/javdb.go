@@ -24,13 +24,18 @@ type javDB struct{}
 var javDBProvider lookupProvider = javDB{}
 
 const (
-	javDBBaseURL   = "https://javdb.com"
-	javDBUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	javDBBaseURL         = "https://javdb.com"
+	javDBUserAgent       = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	javDBRequestInterval = 500 * time.Millisecond
 )
 
 var (
 	javDBHTTPClientOnce sync.Once
 	javDBHTTPClient     *http.Client
+	javDBRateLimiter    = struct {
+		sync.Mutex
+		next time.Time
+	}{}
 )
 
 // LookupActressByJapaneseName implements lookupProvider.
@@ -151,7 +156,37 @@ func fetchJavDBHTML(ctx context.Context, targetURL, referer string) (*html.Node,
 }
 
 func doJavDBRequest(req *http.Request) (*http.Response, error) {
+	if err := waitForJavDBRateLimit(req.Context()); err != nil {
+		return nil, err
+	}
 	return defaultJavDBHTTPClient().Do(req)
+}
+
+func waitForJavDBRateLimit(ctx context.Context) error {
+	for {
+		javDBRateLimiter.Lock()
+		now := time.Now()
+		if !now.Before(javDBRateLimiter.next) {
+			javDBRateLimiter.next = now.Add(javDBRequestInterval)
+			javDBRateLimiter.Unlock()
+			return nil
+		}
+		wait := time.Until(javDBRateLimiter.next)
+		javDBRateLimiter.Unlock()
+
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return fmt.Errorf("javdb: rate limit wait: %w", ctx.Err())
+		case <-timer.C:
+		}
+	}
 }
 
 func defaultJavDBHTTPClient() *http.Client {
