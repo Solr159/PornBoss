@@ -90,6 +90,28 @@ func updateDirectory(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
 		return
 	}
+	if req.Path != nil && strings.TrimSpace(*req.Path) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "path is required"})
+		return
+	}
+
+	var releaseScanReservation func()
+	if req.Path != nil {
+		reserveCtx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+		release, err := service.CancelAndReserveDirectoryScan(reserveCtx, id)
+		cancel()
+		if err != nil {
+			logging.Error("cancel directory scan before update failed id=%d err=%v", id, err)
+			c.JSON(http.StatusConflict, gin.H{"error": "directory scan is stopping; try again shortly"})
+			return
+		}
+		releaseScanReservation = release
+		defer func() {
+			if releaseScanReservation != nil {
+				releaseScanReservation()
+			}
+		}()
+	}
 
 	dir, err := dbpkg.UpdateDirectory(c.Request.Context(), id, req.Path, req.IsDelete)
 	if err != nil {
@@ -100,6 +122,10 @@ func updateDirectory(c *gin.Context) {
 	if dir == nil {
 		c.Status(http.StatusNotFound)
 		return
+	}
+	if releaseScanReservation != nil {
+		releaseScanReservation()
+		releaseScanReservation = nil
 	}
 	go func(updated models.Directory) {
 		if updated.IsDelete {

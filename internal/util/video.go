@@ -2,6 +2,7 @@ package util
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -184,6 +185,14 @@ func findFFBinaryPath(envKey, name string) (string, error) {
 
 // ProbeVideo extracts codec/resolution/fps/duration using ffprobe.
 func ProbeVideo(path string) (*VideoMetadata, error) {
+	return ProbeVideoContext(context.Background(), path)
+}
+
+// ProbeVideoContext extracts codec/resolution/fps/duration using ffprobe.
+func ProbeVideoContext(ctx context.Context, path string) (*VideoMetadata, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if strings.TrimSpace(path) == "" {
 		return nil, errors.New("empty path")
 	}
@@ -192,7 +201,7 @@ func ProbeVideo(path string) (*VideoMetadata, error) {
 		return nil, err
 	}
 	// -v quiet -print_format json -show_streams -select_streams v:0
-	cmd := exec.Command(ffprobe,
+	cmd := exec.CommandContext(ctx, ffprobe,
 		"-v", "error",
 		"-print_format", "json",
 		"-show_entries", "stream=index,codec_type,codec_name,width,height,avg_frame_rate,r_frame_rate,sample_rate,channels,bit_rate",
@@ -203,6 +212,9 @@ func ProbeVideo(path string) (*VideoMetadata, error) {
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
 		errMsg := strings.TrimSpace(stderr.String())
 		if errMsg != "" {
 			return nil, fmt.Errorf("ffprobe: %w: %s", err, errMsg)

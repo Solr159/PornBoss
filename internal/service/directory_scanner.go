@@ -23,29 +23,94 @@ import (
 var (
 	ErrDirectoryScanInProgress = errors.New("directory scan in progress")
 	dirScanMu                  sync.Mutex
-	dirScanActive              = map[int64]struct{}{}
+	dirScanActive              = map[int64]*directoryScanSession{}
 )
 
-func tryLockDirectory(id int64) bool {
-	if id == 0 {
-		return false
+type directoryScanSession struct {
+	cancel  context.CancelFunc
+	done    chan struct{}
+	reserve bool
+}
+
+func beginDirectoryScan(ctx context.Context, id int64) (context.Context, func(), error) {
+	if id <= 0 {
+		return nil, nil, errors.New("directory id cannot be zero")
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	dirScanMu.Lock()
 	defer dirScanMu.Unlock()
 	if _, ok := dirScanActive[id]; ok {
-		return false
+		return nil, nil, ErrDirectoryScanInProgress
 	}
-	dirScanActive[id] = struct{}{}
-	return true
+
+	scanCtx, cancel := context.WithCancel(ctx)
+	session := &directoryScanSession{
+		cancel: cancel,
+		done:   make(chan struct{}),
+	}
+	dirScanActive[id] = session
+
+	var finishOnce sync.Once
+	finish := func() {
+		finishOnce.Do(func() {
+			cancel()
+			dirScanMu.Lock()
+			if dirScanActive[id] == session {
+				delete(dirScanActive, id)
+			}
+			close(session.done)
+			dirScanMu.Unlock()
+		})
+	}
+	return scanCtx, finish, nil
 }
 
-func unlockDirectory(id int64) {
-	if id == 0 {
-		return
+// CancelAndReserveDirectoryScan cancels any active scan for id, waits until it exits,
+// then reserves the scan slot until the returned release function is called.
+func CancelAndReserveDirectoryScan(ctx context.Context, id int64) (func(), error) {
+	if id <= 0 {
+		return nil, errors.New("directory id cannot be zero")
 	}
-	dirScanMu.Lock()
-	delete(dirScanActive, id)
-	dirScanMu.Unlock()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	for {
+		dirScanMu.Lock()
+		session := dirScanActive[id]
+		if session == nil {
+			reservation := &directoryScanSession{done: make(chan struct{}), reserve: true}
+			dirScanActive[id] = reservation
+			dirScanMu.Unlock()
+			var releaseOnce sync.Once
+			return func() {
+				releaseOnce.Do(func() {
+					dirScanMu.Lock()
+					if dirScanActive[id] == reservation {
+						delete(dirScanActive, id)
+					}
+					close(reservation.done)
+					dirScanMu.Unlock()
+				})
+			}, nil
+		}
+		if session.reserve {
+			dirScanMu.Unlock()
+			return nil, ErrDirectoryScanInProgress
+		}
+		session.cancel()
+		done := session.done
+		dirScanMu.Unlock()
+
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return nil, fmt.Errorf("cancel directory scan: %w", ctx.Err())
+		}
+	}
 }
 
 type FileEntry struct {
@@ -118,26 +183,31 @@ func SyncDirectory(ctx context.Context, directory models.Directory) (*Summary, e
 	if directory.ID == 0 || directory.IsDelete {
 		return &Summary{}, nil
 	}
-	if !tryLockDirectory(directory.ID) {
-		return nil, ErrDirectoryScanInProgress
+	scanCtx, finish, err := beginDirectoryScan(ctx, directory.ID)
+	if err != nil {
+		return nil, err
 	}
-	defer unlockDirectory(directory.ID)
+	defer finish()
 
 	start := time.Now()
 	summary := &Summary{}
 	logging.Info("sync directory start: id=%d path=%s", directory.ID, directory.Path)
 
-	state, err := newSyncState(ctx, directory.ID)
+	state, err := newSyncState(scanCtx, directory.ID)
 	if err != nil {
 		return nil, err
 	}
-	scanned, err := syncDirectoryWithState(ctx, directory, state, summary)
+	scanned, err := syncDirectoryWithState(scanCtx, directory, state, summary)
 	if err != nil {
-		logging.Error("sync directory failed: id=%d path=%s err=%v", directory.ID, directory.Path, err)
+		if errors.Is(err, context.Canceled) && ctx.Err() == nil {
+			logging.Info("sync directory canceled: id=%d path=%s", directory.ID, directory.Path)
+		} else {
+			logging.Error("sync directory failed: id=%d path=%s err=%v", directory.ID, directory.Path, err)
+		}
 		return nil, err
 	}
 	if scanned {
-		if err := hideUnprocessedVideoLocations(ctx, state.processedLocationIDs, summary, directory.ID); err != nil {
+		if err := hideUnprocessedVideoLocations(scanCtx, state.processedLocationIDs, summary, directory.ID); err != nil {
 			return nil, err
 		}
 		summary.Directories = 1
@@ -181,6 +251,9 @@ func SyncAllDirectories(ctx context.Context, directories []models.Directory) (*S
 		dirSummary, err := SyncDirectory(ctx, dir)
 		if err != nil {
 			if errors.Is(err, ErrDirectoryScanInProgress) {
+				continue
+			}
+			if errors.Is(err, context.Canceled) && ctx.Err() == nil {
 				continue
 			}
 			return nil, err
@@ -297,8 +370,11 @@ func walkDirectoryAndSync(ctx context.Context, directory models.Directory, exist
 
 		logging.Info("scan file: root=%s path=%s size=%d", normalizedRoot, relativePath, info.Size())
 
-		meta, err := util.ProbeVideo(normalizedPath)
+		meta, err := util.ProbeVideoContext(ctx, normalizedPath)
 		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return err
+			}
 			logging.Error("probe video metadata error: %v", err)
 			return nil
 		}

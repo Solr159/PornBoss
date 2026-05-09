@@ -147,6 +147,9 @@ func UpdateDirectory(ctx context.Context, id int64, path *string, isDelete *bool
 			}
 			if normalizedPath != nil {
 				dir.Path = *normalizedPath
+				if err := hideVideoLocationsByDirectoryID(tx, dir.ID); err != nil {
+					return err
+				}
 			}
 			dir.Missing = false
 		}
@@ -164,6 +167,20 @@ func SetDirectoryMissingAndHideVideos(ctx context.Context, id int64, missing boo
 		return nil
 	})
 	return err
+}
+
+func hideVideoLocationsByDirectoryID(tx *gorm.DB, directoryID int64) error {
+	if directoryID <= 0 {
+		return errors.New("directory id cannot be zero")
+	}
+	if err := tx.
+		Model(&models.VideoLocation{}).
+		Where("directory_id = ?", directoryID).
+		Where("COALESCE(is_delete, 0) = 0").
+		Update("is_delete", true).Error; err != nil {
+		return fmt.Errorf("hide video locations for directory: %w", err)
+	}
+	return nil
 }
 
 // SetDirectoryDeletedAndHideVideos toggles deletion flag and hides/unhides its videos.
