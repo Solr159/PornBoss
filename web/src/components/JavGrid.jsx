@@ -7,6 +7,7 @@ import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined'
 import SearchIcon from '@mui/icons-material/Search'
+import VideocamOutlinedIcon from '@mui/icons-material/VideocamOutlined'
 
 import { fetchJavIdolPreview } from '@/api'
 import { IdolCard, getIdolCardLayoutProps } from '@/components/JavIdolGrid'
@@ -215,6 +216,7 @@ function JavCard({
   const durationText = item?.duration_min
     ? zh(`${item.duration_min} 分钟`, `${item.duration_min} min`)
     : ''
+  const studioText = String(item?.studio?.name || '').trim()
   const codeText = item?.code?.trim()
   const mainTitle = getJavDisplayTitle(item, javMetadataLanguage)
   const titleText = [codeText, mainTitle].filter(Boolean).join(' ')
@@ -433,6 +435,14 @@ function JavCard({
             <ReleaseIcon />
             <span>{releaseText}</span>
           </span>
+          {studioText ? (
+            <span className="inline-flex min-w-0 items-center gap-1">
+              <VideocamOutlinedIcon sx={{ fontSize: 16 }} className="shrink-0 text-sky-600" />
+              <span className="truncate" title={studioText}>
+                {studioText}
+              </span>
+            </span>
+          ) : null}
         </div>
         {Array.isArray(item?.idols) && item.idols.length > 0 && (
           <div className="flex flex-wrap gap-1">
