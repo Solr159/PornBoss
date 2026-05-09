@@ -10,7 +10,7 @@ import (
 func TestCancelAndReserveDirectoryScanCancelsActiveSession(t *testing.T) {
 	resetDirectoryScanSessions(t)
 
-	scanCtx, finish, err := beginDirectoryScan(context.Background(), 42)
+	scanCtx, finish, err := startDirectoryScanSession(context.Background(), 42)
 	if err != nil {
 		t.Fatalf("begin scan: %v", err)
 	}
@@ -36,13 +36,13 @@ func TestCancelAndReserveDirectoryScanCancelsActiveSession(t *testing.T) {
 	default:
 		t.Fatal("active scan should be canceled and finished before reservation is returned")
 	}
-	if _, _, err := beginDirectoryScan(context.Background(), 42); !errors.Is(err, ErrDirectoryScanInProgress) {
+	if _, _, err := startDirectoryScanSession(context.Background(), 42); !errors.Is(err, ErrDirectoryScanInProgress) {
 		t.Fatalf("reservation should block new scans: %v", err)
 	}
 
 	release()
 	release = nil
-	_, nextFinish, err := beginDirectoryScan(context.Background(), 42)
+	_, nextFinish, err := startDirectoryScanSession(context.Background(), 42)
 	if err != nil {
 		t.Fatalf("begin scan after reservation release: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestCancelAndReserveDirectoryScanCancelsActiveSession(t *testing.T) {
 func TestCancelAndReserveDirectoryScanHonorsContext(t *testing.T) {
 	resetDirectoryScanSessions(t)
 
-	_, finish, err := beginDirectoryScan(context.Background(), 42)
+	_, finish, err := startDirectoryScanSession(context.Background(), 42)
 	if err != nil {
 		t.Fatalf("begin scan: %v", err)
 	}

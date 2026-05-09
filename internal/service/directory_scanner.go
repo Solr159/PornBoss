@@ -32,7 +32,7 @@ type directoryScanSession struct {
 	reserve bool
 }
 
-func beginDirectoryScan(ctx context.Context, id int64) (context.Context, func(), error) {
+func startDirectoryScanSession(ctx context.Context, id int64) (context.Context, func(), error) {
 	if id <= 0 {
 		return nil, nil, errors.New("directory id cannot be zero")
 	}
@@ -183,7 +183,7 @@ func SyncDirectory(ctx context.Context, directory models.Directory) (*Summary, e
 	if directory.ID == 0 || directory.IsDelete {
 		return &Summary{}, nil
 	}
-	scanCtx, finish, err := beginDirectoryScan(ctx, directory.ID)
+	scanCtx, finish, err := startDirectoryScanSession(ctx, directory.ID)
 	if err != nil {
 		return nil, err
 	}
