@@ -127,9 +127,6 @@ function StudioCard({ item, href, onSelectStudio }) {
             {name}
           </div>
         )}
-        <div className="absolute left-2 top-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
-          {zh(`作品 ${workCount}`, `${workCount} javs`)}
-        </div>
       </div>
       <div className="flex flex-1 flex-col gap-1 p-3">
         <div className="line-clamp-2 text-sm font-semibold leading-tight">{name}</div>
