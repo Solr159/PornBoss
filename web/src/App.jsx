@@ -1199,6 +1199,9 @@ export default function App() {
       }
       const searchLabel = (javSearchTerm || '').trim()
       if (searchLabel) parts.push(zh(`搜索: ${searchLabel}`, `Search: ${searchLabel}`))
+      if (javTab === 'list' && javRandomMode && parts.length === 0) {
+        parts.push(zh('随机', 'Random'))
+      }
       return parts.length ? parts.join(isChineseLocale() ? '；' : '; ') : ''
     }
     const parts = []
@@ -1206,6 +1209,9 @@ export default function App() {
     if (tagsLabel) parts.push(zh(`标签: ${tagsLabel}`, `Tags: ${tagsLabel}`))
     const searchLabel = (searchTerm || '').trim()
     if (searchLabel) parts.push(zh(`搜索: ${searchLabel}`, `Search: ${searchLabel}`))
+    if (randomMode && parts.length === 0) {
+      parts.push(zh('随机', 'Random'))
+    }
     return parts.length ? parts.join(isChineseLocale() ? '；' : '; ') : ''
   }, [
     isJavMode,
@@ -1218,8 +1224,10 @@ export default function App() {
     javItems,
     javTagNameMap,
     javSearchTerm,
+    javRandomMode,
     selectedTags,
     searchTerm,
+    randomMode,
   ])
 
   const submitSearch = (e) => {
