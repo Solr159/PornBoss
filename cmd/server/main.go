@@ -227,21 +227,18 @@ func releaseListenAddr(addr string, baseDir string) (string, error) {
 	if err != nil {
 		host = ""
 	}
+	if host == "" {
+		host = "127.0.0.1"
+	}
 
 	port, configured, err := releaseConfigPort(baseDir)
 	if err != nil {
 		return "", err
 	}
 	if configured {
-		if host == "" {
-			return net.JoinHostPort("", strconv.Itoa(port)), nil
-		}
 		return net.JoinHostPort(host, strconv.Itoa(port)), nil
 	}
 
-	if host == "" {
-		return ":0", nil
-	}
 	return net.JoinHostPort(host, "0"), nil
 }
 
