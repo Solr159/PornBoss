@@ -62,6 +62,8 @@ export default function JavSettingsModal({
   onJavTitleMaxRowsChange,
   javIdolTagMaxRowsInput,
   onJavIdolTagMaxRowsChange,
+  javTagMaxRowsInput,
+  onJavTagMaxRowsChange,
   idolPageSizeInput,
   onIdolPageSizeChange,
   javSortInput,
@@ -120,6 +122,21 @@ export default function JavSettingsModal({
               <select
                 value={String(javTitleMaxRowsInput ?? 2)}
                 onChange={(e) => onJavTitleMaxRowsChange?.(e.target.value)}
+                className="w-24 rounded border bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="0">{zh('完全展开', 'All')}</option>
+                {Array.from({ length: 12 }, (_, index) => index + 1).map((count) => (
+                  <option key={count} value={String(count)}>
+                    {count}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center justify-between gap-3 text-sm font-medium text-gray-700">
+              <span>{zh('标签最多行数', 'Tag max rows')}</span>
+              <select
+                value={String(javTagMaxRowsInput ?? 2)}
+                onChange={(e) => onJavTagMaxRowsChange?.(e.target.value)}
                 className="w-24 rounded border bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 <option value="0">{zh('完全展开', 'All')}</option>

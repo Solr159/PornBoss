@@ -43,6 +43,7 @@ func updateConfig(c *gin.Context) {
 		JavGridColumns         *int                  `json:"jav_grid_columns"`
 		JavTitleMaxRows        *int                  `json:"jav_title_max_rows"`
 		JavIdolTagMaxRows      *int                  `json:"jav_idol_tag_max_rows"`
+		JavTagMaxRows          *int                  `json:"jav_tag_max_rows"`
 		IdolPageSize           *int                  `json:"idol_page_size"`
 		VideoHideJav           *bool                 `json:"video_hide_jav"`
 		VideoSort              string                `json:"video_sort"`
@@ -116,6 +117,16 @@ func updateConfig(c *gin.Context) {
 			rows = maxJavDisplayRows
 		}
 		entries["jav_idol_tag_max_rows"] = strconv.Itoa(rows)
+	}
+	if req.JavTagMaxRows != nil {
+		rows := *req.JavTagMaxRows
+		if rows < 0 {
+			rows = 0
+		}
+		if rows > maxJavDisplayRows {
+			rows = maxJavDisplayRows
+		}
+		entries["jav_tag_max_rows"] = strconv.Itoa(rows)
 	}
 	if req.IdolPageSize != nil {
 		if v, ok := clampSize(*req.IdolPageSize); ok {

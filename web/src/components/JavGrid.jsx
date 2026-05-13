@@ -72,6 +72,7 @@ export default function JavGrid({
   columns = 0,
   titleMaxRows = 2,
   idolTagMaxRows = 2,
+  tagMaxRows = 2,
   buildJavUrl,
   onPlay,
   onIdolClick,
@@ -158,6 +159,7 @@ export default function JavGrid({
           javMetadataLanguage={javMetadataLanguage}
           titleMaxRows={titleMaxRows}
           idolTagMaxRows={idolTagMaxRows}
+          tagMaxRows={tagMaxRows}
         />
       ))}
       {coverPreview ? (
@@ -227,6 +229,11 @@ function CoverPreviewModal({ preview, onClose }) {
 }
 
 function normalizeIdolTagMaxRows(value) {
+  const rows = Math.floor(Number(value))
+  return Number.isFinite(rows) && rows > 0 ? Math.min(rows, 12) : 0
+}
+
+function normalizeJavTagMaxRows(value) {
   const rows = Math.floor(Number(value))
   return Number.isFinite(rows) && rows > 0 ? Math.min(rows, 12) : 0
 }
@@ -410,6 +417,156 @@ function countFlexRows(itemWidths, trailingWidth, containerWidth, gap) {
   return rows
 }
 
+function JavTagList({ tags, maxRows, buildTagFilterHref, onTagClick, onFilterLinkClick }) {
+  const measureRef = useRef(null)
+  const [expanded, setExpanded] = useState(false)
+  const [overflowing, setOverflowing] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(tags.length)
+  const rowLimit = normalizeJavTagMaxRows(maxRows)
+  const identity = useMemo(
+    () => (tags || []).map((tag) => tag?.id || tag?.name || '').join('|'),
+    [tags]
+  )
+
+  useEffect(() => {
+    setExpanded(false)
+    setVisibleCount(tags.length)
+  }, [identity, tags.length, rowLimit])
+
+  useEffect(() => {
+    if (rowLimit <= 0) {
+      setOverflowing(false)
+      setVisibleCount(tags.length)
+      return undefined
+    }
+
+    const measureList = measureRef.current
+    if (!measureList) return undefined
+
+    const measure = () => {
+      const containerWidth = measureList.clientWidth
+      const tagNodes = Array.from(measureList.querySelectorAll('[data-jav-tag-measure]'))
+      const toggleNode = measureList.querySelector('[data-jav-tag-toggle-measure]')
+
+      if (containerWidth <= 0 || tagNodes.length === 0 || !toggleNode) {
+        setOverflowing(false)
+        setVisibleCount(tags.length)
+        return
+      }
+
+      const tagWidths = tagNodes.map((node) => node.offsetWidth)
+      const toggleWidth = toggleNode.offsetWidth
+      const gap = Number.parseFloat(window.getComputedStyle(measureList).columnGap) || 0
+      const fullRows = countFlexRows(tagWidths, 0, containerWidth, gap)
+      const isOverflowing = fullRows > rowLimit
+      setOverflowing(isOverflowing)
+      if (!isOverflowing) {
+        setVisibleCount(tags.length)
+        return
+      }
+
+      let low = 0
+      let high = tagWidths.length
+      let best = 0
+      while (low <= high) {
+        const mid = Math.floor((low + high) / 2)
+        const rows = countFlexRows(tagWidths.slice(0, mid), toggleWidth, containerWidth, gap)
+        if (rows <= rowLimit) {
+          best = mid
+          low = mid + 1
+        } else {
+          high = mid - 1
+        }
+      }
+      setVisibleCount(best)
+    }
+
+    measure()
+    const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null
+    resizeObserver?.observe(measureList)
+    window.addEventListener('resize', measure)
+    return () => {
+      resizeObserver?.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [identity, rowLimit, tags.length])
+
+  const showToggle = rowLimit > 0 && overflowing
+  const renderedTags = showToggle && !expanded ? tags.slice(0, visibleCount) : tags
+  const toggleTitle = expanded
+    ? zh('点击收回', 'Click to collapse')
+    : zh(`共 ${tags.length} 个标签，点击展开`, `${tags.length} tags total, click to expand`)
+  const toggleClassName = expanded
+    ? 'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-gray-300 bg-gray-50 text-gray-600 shadow-sm transition hover:border-gray-400 hover:bg-gray-100'
+    : 'inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-orange-300 bg-white px-1.5 text-[11px] font-semibold text-orange-700 shadow-sm transition hover:border-orange-500 hover:bg-orange-50'
+
+  return (
+    <div className="relative">
+      <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+        {renderedTags.map((tag) => {
+          const isUser = isUserJavTag(tag)
+          const tagClass = isUser
+            ? 'bg-emerald-500 hover:bg-emerald-600'
+            : 'bg-orange-500 hover:bg-orange-600'
+          return (
+            <a
+              key={tag.id || tag.name}
+              href={buildTagFilterHref(tag)}
+              className={`rounded-full px-2 py-1 text-xs font-medium text-white transition ${tagClass}`}
+              onClick={(event) => onFilterLinkClick(event, () => onTagClick?.(tag))}
+            >
+              {tag.name}
+            </a>
+          )
+        })}
+        {showToggle ? (
+          <Tooltip title={toggleTitle}>
+            <button
+              type="button"
+              onClick={() => setExpanded((current) => !current)}
+              aria-label={toggleTitle}
+              className={toggleClassName}
+            >
+              {expanded ? (
+                <ExpandLessIcon sx={{ fontSize: 15 }} />
+              ) : (
+                <>
+                  <span>{tags.length}</span>
+                  <ExpandMoreIcon sx={{ fontSize: 15 }} />
+                </>
+              )}
+            </button>
+          </Tooltip>
+        ) : null}
+      </div>
+      {rowLimit > 0 ? (
+        <div
+          ref={measureRef}
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap gap-1 opacity-0"
+        >
+          {tags.map((tag) => (
+            <span
+              key={tag.id || tag.name}
+              data-jav-tag-measure
+              className="rounded-full px-2 py-1 text-xs font-medium"
+            >
+              {tag.name}
+            </span>
+          ))}
+          <span
+            data-jav-tag-toggle-measure
+            className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border px-1.5 text-[11px] font-semibold"
+          >
+            <span>{tags.length}</span>
+            <ExpandMoreIcon sx={{ fontSize: 15 }} />
+          </span>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function JavCard({
   item,
   onPlay,
@@ -427,6 +584,7 @@ function JavCard({
   javMetadataLanguage,
   titleMaxRows,
   idolTagMaxRows,
+  tagMaxRows,
 }) {
   const primaryVideo = useMemo(() => (item?.videos || [])[0], [item])
   const { bgWidthPercent, coverAspectPercent } = useMemo(() => getIdolCardLayoutProps(), [])
@@ -806,24 +964,13 @@ function JavCard({
           </>
         )}
         {tags.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1">
-            {tags.map((tag) => {
-              const isUser = isUserJavTag(tag)
-              const tagClass = isUser
-                ? 'bg-emerald-500 hover:bg-emerald-600'
-                : 'bg-orange-500 hover:bg-orange-600'
-              return (
-                <a
-                  key={tag.id || tag.name}
-                  href={buildTagFilterHref(tag)}
-                  className={`rounded-full px-2 py-1 text-xs font-medium text-white transition ${tagClass}`}
-                  onClick={(event) => handleFilterLinkClick(event, () => onTagClick?.(tag))}
-                >
-                  {tag.name}
-                </a>
-              )
-            })}
-          </div>
+          <JavTagList
+            tags={tags}
+            maxRows={tagMaxRows}
+            buildTagFilterHref={buildTagFilterHref}
+            onTagClick={onTagClick}
+            onFilterLinkClick={handleFilterLinkClick}
+          />
         )}
         <div className="flex flex-wrap items-center gap-2">
           {Array.isArray(item?.videos) && item.videos.length > 1 && (
