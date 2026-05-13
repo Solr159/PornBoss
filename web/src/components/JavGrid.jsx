@@ -71,7 +71,7 @@ export default function JavGrid({
   items,
   columns = 0,
   titleMaxRows = 2,
-  idolTagMaxRows = 0,
+  idolTagMaxRows = 2,
   buildJavUrl,
   onPlay,
   onIdolClick,

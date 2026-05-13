@@ -26,7 +26,7 @@ const JAV_PAGE_SIZE = 24
 const JAV_STUDIO_PAGE_SIZE = 24
 const JAV_GRID_COLUMNS_AUTO = 0
 const JAV_TITLE_MAX_ROWS_DEFAULT = 2
-const JAV_IDOL_TAG_MAX_ROWS_ALL = 0
+const JAV_IDOL_TAG_MAX_ROWS_DEFAULT = 2
 let videoLoadSeq = 0
 let lastVideoFetchKey = null
 let lastJavFetchKey = null
@@ -128,7 +128,7 @@ export const useStore = create((set, get) => ({
   javPageSize: JAV_PAGE_SIZE,
   javGridColumns: JAV_GRID_COLUMNS_AUTO,
   javTitleMaxRows: JAV_TITLE_MAX_ROWS_DEFAULT,
-  javIdolTagMaxRows: JAV_IDOL_TAG_MAX_ROWS_ALL,
+  javIdolTagMaxRows: JAV_IDOL_TAG_MAX_ROWS_DEFAULT,
   setJavGridColumns: (columns) => {
     const n = Math.floor(Number(columns))
     const next = Number.isFinite(n) && n > 0 ? Math.min(n, 12) : JAV_GRID_COLUMNS_AUTO
@@ -421,9 +421,9 @@ export const useStore = create((set, get) => ({
           : JAV_TITLE_MAX_ROWS_DEFAULT
       const javIdolTagMaxRowsRaw = parseInt(cfg?.jav_idol_tag_max_rows, 10)
       const javIdolTagMaxRows =
-        Number.isFinite(javIdolTagMaxRowsRaw) && javIdolTagMaxRowsRaw > 0
+        Number.isFinite(javIdolTagMaxRowsRaw) && javIdolTagMaxRowsRaw >= 0
           ? Math.min(javIdolTagMaxRowsRaw, 12)
-          : JAV_IDOL_TAG_MAX_ROWS_ALL
+          : JAV_IDOL_TAG_MAX_ROWS_DEFAULT
       const idolSize = clamp(cfg?.idol_page_size)
       const javSort = normalizeJavSort((cfg?.jav_sort || '').toLowerCase(), '')
       const idolSort = normalizeIdolSort((cfg?.idol_sort || '').toLowerCase(), '')
