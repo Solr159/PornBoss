@@ -1681,7 +1681,7 @@ export default function App() {
   const handleSwitchJavTab = (tab) => {
     const nextTab = tab === 'idol' ? 'idol' : tab === 'studio' ? 'studio' : 'list'
     const shouldResetRandomList = nextTab === 'list' && javRandomMode
-    const shouldClearSearch = nextTab !== javTab || shouldResetRandomList
+    const shouldClearSearch = nextTab === 'list' || nextTab !== javTab || shouldResetRandomList
     const nextRandomMode = nextTab === 'list' && !shouldResetRandomList ? javRandomMode : false
     const nextRandomSeed = nextTab === 'list' && !shouldResetRandomList ? javRandomSeed : null
     const updates = {
