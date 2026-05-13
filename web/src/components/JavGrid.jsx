@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { IconButton, Popper, Tooltip } from '@mui/material'
 import Fade from '@mui/material/Fade'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
@@ -68,6 +69,7 @@ function ReleaseIcon() {
 export default function JavGrid({
   items,
   columns = 0,
+  idolTagMaxRows = 0,
   buildJavUrl,
   onPlay,
   onIdolClick,
@@ -152,6 +154,7 @@ export default function JavGrid({
           loadIdolPreview={loadIdolPreview}
           onOpenCoverPreview={setCoverPreview}
           javMetadataLanguage={javMetadataLanguage}
+          idolTagMaxRows={idolTagMaxRows}
         />
       ))}
       {coverPreview ? (
@@ -220,6 +223,125 @@ function CoverPreviewModal({ preview, onClose }) {
   )
 }
 
+function normalizeIdolTagMaxRows(value) {
+  const rows = Math.floor(Number(value))
+  return Number.isFinite(rows) && rows > 0 ? Math.min(rows, 20) : 0
+}
+
+function IdolTagList({
+  idols,
+  maxRows,
+  buildIdolFilterHref,
+  onIdolClick,
+  onFilterLinkClick,
+  onIdolHoverStart,
+  onIdolHoverEnd,
+}) {
+  const listRef = useRef(null)
+  const [expanded, setExpanded] = useState(false)
+  const [measuredMaxHeight, setMeasuredMaxHeight] = useState(null)
+  const [overflowing, setOverflowing] = useState(false)
+  const rowLimit = normalizeIdolTagMaxRows(maxRows)
+  const identity = useMemo(
+    () => (idols || []).map((idol) => idol?.id || idol?.name || '').join('|'),
+    [idols]
+  )
+
+  useEffect(() => {
+    setExpanded(false)
+  }, [identity, rowLimit])
+
+  useEffect(() => {
+    if (rowLimit <= 0 || expanded) {
+      setMeasuredMaxHeight(null)
+      setOverflowing(false)
+      return undefined
+    }
+
+    const list = listRef.current
+    if (!list) return undefined
+
+    const measure = () => {
+      const children = Array.from(list.children)
+      if (children.length === 0) {
+        setMeasuredMaxHeight(null)
+        setOverflowing(false)
+        return
+      }
+
+      const rows = []
+      for (const child of children) {
+        const top = child.offsetTop
+        const row = rows.find((item) => Math.abs(item.top - top) <= 1)
+        if (row) {
+          row.bottom = Math.max(row.bottom, top + child.offsetHeight)
+        } else {
+          rows.push({ top, bottom: top + child.offsetHeight })
+        }
+      }
+      rows.sort((a, b) => a.top - b.top)
+
+      const isOverflowing = rows.length > rowLimit
+      setOverflowing(isOverflowing)
+      if (!isOverflowing) {
+        setMeasuredMaxHeight(null)
+        return
+      }
+      const firstTop = rows[0]?.top || 0
+      const limitedBottom = rows[Math.min(rowLimit, rows.length) - 1]?.bottom || 0
+      setMeasuredMaxHeight(Math.max(0, limitedBottom - firstTop))
+    }
+
+    measure()
+    const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null
+    resizeObserver?.observe(list)
+    window.addEventListener('resize', measure)
+    return () => {
+      resizeObserver?.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [expanded, identity, rowLimit])
+
+  const collapsed = rowLimit > 0 && !expanded && overflowing && measuredMaxHeight
+
+  return (
+    <div className="flex items-start gap-1">
+      <div
+        ref={listRef}
+        className={`flex min-w-0 flex-1 flex-wrap gap-1 ${collapsed ? 'overflow-hidden' : ''}`}
+        style={collapsed ? { maxHeight: `${measuredMaxHeight}px` } : undefined}
+      >
+        {idols.map((idol) => (
+          <a
+            key={idol.id || idol.name}
+            href={buildIdolFilterHref(idol)}
+            className="rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-700 transition hover:bg-purple-200"
+            onMouseEnter={(event) => onIdolHoverStart(idol, event)}
+            onMouseLeave={onIdolHoverEnd}
+            onFocus={(event) => onIdolHoverStart(idol, event)}
+            onBlur={onIdolHoverEnd}
+            onClick={(event) => onFilterLinkClick(event, () => onIdolClick?.(idol))}
+          >
+            {idol.name}
+          </a>
+        ))}
+      </div>
+      {rowLimit > 0 && overflowing && !expanded ? (
+        <Tooltip title={zh('展开演员标签', 'Expand actor tags')}>
+          <IconButton
+            size="small"
+            onClick={() => setExpanded(true)}
+            aria-label={zh('展开演员标签', 'Expand actor tags')}
+            className="h-6 w-6 shrink-0 text-purple-700"
+          >
+            <ExpandMoreIcon fontSize="inherit" />
+          </IconButton>
+        </Tooltip>
+      ) : null}
+    </div>
+  )
+}
+
 function JavCard({
   item,
   onPlay,
@@ -235,6 +357,7 @@ function JavCard({
   loadIdolPreview,
   onOpenCoverPreview,
   javMetadataLanguage,
+  idolTagMaxRows,
 }) {
   const primaryVideo = useMemo(() => (item?.videos || [])[0], [item])
   const { bgWidthPercent, coverAspectPercent } = useMemo(() => getIdolCardLayoutProps(), [])
@@ -559,21 +682,16 @@ function JavCard({
           ) : null}
         </div>
         {Array.isArray(item?.idols) && item.idols.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {item.idols.map((idol) => (
-              <a
-                key={idol.id || idol.name}
-                href={buildIdolFilterHref(idol)}
-                className="rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-700 transition hover:bg-purple-200"
-                onMouseEnter={(event) => handleIdolHoverStart(idol, event)}
-                onMouseLeave={scheduleHoverClose}
-                onFocus={(event) => handleIdolHoverStart(idol, event)}
-                onBlur={scheduleHoverClose}
-                onClick={(event) => handleFilterLinkClick(event, () => onIdolClick?.(idol))}
-              >
-                {idol.name}
-              </a>
-            ))}
+          <>
+            <IdolTagList
+              idols={item.idols}
+              maxRows={idolTagMaxRows}
+              buildIdolFilterHref={buildIdolFilterHref}
+              onIdolClick={onIdolClick}
+              onFilterLinkClick={handleFilterLinkClick}
+              onIdolHoverStart={handleIdolHoverStart}
+              onIdolHoverEnd={scheduleHoverClose}
+            />
             <Popper
               open={Boolean(previewIdol && hoverAnchorEl)}
               anchorEl={hoverAnchorEl}
@@ -606,7 +724,7 @@ function JavCard({
                 ) : null}
               </div>
             </Popper>
-          </div>
+          </>
         )}
         {tags.length > 0 && (
           <div className="flex flex-wrap items-center gap-1">

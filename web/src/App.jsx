@@ -93,6 +93,7 @@ export default function App() {
     setJavPage,
     javPageSize,
     javGridColumns,
+    javIdolTagMaxRows,
     javSearchTerm,
     javIdolIds,
     javTags,
@@ -198,6 +199,7 @@ export default function App() {
   const [videoHideJavInput, setVideoHideJavInput] = useState(videoHideJav)
   const [javPageSizeInput, setJavPageSizeInput] = useState(javPageSize)
   const [javGridColumnsInput, setJavGridColumnsInput] = useState(javGridColumns)
+  const [javIdolTagMaxRowsInput, setJavIdolTagMaxRowsInput] = useState(javIdolTagMaxRows)
   const [idolPageSizeInput, setIdolPageSizeInput] = useState(idolPageSize)
   const [javSortInput, setJavSortInput] = useState(javSort)
   const [idolSortInput, setIdolSortInput] = useState(idolSort)
@@ -1300,13 +1302,19 @@ export default function App() {
       Number.isFinite(javGridColumnsRaw) && javGridColumnsRaw > 0
         ? Math.min(javGridColumnsRaw, 12)
         : 0
+    const javIdolTagRowsRaw = parseInt(javIdolTagMaxRowsInput, 10)
+    const javIdolTagRows =
+      Number.isFinite(javIdolTagRowsRaw) && javIdolTagRowsRaw > 0
+        ? Math.min(javIdolTagRowsRaw, 20)
+        : 0
     const idolSize = Math.max(1, parseInt(idolPageSizeInput, 10) || idolPageSize)
     const normalizedSort = normalizeJavSort(javSortInput)
     const normalizedIdolSort = normalizeIdolSort(idolSortInput)
     try {
-      await updateConfig({
+      const cfg = await updateConfig({
         jav_page_size: javSize,
         jav_grid_columns: javColumns,
+        jav_idol_tag_max_rows: javIdolTagRows,
         idol_page_size: idolSize,
         jav_sort: normalizedSort,
         idol_sort: normalizedIdolSort,
@@ -1320,6 +1328,7 @@ export default function App() {
       useStore.setState({
         javPageSize: javSize,
         javGridColumns: javColumns,
+        javIdolTagMaxRows: javIdolTagRows,
         idolPageSize: idolSize,
         javSort: normalizedSort,
         javTempSort: '',
@@ -1329,6 +1338,7 @@ export default function App() {
         studioPage: Math.min(prevStudioPage, studioLast),
         javRandomMode: false,
         javRandomSeed: null,
+        config: cfg,
       })
       setJavSettingsOpen(false)
     } catch (err) {
@@ -1348,11 +1358,20 @@ export default function App() {
     if (javSettingsOpen) {
       setJavPageSizeInput(javPageSize)
       setJavGridColumnsInput(javGridColumns)
+      setJavIdolTagMaxRowsInput(javIdolTagMaxRows)
       setIdolPageSizeInput(idolPageSize)
       setJavSortInput(javSort)
       setIdolSortInput(idolSort)
     }
-  }, [javSettingsOpen, javPageSize, javGridColumns, idolPageSize, javSort, idolSort])
+  }, [
+    javSettingsOpen,
+    javPageSize,
+    javGridColumns,
+    javIdolTagMaxRows,
+    idolPageSize,
+    javSort,
+    idolSort,
+  ])
 
   useEffect(() => {
     if (selectedCount !== 0) return
@@ -1984,6 +2003,7 @@ export default function App() {
               setJavTempSort={setJavTempSort}
               javItems={javItems}
               javGridColumns={javGridColumns}
+              javIdolTagMaxRows={javIdolTagMaxRows}
               onPlay={handleJavPlay}
               onOpenFile={handleJavOpenFile}
               openFileLabel={alternatePlayerLabel}
@@ -2067,6 +2087,8 @@ export default function App() {
         onJavPageSizeChange={setJavPageSizeInput}
         javGridColumnsInput={javGridColumnsInput}
         onJavGridColumnsChange={setJavGridColumnsInput}
+        javIdolTagMaxRowsInput={javIdolTagMaxRowsInput}
+        onJavIdolTagMaxRowsChange={setJavIdolTagMaxRowsInput}
         idolPageSizeInput={idolPageSizeInput}
         onIdolPageSizeChange={setIdolPageSizeInput}
         javSortInput={javSortInput}

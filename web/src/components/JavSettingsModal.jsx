@@ -58,6 +58,8 @@ export default function JavSettingsModal({
   onJavPageSizeChange,
   javGridColumnsInput,
   onJavGridColumnsChange,
+  javIdolTagMaxRowsInput,
+  onJavIdolTagMaxRowsChange,
   idolPageSizeInput,
   onIdolPageSizeChange,
   javSortInput,
@@ -105,6 +107,21 @@ export default function JavSettingsModal({
               >
                 <option value="0">{zh('自适应', 'Auto')}</option>
                 {Array.from({ length: 12 }, (_, index) => index + 1).map((count) => (
+                  <option key={count} value={String(count)}>
+                    {count}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center justify-between gap-3 text-sm font-medium text-gray-700">
+              <span>{zh('演员标签最多行数', 'Actor tag max rows')}</span>
+              <select
+                value={String(javIdolTagMaxRowsInput ?? 0)}
+                onChange={(e) => onJavIdolTagMaxRowsChange?.(e.target.value)}
+                className="w-24 rounded border bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="0">{zh('全部', 'All')}</option>
+                {Array.from({ length: 20 }, (_, index) => index + 1).map((count) => (
                   <option key={count} value={String(count)}>
                     {count}
                   </option>

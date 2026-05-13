@@ -18,6 +18,7 @@ import (
 )
 
 const maxPageSize = 500
+const maxJavIdolTagRows = 20
 
 func getConfig(c *gin.Context) {
 	cfg, err := dbpkg.ListConfig(c.Request.Context())
@@ -40,6 +41,7 @@ func updateConfig(c *gin.Context) {
 		VideoPageSize          *int                  `json:"video_page_size"`
 		JavPageSize            *int                  `json:"jav_page_size"`
 		JavGridColumns         *int                  `json:"jav_grid_columns"`
+		JavIdolTagMaxRows      *int                  `json:"jav_idol_tag_max_rows"`
 		IdolPageSize           *int                  `json:"idol_page_size"`
 		VideoHideJav           *bool                 `json:"video_hide_jav"`
 		VideoSort              string                `json:"video_sort"`
@@ -93,6 +95,16 @@ func updateConfig(c *gin.Context) {
 			columns = 12
 		}
 		entries["jav_grid_columns"] = strconv.Itoa(columns)
+	}
+	if req.JavIdolTagMaxRows != nil {
+		rows := *req.JavIdolTagMaxRows
+		if rows < 0 {
+			rows = 0
+		}
+		if rows > maxJavIdolTagRows {
+			rows = maxJavIdolTagRows
+		}
+		entries["jav_idol_tag_max_rows"] = strconv.Itoa(rows)
 	}
 	if req.IdolPageSize != nil {
 		if v, ok := clampSize(*req.IdolPageSize); ok {
