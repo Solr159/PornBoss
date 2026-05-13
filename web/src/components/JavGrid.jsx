@@ -314,8 +314,11 @@ function IdolTagList({
   const showToggle = rowLimit > 0 && overflowing
   const renderedIdols = showToggle && !expanded ? idols.slice(0, visibleCount) : idols
   const toggleTitle = expanded
-    ? zh('收回演员标签', 'Collapse actor tags')
-    : zh('展开演员标签', 'Expand actor tags')
+    ? zh('点击收回', 'Click to collapse')
+    : zh(`共 ${idols.length} 位女优，点击展开`, `${idols.length} actresses total, click to expand`)
+  const toggleClassName = expanded
+    ? 'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-gray-300 bg-gray-50 text-gray-600 shadow-sm transition hover:border-gray-400 hover:bg-gray-100'
+    : 'inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-purple-300 bg-white px-1.5 text-[11px] font-semibold text-purple-700 shadow-sm transition hover:border-purple-500 hover:bg-purple-50'
 
   return (
     <div className="relative">
@@ -340,13 +343,15 @@ function IdolTagList({
               type="button"
               onClick={() => setExpanded((current) => !current)}
               aria-label={toggleTitle}
-              className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-purple-300 bg-white px-1.5 text-[11px] font-semibold text-purple-700 shadow-sm transition hover:border-purple-500 hover:bg-purple-50"
+              className={toggleClassName}
             >
-              <span>{idols.length}</span>
               {expanded ? (
                 <ExpandLessIcon sx={{ fontSize: 15 }} />
               ) : (
-                <ExpandMoreIcon sx={{ fontSize: 15 }} />
+                <>
+                  <span>{idols.length}</span>
+                  <ExpandMoreIcon sx={{ fontSize: 15 }} />
+                </>
               )}
             </button>
           </Tooltip>
