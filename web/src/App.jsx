@@ -2193,6 +2193,7 @@ export default function App() {
               onOpenScreenshots={handleJavOpenScreenshots}
               onIdolClick={handleJavIdolClick}
               onStudioClick={handleSelectStudio}
+              onSeriesClick={handleSelectSeries}
               onTagClick={handleJavTagClick}
               onEditTags={openJavTagEditor}
             />

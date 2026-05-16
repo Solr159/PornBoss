@@ -38,6 +38,7 @@ export default function JavView({
   onPlay,
   onIdolClick,
   onStudioClick,
+  onSeriesClick,
   onTagClick,
   onEditTags,
   onOpenFile,
@@ -176,6 +177,7 @@ export default function JavView({
             onPlay={onPlay}
             onIdolClick={onIdolClick}
             onStudioClick={onStudioClick}
+            onSeriesClick={onSeriesClick}
             onTagClick={onTagClick}
             onEditTags={onEditTags}
             onOpenFile={onOpenFile}

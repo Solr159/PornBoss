@@ -78,6 +78,7 @@ export default function JavGrid({
   onPlay,
   onIdolClick,
   onStudioClick,
+  onSeriesClick,
   onTagClick,
   onEditTags,
   onOpenFile,
@@ -149,6 +150,7 @@ export default function JavGrid({
           buildJavUrl={buildJavUrl}
           onIdolClick={onIdolClick}
           onStudioClick={onStudioClick}
+          onSeriesClick={onSeriesClick}
           onTagClick={onTagClick}
           onEditTags={onEditTags}
           onOpenFile={onOpenFile}
@@ -599,6 +601,7 @@ function JavCard({
   buildJavUrl,
   onIdolClick,
   onStudioClick,
+  onSeriesClick,
   onTagClick,
   onEditTags,
   onOpenFile,
@@ -629,6 +632,7 @@ function JavCard({
   const preferredSeries =
     javMetadataLanguage === 'en' ? item?.series_en || item?.series : item?.series || item?.series_en
   const seriesText = String(preferredSeries?.name || '').trim()
+  const canFilterSeries = seriesText && typeof onSeriesClick === 'function'
   const codeText = item?.code?.trim()
   const mainTitle = getJavDisplayTitle(item, javMetadataLanguage)
   const titleText = [codeText, mainTitle].filter(Boolean).join(' ')
@@ -958,7 +962,18 @@ function JavCard({
                 <MovieCreationIcon sx={{ fontSize: 16 }} className="shrink-0 text-emerald-600" />
               </span>
             </Tooltip>
-            <span className="min-w-0 truncate">{seriesText}</span>
+            <button
+              type="button"
+              className={`min-w-0 truncate text-left ${
+                canFilterSeries ? 'cursor-pointer hover:text-blue-700 hover:underline' : ''
+              }`}
+              onClick={() => {
+                if (canFilterSeries) onSeriesClick(preferredSeries)
+              }}
+              disabled={!canFilterSeries}
+            >
+              {seriesText}
+            </button>
           </div>
         ) : null}
         {Array.isArray(item?.idols) && item.idols.length > 0 && (
