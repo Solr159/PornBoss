@@ -955,7 +955,7 @@ function JavCard({
           <div className="flex min-w-0 items-center gap-1 text-xs text-gray-600">
             <Tooltip title={zh('系列', 'Series')} arrow>
               <span className="inline-flex">
-                <MovieCreationIcon sx={{ fontSize: 16 }} className="shrink-0 text-gray-600" />
+                <MovieCreationIcon sx={{ fontSize: 16 }} className="shrink-0 text-emerald-600" />
               </span>
             </Tooltip>
             <span className="min-w-0 truncate">{seriesText}</span>
