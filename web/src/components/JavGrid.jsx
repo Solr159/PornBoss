@@ -3,8 +3,8 @@ import { IconButton, Popper, Tooltip } from '@mui/material'
 import Fade from '@mui/material/Fade'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-import LibraryBooksOutlinedIcon from '@mui/icons-material/LibraryBooksOutlined'
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
+import MovieCreationIcon from '@mui/icons-material/MovieCreation'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
@@ -955,10 +955,7 @@ function JavCard({
           <div className="flex min-w-0 items-center gap-1 text-xs text-gray-600">
             <Tooltip title={zh('系列', 'Series')} arrow>
               <span className="inline-flex">
-                <LibraryBooksOutlinedIcon
-                  sx={{ fontSize: 16 }}
-                  className="shrink-0 text-violet-600"
-                />
+                <MovieCreationIcon sx={{ fontSize: 16 }} className="shrink-0 text-gray-600" />
               </span>
             </Tooltip>
             <span className="min-w-0 truncate">{seriesText}</span>
