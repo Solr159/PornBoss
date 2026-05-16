@@ -5,6 +5,7 @@ import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
 import ShuffleOutlinedIcon from '@mui/icons-material/ShuffleOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import SwapHorizOutlinedIcon from '@mui/icons-material/SwapHorizOutlined'
+import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded'
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
@@ -372,6 +373,36 @@ export default function TopBar({
           </div>
 
           <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outlined"
+              onClick={() => window.history.back()}
+              aria-label={zh('后退', 'Back')}
+              title={zh('后退', 'Back')}
+              sx={{
+                minWidth: 40,
+                width: 40,
+                height: 40,
+                p: 0,
+              }}
+            >
+              <ArrowBackRoundedIcon fontSize="small" />
+            </Button>
+            <Button
+              type="button"
+              variant="outlined"
+              onClick={() => window.history.forward()}
+              aria-label={zh('前进', 'Forward')}
+              title={zh('前进', 'Forward')}
+              sx={{
+                minWidth: 40,
+                width: 40,
+                height: 40,
+                p: 0,
+              }}
+            >
+              <ArrowForwardRoundedIcon fontSize="small" />
+            </Button>
             {showDirectorySetupHint ? (
               <div
                 className="directory-setup-hint flex max-w-full items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 shadow-sm"
@@ -392,13 +423,19 @@ export default function TopBar({
             ) : null}
             <div ref={directoryMenuRef} className="relative inline-flex">
               <Button
-                startIcon={<SettingsOutlinedIcon fontSize="small" />}
                 variant="outlined"
                 onClick={onOpenGlobalSettings}
                 title={zh('全局设置', 'Global settings')}
-                sx={{ pr: 4 }}
+                aria-label={zh('全局设置', 'Global settings')}
+                sx={{
+                  minWidth: 72,
+                  width: 72,
+                  height: 40,
+                  p: 0,
+                  pr: 4,
+                }}
               >
-                {zh('全局设置', 'Global Settings')}
+                <SettingsOutlinedIcon fontSize="small" />
               </Button>
               <button
                 type="button"
