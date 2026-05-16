@@ -106,12 +106,15 @@ func SearchJav(ctx context.Context, idolIDs []int64, tagIDs []int64, search, sor
 	visibleTagProviders := visibleJavTagProviders()
 	query := filtered.
 		Preload("Studio").
-		Preload("Series").
-		Preload("SeriesEn").
 		Preload("Tags", "provider IN ?", visibleTagProviders).
 		Preload("Idols", "COALESCE(is_english, 0) = ?", jav.CurrentMetadataLanguageIsEnglish()).
 		Limit(limit).
 		Offset(offset)
+	if jav.CurrentMetadataLanguageIsEnglish() {
+		query = query.Preload("SeriesEn")
+	} else {
+		query = query.Preload("Series")
+	}
 	if useExpr {
 		query = query.Order(clause.OrderBy{Expression: orderExpr})
 	} else {
@@ -425,7 +428,7 @@ func buildJavFilter(ctx context.Context, idolIDs []int64, tagIDs []int64, search
 		q = q.Where("studio_id = ?", studioID)
 	}
 	if seriesID > 0 {
-		q = q.Where("series_id = ? OR series_en_id = ?", seriesID, seriesID)
+		q = q.Where(javSeriesColumn()+" = ?", seriesID)
 	}
 	if len(tagIDs) > 0 {
 		q = q.
@@ -456,6 +459,13 @@ func javFilterIDs(values []int64) (int64, int64) {
 		seriesID = values[1]
 	}
 	return studioID, seriesID
+}
+
+func javSeriesColumn() string {
+	if jav.CurrentMetadataLanguageIsEnglish() {
+		return "series_en_id"
+	}
+	return "series_id"
 }
 
 // JavStudioSummary represents studio info with aggregated work count and a sample code for cover lookup.
@@ -572,10 +582,11 @@ func ListJavSeries(ctx context.Context, search string, limit, offset int, direct
 		offset = 0
 	}
 	isEnglish := jav.CurrentMetadataLanguageIsEnglish()
+	seriesColumn := javSeriesColumn()
 
 	countBase := common.DB.WithContext(ctx).
 		Table("jav_series js").
-		Joins("JOIN jav j ON j.series_id = js.id OR j.series_en_id = js.id").
+		Joins("JOIN jav j ON j."+seriesColumn+" = js.id").
 		Joins("JOIN video_location vl ON vl.jav_id = j.id").
 		Joins("JOIN directory d ON d.id = vl.directory_id").
 		Where("COALESCE(js.is_english, 0) = ?", isEnglish).
@@ -591,7 +602,7 @@ func ListJavSeries(ctx context.Context, search string, limit, offset int, direct
 	var items []JavSeriesSummary
 	base := common.DB.WithContext(ctx).
 		Table("jav_series js").
-		Joins("JOIN jav j ON j.series_id = js.id OR j.series_en_id = js.id").
+		Joins("JOIN jav j ON j."+seriesColumn+" = js.id").
 		Joins("LEFT JOIN jav_studio jst ON jst.id = js.studio_id").
 		Joins("JOIN video_location vl ON vl.jav_id = j.id").
 		Joins("JOIN directory d ON d.id = vl.directory_id").
@@ -618,12 +629,13 @@ func ListSeriesCoverCodes(ctx context.Context, seriesID int64, directoryIDs []in
 		return nil, errors.New("series id must be positive")
 	}
 	var codes []string
+	seriesColumn := javSeriesColumn()
 	query := common.DB.WithContext(ctx).
 		Table("jav j").
 		Select("j.code").
 		Joins("JOIN video_location vl ON vl.jav_id = j.id").
 		Joins("JOIN directory d ON d.id = vl.directory_id").
-		Where("j.series_id = ? OR j.series_en_id = ?", seriesID, seriesID).
+		Where("j."+seriesColumn+" = ?", seriesID).
 		Where(activeLocationWhereSQL("vl", "d"))
 	query = applyDirectoryFilter(query, "vl", directoryIDs)
 	if err := query.

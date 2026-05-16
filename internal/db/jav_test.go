@@ -312,6 +312,30 @@ func TestListJavSeriesAndSearchBySeries(t *testing.T) {
 		t.Fatalf("expected sample code for zh series")
 	}
 
+	items, total, err := SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, seriesA.ID)
+	if err != nil {
+		t.Fatalf("SearchJav by zh series: %v", err)
+	}
+	if total != 2 || len(items) != 2 {
+		t.Fatalf("unexpected zh filtered javs: total=%d len=%d", total, len(items))
+	}
+	for _, item := range items {
+		if item.SeriesID == nil || *item.SeriesID != seriesA.ID {
+			t.Fatalf("unexpected zh series filtered item: %#v", item)
+		}
+		if item.Series == nil || item.SeriesEn != nil {
+			t.Fatalf("unexpected zh series preload: %#v", item)
+		}
+	}
+
+	codes, err := ListSeriesCoverCodes(ctx, seriesA.ID, nil)
+	if err != nil {
+		t.Fatalf("ListSeriesCoverCodes zh: %v", err)
+	}
+	if len(codes) != 2 {
+		t.Fatalf("unexpected zh cover codes: %#v", codes)
+	}
+
 	jav.SetMetadataLanguage("en")
 	series, total, err = ListJavSeries(ctx, "", 20, 0, nil)
 	if err != nil {
@@ -327,17 +351,38 @@ func TestListJavSeriesAndSearchBySeries(t *testing.T) {
 		t.Fatalf("unexpected en series: %#v", series[0])
 	}
 
-	items, total, err := SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, seriesA.ID)
+	items, total, err = SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, seriesA.ID)
 	if err != nil {
-		t.Fatalf("SearchJav by series: %v", err)
+		t.Fatalf("SearchJav by zh series in en mode: %v", err)
 	}
-	if total != 2 || len(items) != 2 {
-		t.Fatalf("unexpected filtered javs: total=%d len=%d", total, len(items))
+	if total != 0 || len(items) != 0 {
+		t.Fatalf("unexpected zh series match in en mode: total=%d len=%d", total, len(items))
 	}
-	for _, item := range items {
-		if item.SeriesID == nil || *item.SeriesID != seriesA.ID {
-			t.Fatalf("unexpected series filtered item: %#v", item)
-		}
+
+	items, total, err = SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, seriesB.ID)
+	if err != nil {
+		t.Fatalf("SearchJav by en series: %v", err)
+	}
+	if total != 1 || len(items) != 1 {
+		t.Fatalf("unexpected en filtered javs: total=%d len=%d", total, len(items))
+	}
+	if items[0].Series != nil || items[0].SeriesEn == nil || items[0].SeriesEn.ID != seriesB.ID {
+		t.Fatalf("unexpected en series preload: %#v", items[0])
+	}
+
+	codes, err = ListSeriesCoverCodes(ctx, seriesA.ID, nil)
+	if err != nil {
+		t.Fatalf("ListSeriesCoverCodes zh series in en mode: %v", err)
+	}
+	if len(codes) != 0 {
+		t.Fatalf("unexpected zh cover codes in en mode: %#v", codes)
+	}
+	codes, err = ListSeriesCoverCodes(ctx, seriesB.ID, nil)
+	if err != nil {
+		t.Fatalf("ListSeriesCoverCodes en: %v", err)
+	}
+	if len(codes) != 1 || codes[0] != "SRB-001" {
+		t.Fatalf("unexpected en cover codes: %#v", codes)
 	}
 }
 

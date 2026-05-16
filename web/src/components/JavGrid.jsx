@@ -629,8 +629,7 @@ function JavCard({
     : ''
   const studioText = String(item?.studio?.name || '').trim()
   const canFilterStudio = studioText && typeof onStudioClick === 'function'
-  const preferredSeries =
-    javMetadataLanguage === 'en' ? item?.series_en || item?.series : item?.series || item?.series_en
+  const preferredSeries = javMetadataLanguage === 'en' ? item?.series_en : item?.series
   const seriesText = String(preferredSeries?.name || '').trim()
   const canFilterSeries = seriesText && typeof onSeriesClick === 'function'
   const codeText = item?.code?.trim()
