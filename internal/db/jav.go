@@ -1186,7 +1186,11 @@ func UpdateJavSeries(ctx context.Context, javID int64, series string, isEnglish 
 		return nil
 	}
 	return common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		rec, err := ensureSeriesTx(tx, series, isEnglish)
+		var javRec models.Jav
+		if err := tx.Select("id", "studio_id").Where("id = ?", javID).First(&javRec).Error; err != nil {
+			return fmt.Errorf("get jav studio for series: %w", err)
+		}
+		rec, err := ensureSeriesWithStudioTx(tx, series, isEnglish, javRec.StudioID)
 		if err != nil {
 			return err
 		}
@@ -1304,11 +1308,18 @@ func ensureStudioTx(tx *gorm.DB, name string) (*models.JavStudio, error) {
 }
 
 func ensureSeriesTx(tx *gorm.DB, name string, isEnglish bool) (*models.JavSeries, error) {
+	return ensureSeriesWithStudioTx(tx, name, isEnglish, nil)
+}
+
+func ensureSeriesWithStudioTx(tx *gorm.DB, name string, isEnglish bool, studioID *int64) (*models.JavSeries, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, errors.New("series name cannot be empty")
 	}
 	series := models.JavSeries{Name: name, IsEnglish: isEnglish}
+	if studioID != nil && *studioID > 0 {
+		series.StudioID = studioID
+	}
 	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&series).Error; err != nil {
 		return nil, fmt.Errorf("ensure series %q: %w", name, err)
 	}

@@ -543,6 +543,13 @@ func TestSaveAndUpdateJavStudioAndSeries(t *testing.T) {
 		t.Fatalf("update jav series: %v", err)
 	}
 	assertJavSeries(t, gdb, "STU-002", "中年オヤジ", false)
+	var updatedJav models.Jav
+	if err := gdb.Preload("Series").Where("code = ?", "STU-002").First(&updatedJav).Error; err != nil {
+		t.Fatalf("load updated jav: %v", err)
+	}
+	if updatedJav.StudioID == nil || updatedJav.Series == nil || updatedJav.Series.StudioID == nil || *updatedJav.Series.StudioID != *updatedJav.StudioID {
+		t.Fatalf("series studio was not initialized from jav studio: %#v", updatedJav.Series)
+	}
 }
 
 func TestUpdateMissingJavSeriesStudios(t *testing.T) {
