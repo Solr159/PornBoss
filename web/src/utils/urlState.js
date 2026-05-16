@@ -38,6 +38,7 @@ export const parseUrlState = (searchString = window.location.search, options = {
   const rawView = sp.get('view')
   const view = rawView === 'jav' ? 'jav' : rawView === 'video' ? 'video' : defaultView
   const directoryIds = parseDirectoryIds(sp)
+  const hasSort = sp.has('sort')
 
   const videoSortRaw = (sp.get('sort') || '').trim()
   const videoSort = normalizeVideoSort(videoSortRaw)
@@ -47,6 +48,7 @@ export const parseUrlState = (searchString = window.location.search, options = {
     page: parseIntSafe(sp.get('page'), 1),
     search: (sp.get('search') || '').trim(),
     sort: videoSort,
+    hasSort,
     tempSort: videoTempSort,
     tagIds: parseIds(sp.get('tag_ids')),
     random: sp.get('random') === '1',
@@ -77,6 +79,7 @@ export const parseUrlState = (searchString = window.location.search, options = {
     seriesId: parsePositiveInt(sp.get('series_id')),
     seriesName: (sp.get('series_name') || '').trim(),
     sort: javSort,
+    hasSort,
     tempSort: javTempSort,
     idolSort,
     random: sp.get('random') === '1',

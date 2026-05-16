@@ -834,7 +834,7 @@ export default function App() {
       }
       if (parsed.view === 'jav') {
         const { jav } = parsed
-        const currentIdolSort = useStore.getState().idolSort
+        const { javSort: currentJavSort, idolSort: currentIdolSort } = useStore.getState()
         useStore.setState({
           viewMode: 'jav',
           videoTempSort: '',
@@ -852,9 +852,9 @@ export default function App() {
           idolPage: jav.tab === 'idol' ? jav.page : 1,
           studioPage: jav.tab === 'studio' ? jav.page : 1,
           seriesPage: jav.tab === 'series' ? jav.page : 1,
-          javSort: jav.tab === 'list' ? jav.sort : 'recent',
+          javSort: jav.tab === 'list' && jav.hasSort ? jav.sort : currentJavSort,
           javTempSort: jav.tab !== 'list' || jav.random ? '' : jav.tempSort,
-          idolSort: jav.tab === 'idol' ? jav.idolSort : currentIdolSort,
+          idolSort: jav.tab === 'idol' && jav.hasSort ? jav.idolSort : currentIdolSort,
         })
         setJavSearchInput(jav.search)
         if (jav.tab === 'list' && jav.random) {
@@ -865,10 +865,11 @@ export default function App() {
       }
 
       const { video } = parsed
+      const currentVideoSort = useStore.getState().sortOrder
       useStore.setState({
         viewMode: 'video',
         javTempSort: '',
-        sortOrder: video.sort,
+        sortOrder: video.hasSort ? video.sort : currentVideoSort,
         videoTempSort: video.random ? '' : video.tempSort,
         randomMode: video.random,
         randomSeed: video.random ? video.seed : null,
