@@ -1351,6 +1351,34 @@ export default function App() {
     randomMode,
   ])
 
+  const openVideoSettings = useCallback(() => {
+    setVideoPageSizeInput(pageSize)
+    setVideoSortInput(sortOrder)
+    setVideoHideJavInput(videoHideJav)
+    setVideoSettingsOpen(true)
+  }, [pageSize, sortOrder, videoHideJav])
+
+  const openJavSettings = useCallback(() => {
+    setJavPageSizeInput(javPageSize)
+    setJavGridColumnsInput(javGridColumns)
+    setJavTitleMaxRowsInput(javTitleMaxRows)
+    setJavIdolTagMaxRowsInput(javIdolTagMaxRows)
+    setJavTagMaxRowsInput(javTagMaxRows)
+    setIdolPageSizeInput(idolPageSize)
+    setJavSortInput(javSort)
+    setIdolSortInput(idolSort)
+    setJavSettingsOpen(true)
+  }, [
+    javPageSize,
+    javGridColumns,
+    javTitleMaxRows,
+    javIdolTagMaxRows,
+    javTagMaxRows,
+    idolPageSize,
+    javSort,
+    idolSort,
+  ])
+
   const submitSearch = (e) => {
     e?.preventDefault()
     const nextSearch = (searchInput || '').trim()
@@ -2090,8 +2118,8 @@ export default function App() {
         onRandomClick={handleVideoRandomClick}
         onOpenTagModal={handleOpenTagModal}
         onOpenJavTagModal={handleOpenJavTagModal}
-        onOpenVideoSettings={() => setVideoSettingsOpen(true)}
-        onOpenJavSettings={() => setJavSettingsOpen(true)}
+        onOpenVideoSettings={openVideoSettings}
+        onOpenJavSettings={openJavSettings}
         onOpenGlobalSettings={() => setGlobalSettingsOpen(true)}
         javSearchInput={javSearchInput}
         onJavSearchInputChange={setJavSearchInput}
