@@ -6,6 +6,7 @@ import ShuffleOutlinedIcon from '@mui/icons-material/ShuffleOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import SwapHorizOutlinedIcon from '@mui/icons-material/SwapHorizOutlined'
 import DisplaySettingsIcon from '@mui/icons-material/DisplaySettings'
+import FolderOpenOutlinedIcon from '@mui/icons-material/FolderOpenOutlined'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded'
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded'
@@ -467,7 +468,7 @@ export default function TopBar({
                 />
               </div>
             ) : null}
-            <div ref={directoryMenuRef} className="relative inline-flex">
+            <div ref={directoryMenuRef} className="relative inline-flex gap-2">
               <Tooltip title={zh('全局设置', 'Global settings')} arrow>
                 <Button
                   variant="outlined"
@@ -478,8 +479,6 @@ export default function TopBar({
                     width: 36,
                     height: 36,
                     p: 0,
-                    borderTopRightRadius: 0,
-                    borderBottomRightRadius: 0,
                   }}
                 >
                   <SettingsOutlinedIcon fontSize="small" />
@@ -494,15 +493,14 @@ export default function TopBar({
                   aria-expanded={directoryMenuOpen}
                   variant="outlined"
                   sx={{
-                    minWidth: 32,
-                    width: 32,
+                    minWidth: 54,
+                    width: 54,
                     height: 36,
                     p: 0,
-                    ml: '-1px',
-                    borderTopLeftRadius: 0,
-                    borderBottomLeftRadius: 0,
+                    gap: 0.25,
                   }}
                 >
+                  <FolderOpenOutlinedIcon fontSize="small" />
                   <KeyboardArrowDownRoundedIcon
                     fontSize="small"
                     className={
