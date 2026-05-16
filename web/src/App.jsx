@@ -43,6 +43,7 @@ import { isChineseLocale, zh } from '@/utils/i18n'
 import { directoryQueryIds, useStore, videoSelectionKey } from '@/store'
 
 const JAV_STUDIO_PAGE_SIZE = 24
+const HISTORY_INDEX_KEY = '__pornbossHistoryIndex'
 
 const normalizeDefaultPlayer = (value) =>
   String(value || '')
@@ -54,6 +55,9 @@ const normalizeDefaultPlayer = (value) =>
 export default function App() {
   const isPoppingRef = useRef(false)
   const lastUrlRef = useRef(window.location.pathname + window.location.search)
+  const browserInitialCanGoBackRef = useRef(window.history.length > 1)
+  const browserHistoryIndexRef = useRef(0)
+  const browserHistoryMaxRef = useRef(0)
   const pendingVideoTagIdsRef = useRef(null)
   const {
     page,
@@ -168,9 +172,49 @@ export default function App() {
   const [javSearchInput, setJavSearchInput] = useState('')
   const [hydrated, setHydrated] = useState(false)
   const [configLoaded, setConfigLoaded] = useState(false)
+  const [browserNavigation, setBrowserNavigation] = useState({
+    canGoBack: window.history.length > 1,
+    canGoForward: false,
+  })
   const isJavMode = viewMode === 'jav'
   const isModifiedClick = (e) =>
     e && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0)
+
+  const setBrowserNavigationFromIndex = useCallback((index, max) => {
+    browserHistoryIndexRef.current = index
+    browserHistoryMaxRef.current = max
+    setBrowserNavigation({
+      canGoBack: index > 0 || (index === 0 && browserInitialCanGoBackRef.current),
+      canGoForward: index < max,
+    })
+  }, [])
+
+  const readBrowserHistoryIndex = useCallback((state = window.history.state) => {
+    const rawIndex = Number(state?.[HISTORY_INDEX_KEY])
+    return Number.isFinite(rawIndex) && rawIndex >= 0 ? Math.floor(rawIndex) : 0
+  }, [])
+
+  const ensureBrowserHistoryState = useCallback(() => {
+    const currentState = window.history.state || {}
+    const hasIndex = Number.isFinite(Number(currentState[HISTORY_INDEX_KEY]))
+    const index = hasIndex ? readBrowserHistoryIndex(currentState) : browserHistoryIndexRef.current
+    if (!hasIndex) {
+      window.history.replaceState(
+        { ...currentState, [HISTORY_INDEX_KEY]: index },
+        '',
+        window.location.pathname + window.location.search
+      )
+    }
+    setBrowserNavigationFromIndex(index, Math.max(browserHistoryMaxRef.current, index))
+  }, [readBrowserHistoryIndex, setBrowserNavigationFromIndex])
+
+  const handleBrowserBack = useCallback(() => {
+    window.history.back()
+  }, [])
+
+  const handleBrowserForward = useCallback(() => {
+    window.history.forward()
+  }, [])
   const selectedTagIds = useMemo(
     () =>
       tags
@@ -839,6 +883,7 @@ export default function App() {
   )
 
   useEffect(() => {
+    ensureBrowserHistoryState()
     const apply = (fromPopstate = false) => {
       const parsed = parseUrlState()
       if (parsed.view === 'jav') {
@@ -849,10 +894,20 @@ export default function App() {
       applyUrlState(parsed, { fromPopstate })
     }
     apply(false)
-    const onPop = () => apply(true)
+    const onPop = (event) => {
+      const index = readBrowserHistoryIndex(event.state)
+      const max = Math.max(browserHistoryMaxRef.current, index)
+      setBrowserNavigationFromIndex(index, max)
+      apply(true)
+    }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
-  }, [applyUrlState])
+  }, [
+    applyUrlState,
+    ensureBrowserHistoryState,
+    readBrowserHistoryIndex,
+    setBrowserNavigationFromIndex,
+  ])
 
   useEffect(() => {
     setSearchInput(searchTerm)
@@ -1043,9 +1098,15 @@ export default function App() {
       isPoppingRef.current = false
       return
     }
-    window.history.pushState({}, '', nextUrl)
+    const nextIndex = browserHistoryIndexRef.current + 1
+    window.history.pushState(
+      { ...(window.history.state || {}), [HISTORY_INDEX_KEY]: nextIndex },
+      '',
+      nextUrl
+    )
+    setBrowserNavigationFromIndex(nextIndex, nextIndex)
     lastUrlRef.current = nextUrl
-  }, [currentUrlState, hydrated])
+  }, [currentUrlState, hydrated, setBrowserNavigationFromIndex])
 
   const canPrev = page > 1
   const canNext = hasNext
@@ -2036,6 +2097,10 @@ export default function App() {
     <div className="min-h-screen">
       <TopBar
         onHome={handleHomeClick}
+        canGoBack={browserNavigation.canGoBack}
+        canGoForward={browserNavigation.canGoForward}
+        onBrowserBack={handleBrowserBack}
+        onBrowserForward={handleBrowserForward}
         isJavMode={isJavMode}
         onToggleMode={handleToggleMode}
         videoSearchInput={searchInput}

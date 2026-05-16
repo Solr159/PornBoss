@@ -15,6 +15,10 @@ import { zh } from '@/utils/i18n'
 
 export default function TopBar({
   onHome,
+  canGoBack,
+  canGoForward,
+  onBrowserBack,
+  onBrowserForward,
   isJavMode,
   onToggleMode,
   videoSearchInput,
@@ -407,37 +411,43 @@ export default function TopBar({
           </div>
 
           <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
-            <Tooltip title={zh('后退', 'Back')} arrow>
-              <Button
-                type="button"
-                variant="outlined"
-                onClick={() => window.history.back()}
-                aria-label={zh('后退', 'Back')}
-                sx={{
-                  minWidth: 36,
-                  width: 36,
-                  height: 36,
-                  p: 0,
-                }}
-              >
-                <ArrowBackRoundedIcon fontSize="small" />
-              </Button>
+            <Tooltip title={zh('浏览器后退', 'Browser back')} arrow>
+              <span className="inline-flex">
+                <Button
+                  type="button"
+                  variant="outlined"
+                  onClick={onBrowserBack}
+                  disabled={!canGoBack}
+                  aria-label={zh('浏览器后退', 'Browser back')}
+                  sx={{
+                    minWidth: 36,
+                    width: 36,
+                    height: 36,
+                    p: 0,
+                  }}
+                >
+                  <ArrowBackRoundedIcon fontSize="small" />
+                </Button>
+              </span>
             </Tooltip>
-            <Tooltip title={zh('前进', 'Forward')} arrow>
-              <Button
-                type="button"
-                variant="outlined"
-                onClick={() => window.history.forward()}
-                aria-label={zh('前进', 'Forward')}
-                sx={{
-                  minWidth: 36,
-                  width: 36,
-                  height: 36,
-                  p: 0,
-                }}
-              >
-                <ArrowForwardRoundedIcon fontSize="small" />
-              </Button>
+            <Tooltip title={zh('浏览器前进', 'Browser forward')} arrow>
+              <span className="inline-flex">
+                <Button
+                  type="button"
+                  variant="outlined"
+                  onClick={onBrowserForward}
+                  disabled={!canGoForward}
+                  aria-label={zh('浏览器前进', 'Browser forward')}
+                  sx={{
+                    minWidth: 36,
+                    width: 36,
+                    height: 36,
+                    p: 0,
+                  }}
+                >
+                  <ArrowForwardRoundedIcon fontSize="small" />
+                </Button>
+              </span>
             </Tooltip>
             {showDirectorySetupHint ? (
               <div
