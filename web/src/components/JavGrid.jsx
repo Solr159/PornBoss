@@ -9,6 +9,7 @@ import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined'
 import SearchIcon from '@mui/icons-material/Search'
+import ViewCarouselOutlinedIcon from '@mui/icons-material/ViewCarouselOutlined'
 import VideocamOutlinedIcon from '@mui/icons-material/VideocamOutlined'
 
 import { fetchJavIdolPreview } from '@/api'
@@ -625,6 +626,9 @@ function JavCard({
     : ''
   const studioText = String(item?.studio?.name || '').trim()
   const canFilterStudio = studioText && typeof onStudioClick === 'function'
+  const preferredSeries =
+    javMetadataLanguage === 'en' ? item?.series_en || item?.series : item?.series || item?.series_en
+  const seriesText = String(preferredSeries?.name || '').trim()
   const codeText = item?.code?.trim()
   const mainTitle = getJavDisplayTitle(item, javMetadataLanguage)
   const titleText = [codeText, mainTitle].filter(Boolean).join(' ')
@@ -749,6 +753,8 @@ function JavCard({
         tagIds: [],
         studioId: null,
         studioName: '',
+        seriesId: null,
+        seriesName: '',
         random: false,
         tempSort: '',
       }) || '#'
@@ -767,6 +773,8 @@ function JavCard({
         tagIds: [id],
         studioId: null,
         studioName: '',
+        seriesId: null,
+        seriesName: '',
         random: false,
         tempSort: '',
       }) || '#'
@@ -943,6 +951,19 @@ function JavCard({
             </span>
           ) : null}
         </div>
+        {seriesText ? (
+          <div className="flex min-w-0 items-center gap-1 text-xs text-gray-600">
+            <Tooltip title={zh('系列', 'Series')} arrow>
+              <span className="inline-flex">
+                <ViewCarouselOutlinedIcon
+                  sx={{ fontSize: 16 }}
+                  className="shrink-0 text-violet-600"
+                />
+              </span>
+            </Tooltip>
+            <span className="min-w-0 truncate">{seriesText}</span>
+          </div>
+        ) : null}
         {Array.isArray(item?.idols) && item.idols.length > 0 && (
           <>
             <IdolTagList
