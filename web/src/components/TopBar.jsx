@@ -241,9 +241,9 @@ export default function TopBar({
                         onClick={onOpenJavTagModal}
                         aria-label={zh('JAV标签', 'JAV tags')}
                         sx={{
-                          minWidth: 40,
-                          width: 40,
-                          height: 40,
+                          minWidth: 36,
+                          width: 36,
+                          height: 36,
                           p: 0,
                         }}
                       >
@@ -317,9 +317,9 @@ export default function TopBar({
                       onClick={handleSettingsClick}
                       aria-label={zh('JAV设置', 'JAV settings')}
                       sx={{
-                        minWidth: 40,
-                        width: 40,
-                        height: 40,
+                        minWidth: 36,
+                        width: 36,
+                        height: 36,
                         p: 0,
                       }}
                     >
@@ -414,9 +414,9 @@ export default function TopBar({
                 onClick={() => window.history.back()}
                 aria-label={zh('后退', 'Back')}
                 sx={{
-                  minWidth: 40,
-                  width: 40,
-                  height: 40,
+                  minWidth: 36,
+                  width: 36,
+                  height: 36,
                   p: 0,
                 }}
               >
@@ -430,9 +430,9 @@ export default function TopBar({
                 onClick={() => window.history.forward()}
                 aria-label={zh('前进', 'Forward')}
                 sx={{
-                  minWidth: 40,
-                  width: 40,
-                  height: 40,
+                  minWidth: 36,
+                  width: 36,
+                  height: 36,
                   p: 0,
                 }}
               >
@@ -464,9 +464,9 @@ export default function TopBar({
                   onClick={onOpenGlobalSettings}
                   aria-label={zh('全局设置', 'Global settings')}
                   sx={{
-                    minWidth: 40,
-                    width: 40,
-                    height: 40,
+                    minWidth: 36,
+                    width: 36,
+                    height: 36,
                     p: 0,
                     borderTopRightRadius: 0,
                     borderBottomRightRadius: 0,
@@ -486,7 +486,7 @@ export default function TopBar({
                   sx={{
                     minWidth: 32,
                     width: 32,
-                    height: 40,
+                    height: 36,
                     p: 0,
                     ml: '-1px',
                     borderTopLeftRadius: 0,
