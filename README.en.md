@@ -23,8 +23,10 @@ The browsing experience is somewhat similar to JavDb, JavBus, and JavLibrary, bu
 
 - **Fully automated managed folder service**: Pornboss provides managed service for local media folders. Add your folders once, and Pornboss automatically handles data fetching, indexing, and updates when folder contents change.
 <br>
+
 - **Non-intrusive design**: Pornboss respects your media folders. It only reads folder contents and never modifies them, so you do not need to worry about generated junk such as `.nfo` files or cover images appearing inside your own folders. This also lets Pornboss work alongside other video managers without interfering with them.
 <br>
+
 - **Data that stays safe**: All Pornboss data is stored in the project's `data/` directory. As long as you keep `data/` safe, your library data remains available when upgrading or moving to another computer.
 
 ## Features
