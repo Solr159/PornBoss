@@ -96,7 +96,7 @@ Pornboss 集成 mpv 播放能力，点击视频即可调用轻量、高性能的
 
 - Windows：双击 `pornboss.exe`。首次运行可能会被 SmartScreen 阻止，点击“更多信息” -> “仍要运行”。
 - macOS：双击 `pornboss.command`。如果提示无法验证，打开“系统设置” -> “隐私与安全性”，滑到最底部点击“仍要打开”。
-<p align="center">
+<p align="left">
   <img src="screenshot/macos1.png" style="width: 500px; height: auto;">
 </p>
 
