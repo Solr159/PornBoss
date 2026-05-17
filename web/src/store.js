@@ -16,6 +16,7 @@ import {
   fetchJavStudios,
   fetchJavTags,
   fetchConfig,
+  fetchCollections,
 } from '@/api'
 import { normalizeIdolSort, normalizeJavSort } from '@/constants/jav'
 import { normalizeVideoSort } from '@/constants/video'
@@ -33,6 +34,7 @@ let lastVideoFetchKey = null
 let lastJavFetchKey = null
 let lastIdolFetchKey = null
 let lastStudioFetchKey = null
+let lastCollectionFetchKey = null
 let lastTagFetchKey = null
 let lastJavTagFetchKey = null
 let tagFetchInFlight = null
@@ -124,7 +126,7 @@ export const useStore = create((set, get) => ({
   javRandomMode: false,
   javRandomSeed: null,
   viewMode: 'video', // video | jav
-  javTab: 'list', // list | idol | studio
+  javTab: 'list', // list | idol | studio | collection
   javPage: 1,
   javPageSize: JAV_PAGE_SIZE,
   javGridColumns: JAV_GRID_COLUMNS_AUTO,
@@ -151,6 +153,12 @@ export const useStore = create((set, get) => ({
   javTags: [],
   javStudioId: null,
   javStudioName: '',
+  javCollectionId: null,
+  javCollections: [],
+  javCollectionsLoading: false,
+  javCollectionsError: null,
+  javSelectedIds: new Set(),
+  javNlHint: '',
   javItems: [],
   javTotal: 0,
   javLoading: false,
@@ -275,9 +283,32 @@ export const useStore = create((set, get) => ({
     set({ viewMode: mode, ...(mode === 'jav' ? { videoTempSort: '' } : { javTempSort: '' }) })
   },
   setJavTab: (tab) => {
-    if (tab !== 'list' && tab !== 'idol' && tab !== 'studio') return
+    if (tab !== 'list' && tab !== 'idol' && tab !== 'studio' && tab !== 'collection') return
     set({ javTab: tab, javTempSort: '' })
   },
+  setJavCollectionId: (id) => {
+    const n = Number(id)
+    const next = Number.isFinite(n) && n > 0 ? n : null
+    set({
+      javCollectionId: next,
+      javPage: 1,
+      javSelectedIds: new Set(),
+      javRandomMode: false,
+      javRandomSeed: null,
+      javNlHint: '',
+    })
+  },
+  toggleJavSelected: (javIdOrItem) => {
+    const id =
+      javIdOrItem && typeof javIdOrItem === 'object' ? Number(javIdOrItem.id) : Number(javIdOrItem)
+    if (!Number.isFinite(id) || id <= 0) return
+    const cur = new Set(get().javSelectedIds || [])
+    if (cur.has(id)) cur.delete(id)
+    else cur.add(id)
+    set({ javSelectedIds: cur })
+  },
+  clearJavItemSelection: () => set({ javSelectedIds: new Set() }),
+  setJavNlHint: (text) => set({ javNlHint: String(text || '').trim() }),
   setJavIdolIds: (idolIds) => {
     const clean = Array.from(
       new Set(
@@ -564,6 +595,7 @@ export const useStore = create((set, get) => ({
       javIdolIds,
       javTags,
       javStudioId,
+      javCollectionId,
       javSort,
       javTempSort,
       javRandomMode,
@@ -580,6 +612,7 @@ export const useStore = create((set, get) => ({
       (javIdolIds || []).join(','),
       (javTags || []).join(','),
       javStudioId || '',
+      javCollectionId || '',
       effectiveSort,
       javRandomMode ? javRandomSeed || '' : '',
       directoryIds.join(','),
@@ -597,6 +630,7 @@ export const useStore = create((set, get) => ({
         idolIds: javIdolIds,
         tagIds: javTags,
         studioId: javStudioId,
+        collectionId: javCollectionId || null,
         sort: javRandomMode ? 'random' : effectiveSort,
         seed: javRandomMode ? javRandomSeed : null,
         directoryIds,
@@ -667,6 +701,23 @@ export const useStore = create((set, get) => ({
       set({ studioError: e.message || zh('加载片商失败', 'Failed to load studios') })
     } finally {
       set({ studioLoading: false })
+    }
+  },
+
+  loadCollections: async (options = {}) => {
+    const key = 'collections'
+    if (!options.force && key === lastCollectionFetchKey && (get().javCollections || []).length) {
+      return
+    }
+    lastCollectionFetchKey = key
+    set({ javCollectionsLoading: true, javCollectionsError: null })
+    try {
+      const rows = await fetchCollections()
+      set({ javCollections: Array.isArray(rows) ? rows : [] })
+    } catch (e) {
+      set({ javCollectionsError: e.message || zh('加载合集失败', 'Failed to load collections') })
+    } finally {
+      set({ javCollectionsLoading: false })
     }
   },
 

@@ -44,11 +44,22 @@ export default function JavView({
   openFileLabel,
   onRevealFile,
   onOpenScreenshots,
+  javSelectMode = false,
+  onJavSelectModeChange,
+  selectedJavIds = [],
+  onToggleJavSelect,
+  showRemoveFromCollection = false,
+  onOpenAddToCollection,
+  onAddJavToCollection,
+  onRemoveFromCurrentCollection,
 }) {
   const contentClass = javRandomMode ? 'mt-4' : ''
   const [sortAnchorEl, setSortAnchorEl] = useState(null)
   const effectiveSort = javTempSort || javGlobalSort
   const currentOption = findSortOption(JAV_SORT_OPTIONS, effectiveSort) || JAV_SORT_OPTIONS[0]
+  const selectionEnabled = Boolean(javSelectMode) && !javRandomMode
+  const selectedArr = Array.isArray(selectedJavIds) ? selectedJavIds : []
+  const selectedCount = selectedArr.length
 
   const isOptionActive = (option) => {
     return findSortOption([option], effectiveSort)
@@ -88,6 +99,24 @@ export default function JavView({
           </div>
           <div className="flex justify-end">
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !javSelectMode
+                  onJavSelectModeChange?.(next)
+                }}
+                disabled={javRandomMode}
+                title={
+                  javRandomMode
+                    ? zh('随机模式下不可用', 'Unavailable in random mode')
+                    : javSelectMode
+                      ? zh('完成多选', 'Finish multi-select')
+                      : zh('多选作品', 'Multi-select')
+                }
+                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 shadow-sm hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {javSelectMode ? zh('完成', 'Done') : zh('多选', 'Select')}
+              </button>
               <span className="text-xs text-gray-500">{zh('排序', 'Sort')}</span>
               <button
                 type="button"
@@ -182,9 +211,38 @@ export default function JavView({
             openFileLabel={openFileLabel}
             onRevealFile={onRevealFile}
             onOpenScreenshots={onOpenScreenshots}
+            selectionEnabled={selectionEnabled}
+            selectedJavIds={selectedArr}
+            onToggleJavSelect={onToggleJavSelect}
+            onAddJavToCollection={onAddJavToCollection}
           />
         </div>
       )}
+      {selectionEnabled && selectedCount > 0 ? (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-200 bg-indigo-50/80 px-3 py-2 text-sm text-indigo-950">
+          <span>{zh(`已选 ${selectedCount} 项`, `${selectedCount} selected`)}</span>
+          <div className="flex flex-wrap gap-2">
+            {onOpenAddToCollection ? (
+              <button
+                type="button"
+                className="rounded border border-indigo-300 bg-white px-3 py-1 text-xs font-medium hover:bg-indigo-50"
+                onClick={() => onOpenAddToCollection()}
+              >
+                {zh('加入合集', 'Add to collection')}
+              </button>
+            ) : null}
+            {showRemoveFromCollection && onRemoveFromCurrentCollection ? (
+              <button
+                type="button"
+                className="rounded border border-rose-300 bg-white px-3 py-1 text-xs font-medium text-rose-900 hover:bg-rose-50"
+                onClick={() => onRemoveFromCurrentCollection()}
+              >
+                {zh('从合集移除', 'Remove from collection')}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </>
   )
 }

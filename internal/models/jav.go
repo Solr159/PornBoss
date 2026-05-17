@@ -19,6 +19,14 @@ type Jav struct {
 	Tags        []JavTag   `json:"tags,omitempty" gorm:"many2many:jav_tag_map"`
 	Idols       []JavIdol  `json:"idols,omitempty" gorm:"many2many:jav_idol_map"`
 	Videos      []Video    `json:"videos,omitempty" gorm:"-"`
+	// Collections lists user playlists containing this work (filled by list/search APIs, not persisted on jav row).
+	Collections []JavCollectionBrief `json:"collections,omitempty" gorm:"-"`
+}
+
+// JavCollectionBrief is a lightweight collection reference for API responses.
+type JavCollectionBrief struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
 }
 
 type JavStudio struct {

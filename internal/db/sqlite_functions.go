@@ -1,28 +1,52 @@
 package db
 
 import (
-	"database/sql"
+	"database/sql/driver"
+	"fmt"
 	"sync"
 
-	"github.com/mattn/go-sqlite3"
+	"github.com/glebarez/go-sqlite"
 )
-
-const sqliteDriverName = "sqlite3_pornboss"
 
 var registerOnce sync.Once
 
-func registerSQLiteFunctions() string {
+func registerSQLiteFunctions() {
 	registerOnce.Do(func() {
-		sql.Register(sqliteDriverName, &sqlite3.SQLiteDriver{
-			ConnectHook: func(conn *sqlite3.SQLiteConn) error {
-				if err := conn.RegisterFunc("splitmix64", splitmix64SQL, true); err != nil {
-					return err
-				}
-				return conn.RegisterFunc("stable_random_rank", stableRandomRankSQL, true)
-			},
-		})
+		sqlite.MustRegisterDeterministicScalarFunction("splitmix64", 2, scalarInt64Binary(splitmix64SQL))
+		sqlite.MustRegisterDeterministicScalarFunction("stable_random_rank", 2, scalarInt64Binary(stableRandomRankSQL))
 	})
-	return sqliteDriverName
+}
+
+func scalarInt64Binary(fn func(id, seed int64) int64) func(*sqlite.FunctionContext, []driver.Value) (driver.Value, error) {
+	return func(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
+		id, err := scalarArgInt64(args, 0)
+		if err != nil {
+			return nil, err
+		}
+		seed, err := scalarArgInt64(args, 1)
+		if err != nil {
+			return nil, err
+		}
+		return fn(id, seed), nil
+	}
+}
+
+func scalarArgInt64(args []driver.Value, idx int) (int64, error) {
+	if idx >= len(args) {
+		return 0, fmt.Errorf("sqlite scalar: missing argument %d", idx)
+	}
+	switch v := args[idx].(type) {
+	case int64:
+		return v, nil
+	case int32:
+		return int64(v), nil
+	case int:
+		return int64(v), nil
+	case float64:
+		return int64(v), nil
+	default:
+		return 0, fmt.Errorf("sqlite scalar: argument %d: want integer, got %T", idx, args[idx])
+	}
 }
 
 func splitmix64SQL(id int64, seed int64) int64 {

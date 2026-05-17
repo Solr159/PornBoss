@@ -174,6 +174,12 @@ export default function TopBar({
                     >
                       {zh('片商', 'Studio')}
                     </Button>
+                    <Button
+                      variant={javTab === 'collection' ? 'contained' : 'outlined'}
+                      onClick={() => onSwitchJavTab('collection')}
+                    >
+                      {zh('合集', 'Collections')}
+                    </Button>
                     <form
                       onSubmit={onSubmitJavSearch}
                       className="flex items-center overflow-hidden rounded-full border border-gray-200 bg-white shadow-sm"

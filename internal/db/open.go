@@ -5,7 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"gorm.io/driver/sqlite"
+	_ "github.com/glebarez/go-sqlite"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
@@ -13,8 +14,8 @@ import (
 
 // Open initialises a GORM-backed SQLite database and applies goose migrations.
 func Open(path string) (*gorm.DB, error) {
-	driverName := registerSQLiteFunctions()
-	sqlDB, err := sql.Open(driverName, path)
+	registerSQLiteFunctions()
+	sqlDB, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
@@ -38,7 +39,7 @@ func Open(path string) (*gorm.DB, error) {
 		return nil, fmt.Errorf("enable foreign keys: %w", err)
 	}
 
-	db, err := gorm.Open(sqlite.New(sqlite.Config{Conn: sqlDB}), &gorm.Config{
+	db, err := gorm.Open(&sqlite.Dialector{Conn: sqlDB}, &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 		NamingStrategy: schema.NamingStrategy{
 			SingularTable: true,

@@ -62,11 +62,22 @@ export async function fetchConfig() {
 }
 
 export async function updateConfig(payload) {
-  const res = await fetch('/config', {
-    method: 'PATCH',
-    headers: jsonHeaders,
-    body: JSON.stringify(payload),
-  })
+  let res
+  try {
+    res = await fetch('/config', {
+      method: 'PATCH',
+      headers: jsonHeaders,
+      body: JSON.stringify(payload),
+    })
+  } catch (err) {
+    const detail = err?.message ? String(err.message) : String(err)
+    throw new Error(
+      zh(
+        `无法连接服务器（${detail}）。请确认 Go 后端已启动；使用 npm run dev 时代理默认指向 http://127.0.0.1:17654，若端口不同请在 web/.env.local 设置 DEV_API_ORIGIN=你的后端根地址（如 http://127.0.0.1:8080）。`,
+        `Cannot reach server (${detail}). Start the Go API; with Vite dev the proxy defaults to http://127.0.0.1:17654. Set DEV_API_ORIGIN in web/.env.local to override (e.g. http://127.0.0.1:8080).`
+      )
+    )
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || zh('更新配置失败', 'Failed to update config'))
@@ -278,6 +289,7 @@ export async function fetchJavs({
   idolIds = [],
   tagIds = [],
   studioId = null,
+  collectionId = null,
   sort = '',
   seed = null,
   directoryIds = [],
@@ -289,6 +301,7 @@ export async function fetchJavs({
   if (idolIds.length) params.set('idol_ids', idolIds.join(','))
   if (tagIds.length) params.set('tag_ids', tagIds.join(','))
   if (studioId) params.set('studio_id', String(studioId))
+  if (collectionId) params.set('collection_id', String(collectionId))
   if (sort) params.set('sort', sort)
   if (seed != null) params.set('seed', String(seed))
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
@@ -474,4 +487,147 @@ export async function resolveJavIdols(ids = []) {
     })
   javIdolResolveInFlight.set(key, request)
   return request
+}
+
+export async function fetchCollections() {
+  const res = await fetch('/collections')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('加载合集失败', 'Failed to load collections'))
+  }
+  return res.json()
+}
+
+export async function createCollection({ name, description = '' }) {
+  const res = await fetch('/collections', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ name, description }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('创建合集失败', 'Failed to create collection'))
+  }
+  return res.json()
+}
+
+export async function updateCollection(id, payload) {
+  const res = await fetch(`/collections/${id}`, {
+    method: 'PATCH',
+    headers: jsonHeaders,
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('更新合集失败', 'Failed to update collection'))
+  }
+  return res.json()
+}
+
+export async function deleteCollection(id) {
+  const res = await fetch(`/collections/${id}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('删除合集失败', 'Failed to delete collection'))
+  }
+}
+
+export async function addJavsToCollection(collectionId, javIds) {
+  const res = await fetch('/collections/javs/add', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ collection_id: collectionId, jav_ids: javIds }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('加入合集失败', 'Failed to add to collection'))
+  }
+}
+
+export async function removeJavsFromCollection(collectionId, javIds) {
+  const res = await fetch('/collections/javs/remove', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ collection_id: collectionId, jav_ids: javIds }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('从合集移除失败', 'Failed to remove from collection'))
+  }
+}
+
+export async function analyzeCollection(id) {
+  const res = await fetch(`/collections/${id}/analyze`, { method: 'POST' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('AI 分析失败', 'AI analysis failed'))
+  }
+  return res.json()
+}
+
+export async function postJavNlQuery({
+  query,
+  directoryIds = [],
+  collectionId = null,
+  limit = 24,
+  offset = 0,
+  sort = 'recent',
+} = {}) {
+  const res = await fetch('/jav/nl_query', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({
+      query,
+      directory_ids: directoryIds,
+      collection_id: collectionId || 0,
+      limit,
+      offset,
+      sort,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('自然语言检索失败', 'Natural language search failed'))
+  }
+  return res.json()
+}
+
+export async function postJavLibraryChat({
+  message,
+  history = [],
+  directoryIds = [],
+  collectionId = null,
+  mode = 'library',
+  focusCode = '',
+} = {}) {
+  const res = await fetch('/jav/library_chat', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({
+      message,
+      history,
+      directory_ids: directoryIds,
+      collection_id: collectionId || 0,
+      mode: mode || 'library',
+      focus_code: String(focusCode || '').trim(),
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('对话请求失败', 'Chat request failed'))
+  }
+  return res.json()
+}
+
+export async function postJavCodeInsight(code) {
+  const res = await fetch('/jav/code_insight', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ code: String(code || '').trim() }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('AI 番号解读失败', 'Code insight request failed'))
+  }
+  return res.json()
 }

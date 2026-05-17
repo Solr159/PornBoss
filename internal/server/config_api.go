@@ -27,7 +27,7 @@ func getConfig(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
-	c.JSON(http.StatusOK, cfg)
+	c.JSON(http.StatusOK, sanitizeConfigForClient(cfg))
 }
 
 func updateConfig(c *gin.Context) {
@@ -61,6 +61,8 @@ func updateConfig(c *gin.Context) {
 		PlayerOntop            *bool                 `json:"player_ontop"`
 		PlayerShowHotkeyHint   *bool                 `json:"player_show_hotkey_hint"`
 		PlayerHotkeys          []playerHotkeyPayload `json:"player_hotkeys"`
+		DeepseekAPIKey         *string               `json:"deepseek_api_key"`
+		DeepseekBaseURL        *string               `json:"deepseek_base_url"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
@@ -288,6 +290,14 @@ func updateConfig(c *gin.Context) {
 		entries["player_hotkeys"] = string(raw)
 	}
 
+	if req.DeepseekAPIKey != nil {
+		k := strings.TrimSpace(*req.DeepseekAPIKey)
+		entries["deepseek_api_key"] = k
+	}
+	if req.DeepseekBaseURL != nil {
+		entries["deepseek_base_url"] = strings.TrimSpace(*req.DeepseekBaseURL)
+	}
+
 	if err := dbpkg.UpsertConfig(c.Request.Context(), entries); err != nil {
 		logging.Error("update config error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
@@ -313,7 +323,7 @@ func updateConfig(c *gin.Context) {
 	}
 	util.SetProxyFromStrings(cfg["proxy_host"], cfg["proxy_port"])
 	jav.SetMetadataLanguage(cfg["jav_metadata_language"])
-	c.JSON(http.StatusOK, cfg)
+	c.JSON(http.StatusOK, sanitizeConfigForClient(cfg))
 }
 
 func normalizeProxyHost(host string) (string, bool) {

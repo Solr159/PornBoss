@@ -41,7 +41,8 @@ type JavStudioScanItem struct {
 }
 
 // SearchJav lists Jav metadata filtered by idol IDs/tag IDs/search with pagination and sorting.
-func SearchJav(ctx context.Context, idolIDs []int64, tagIDs []int64, search, sort string, limit, offset int, seed *int64, directoryIDs []int64, studioIDs ...int64) ([]models.Jav, int64, error) {
+// collectionID limits to members of that collection when > 0. studioID filters by studio when > 0.
+func SearchJav(ctx context.Context, idolIDs []int64, tagIDs []int64, search, sort string, limit, offset int, seed *int64, directoryIDs []int64, collectionID, studioID int64) ([]models.Jav, int64, error) {
 	if limit <= 0 {
 		limit = 100
 	}
@@ -54,11 +55,10 @@ func SearchJav(ctx context.Context, idolIDs []int64, tagIDs []int64, search, sor
 	search = strings.TrimSpace(search)
 	sort = strings.ToLower(strings.TrimSpace(sort))
 
-	studioID := firstPositiveInt64(studioIDs)
-	filtered := buildJavFilter(ctx, idolIDs, tagIDs, search, directoryIDs, studioID)
+	filtered := buildJavFilter(ctx, idolIDs, tagIDs, search, directoryIDs, collectionID, studioID)
 
 	// Count on a cloned query to avoid mutating the main one.
-	countBase := buildJavFilter(ctx, idolIDs, tagIDs, search, directoryIDs, studioID)
+	countBase := buildJavFilter(ctx, idolIDs, tagIDs, search, directoryIDs, collectionID, studioID)
 	countQuery := countBase.Select("DISTINCT jav.id")
 	var total int64
 	if err := countQuery.Count(&total).Error; err != nil {
@@ -121,7 +121,54 @@ func SearchJav(ctx context.Context, idolIDs []int64, tagIDs []int64, search, sor
 	if err := attachJavLocationVideos(ctx, items, directoryIDs); err != nil {
 		return nil, 0, err
 	}
+	if err := attachJavCollections(ctx, items); err != nil {
+		return nil, 0, err
+	}
 	return items, total, nil
+}
+
+func attachJavCollections(ctx context.Context, items []models.Jav) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(items))
+	for _, item := range items {
+		if item.ID > 0 {
+			ids = append(ids, item.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	type colRow struct {
+		JavID int64  `gorm:"column:jav_id"`
+		ID    int64  `gorm:"column:id"`
+		Name  string `gorm:"column:name"`
+	}
+	var rows []colRow
+	if err := common.DB.WithContext(ctx).
+		Table("jav_collection jc").
+		Select("jc.jav_id AS jav_id, c.id AS id, c.name AS name").
+		Joins("JOIN collection c ON c.id = jc.collection_id").
+		Where("jc.jav_id IN ?", ids).
+		Order("jc.jav_id, c.name COLLATE NOCASE").
+		Scan(&rows).Error; err != nil {
+		return fmt.Errorf("load jav collections: %w", err)
+	}
+	byJav := make(map[int64][]models.JavCollectionBrief, len(ids))
+	for _, r := range rows {
+		n := strings.TrimSpace(r.Name)
+		if r.ID <= 0 || n == "" {
+			continue
+		}
+		byJav[r.JavID] = append(byJav[r.JavID], models.JavCollectionBrief{ID: r.ID, Name: n})
+	}
+	for i := range items {
+		if briefs, ok := byJav[items[i].ID]; ok {
+			items[i].Collections = briefs
+		}
+	}
+	return nil
 }
 
 func attachJavLocationVideos(ctx context.Context, items []models.Jav, directoryIDs []int64) error {
@@ -399,7 +446,7 @@ func ReplaceJavUserTags(ctx context.Context, javIDs, tagIDs []int64) error {
 	})
 }
 
-func buildJavFilter(ctx context.Context, idolIDs []int64, tagIDs []int64, search string, directoryIDs []int64, studioID int64) *gorm.DB {
+func buildJavFilter(ctx context.Context, idolIDs []int64, tagIDs []int64, search string, directoryIDs []int64, collectionID, studioID int64) *gorm.DB {
 	q := common.DB.WithContext(ctx).Model(&models.Jav{})
 	visibleTagProviders := visibleJavTagProviders()
 	// Only include JAV entries that have at least one active file location.
@@ -411,6 +458,9 @@ func buildJavFilter(ctx context.Context, idolIDs []int64, tagIDs []int64, search
 		Where(activeLocationWhereSQL("vl", "d"))
 	validLocation = applyDirectoryFilter(validLocation, "vl", directoryIDs)
 	q = q.Where("EXISTS (?)", validLocation)
+	if collectionID > 0 {
+		q = q.Where("EXISTS (SELECT 1 FROM jav_collection jc WHERE jc.jav_id = jav.id AND jc.collection_id = ?)", collectionID)
+	}
 	if search != "" {
 		like := fmt.Sprintf("%%%s%%", search)
 		titleColumn := "title"

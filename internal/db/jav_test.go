@@ -163,7 +163,7 @@ func TestSearchJavFiltersByIdolIDs(t *testing.T) {
 	}
 	createVideoLocationsForVideos(t, db, videos...)
 
-	items, total, err := SearchJav(ctx, []int64{idolA.ID, idolB.ID}, nil, "", "code", 20, 0, nil, nil)
+	items, total, err := SearchJav(ctx, []int64{idolA.ID, idolB.ID}, nil, "", "code", 20, 0, nil, nil, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav by idol ids: %v", err)
 	}
@@ -230,7 +230,7 @@ func TestListJavStudiosAndSearchByStudio(t *testing.T) {
 		t.Fatalf("expected sample code for first studio")
 	}
 
-	items, total, err := SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, studioA.ID)
+	items, total, err := SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, studioA.ID)
 	if err != nil {
 		t.Fatalf("SearchJav by studio: %v", err)
 	}
@@ -554,14 +554,14 @@ func TestSearchJavPreloadsOnlyCurrentLanguageIdols(t *testing.T) {
 	}
 
 	jav.SetMetadataLanguage("zh")
-	items, total, err := SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil)
+	items, total, err := SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav zh: %v", err)
 	}
 	assertSearchJavIdols(t, items, total, []string{"岬ななみ"})
 
 	jav.SetMetadataLanguage("en")
-	items, total, err = SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil)
+	items, total, err = SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav en: %v", err)
 	}
@@ -607,14 +607,14 @@ func TestSearchJavUsesCurrentLanguageTitleField(t *testing.T) {
 	createVideoLocationsForVideos(t, gdb, video)
 
 	jav.SetMetadataLanguage("zh")
-	items, total, err := SearchJav(ctx, nil, nil, "日本語", "code", 20, 0, nil, nil)
+	items, total, err := SearchJav(ctx, nil, nil, "日本語", "code", 20, 0, nil, nil, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav zh title: %v", err)
 	}
 	if total != 1 || len(items) != 1 || items[0].Title != "日本語タイトル" {
 		t.Fatalf("unexpected zh search result: total=%d items=%#v", total, items)
 	}
-	items, total, err = SearchJav(ctx, nil, nil, "English", "code", 20, 0, nil, nil)
+	items, total, err = SearchJav(ctx, nil, nil, "English", "code", 20, 0, nil, nil, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav zh english title: %v", err)
 	}
@@ -623,14 +623,14 @@ func TestSearchJavUsesCurrentLanguageTitleField(t *testing.T) {
 	}
 
 	jav.SetMetadataLanguage("en")
-	items, total, err = SearchJav(ctx, nil, nil, "English", "code", 20, 0, nil, nil)
+	items, total, err = SearchJav(ctx, nil, nil, "English", "code", 20, 0, nil, nil, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav en title: %v", err)
 	}
 	if total != 1 || len(items) != 1 || items[0].TitleEn != "English Title" {
 		t.Fatalf("unexpected en search result: total=%d items=%#v", total, items)
 	}
-	items, total, err = SearchJav(ctx, nil, nil, "日本語", "code", 20, 0, nil, nil)
+	items, total, err = SearchJav(ctx, nil, nil, "日本語", "code", 20, 0, nil, nil, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav en japanese title: %v", err)
 	}
@@ -847,7 +847,7 @@ func TestJavBindingUsesVideoLocationsAndCountsTagWorks(t *testing.T) {
 		t.Fatalf("create locations: %v", err)
 	}
 
-	items, total, err := SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil)
+	items, total, err := SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav: %v", err)
 	}
@@ -1029,7 +1029,7 @@ func TestSearchJavSortByDurationDesc(t *testing.T) {
 	}
 	createVideoLocationsForVideos(t, db, videos...)
 
-	items, total, err := SearchJav(ctx, nil, nil, "", "duration", 20, 0, nil, nil)
+	items, total, err := SearchJav(ctx, nil, nil, "", "duration", 20, 0, nil, nil, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav: %v", err)
 	}
@@ -1046,7 +1046,7 @@ func TestSearchJavSortByDurationDesc(t *testing.T) {
 		t.Fatalf("unexpected second jav: got %d want %d", items[1].ID, shortJav.ID)
 	}
 
-	items, total, err = SearchJav(ctx, nil, nil, "", "duration_asc", 20, 0, nil, nil)
+	items, total, err = SearchJav(ctx, nil, nil, "", "duration_asc", 20, 0, nil, nil, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav duration_asc: %v", err)
 	}

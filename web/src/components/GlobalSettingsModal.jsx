@@ -22,6 +22,11 @@ const SETTINGS_SECTIONS = [
     summary: { zh: '元数据语言', en: 'Metadata language' },
   },
   {
+    id: 'deepseek',
+    title: { zh: 'DeepSeek AI', en: 'DeepSeek AI' },
+    summary: { zh: '自然语言与合集分析', en: 'NL search and collection analysis' },
+  },
+  {
     id: 'player',
     title: { zh: 'MPV播放器', en: 'MPV Player' },
     summary: { zh: 'mpv 快捷键与播放控制', en: 'mpv shortcuts and playback controls' },
@@ -53,6 +58,9 @@ export default function GlobalSettingsModal({
   onSaveProxySettings,
   javMetadataLanguage,
   onSaveJavMetadataLanguage,
+  deepseekApiKeySet = false,
+  deepseekBaseUrl = '',
+  onSaveDeepseekSettings,
   defaultPlayer,
   onSaveDefaultPlayer,
   playerWindowWidth,
@@ -74,6 +82,11 @@ export default function GlobalSettingsModal({
   const [javMetadataLanguageInput, setJavMetadataLanguageInput] = useState('zh')
   const [javMetadataLanguageError, setJavMetadataLanguageError] = useState('')
   const [savingJavMetadataLanguage, setSavingJavMetadataLanguage] = useState(false)
+  const [deepseekBaseUrlInput, setDeepseekBaseUrlInput] = useState('')
+  const [deepseekApiKeyInput, setDeepseekApiKeyInput] = useState('')
+  const [deepseekClearKey, setDeepseekClearKey] = useState(false)
+  const [deepseekError, setDeepseekError] = useState('')
+  const [savingDeepseek, setSavingDeepseek] = useState(false)
   const [activeSection, setActiveSection] = useState('directories')
   const [defaultPlayerInput, setDefaultPlayerInput] = useState('mpv')
   const [defaultPlayerError, setDefaultPlayerError] = useState('')
@@ -124,12 +137,17 @@ export default function GlobalSettingsModal({
       setPlayerOntopInput(playerOntop ?? PLAYER_BASIC_DEFAULTS.ontop)
       setPlayerVolumeInput(String(playerVolume ?? PLAYER_BASIC_DEFAULTS.volume))
       setPlayerShowHotkeyHintInput(playerShowHotkeyHint ?? PLAYER_BASIC_DEFAULTS.showHotkeyHint)
+      setDeepseekBaseUrlInput(String(deepseekBaseUrl || '').trim())
+      setDeepseekApiKeyInput('')
+      setDeepseekClearKey(false)
+      setDeepseekError('')
     }
   }, [
     open,
     proxyHost,
     proxyPort,
     javMetadataLanguage,
+    deepseekBaseUrl,
     defaultPlayer,
     playerWindowWidth,
     playerWindowHeight,
@@ -378,6 +396,122 @@ export default function GlobalSettingsModal({
       setSavingJavMetadataLanguage(false)
     }
   }
+
+  const handleSaveDeepseek = async () => {
+    setDeepseekError('')
+    const nextBase = deepseekBaseUrlInput.trim()
+    const currentBase = String(deepseekBaseUrl || '').trim()
+    const keyTrim = deepseekApiKeyInput.trim()
+    const payload = {}
+    if (nextBase !== currentBase) {
+      payload.deepseek_base_url = nextBase
+    }
+    if (deepseekClearKey) {
+      payload.deepseek_api_key = ''
+    } else if (keyTrim) {
+      payload.deepseek_api_key = keyTrim
+    }
+    if (Object.keys(payload).length === 0) {
+      setDeepseekError(zh('没有可保存的更改', 'Nothing to save'))
+      return
+    }
+    setSavingDeepseek(true)
+    try {
+      await onSaveDeepseekSettings?.(payload)
+      setDeepseekApiKeyInput('')
+      setDeepseekClearKey(false)
+    } catch (err) {
+      setDeepseekError(err.message || zh('保存失败', 'Save failed'))
+    } finally {
+      setSavingDeepseek(false)
+    }
+  }
+
+  const deepseekBaseUnchanged = deepseekBaseUrlInput.trim() === String(deepseekBaseUrl || '').trim()
+  const deepseekKeyUnchanged = !deepseekApiKeyInput.trim() && !deepseekClearKey
+  const deepseekNothingToSave = deepseekBaseUnchanged && deepseekKeyUnchanged
+
+  const renderDeepseekPanel = () => (
+    <div className="space-y-5">
+      <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div className="space-y-4">
+          <p className="text-sm text-zinc-500">
+            {zh(
+              '用于 JAV 自然语言找片、合集 AI 分析与「库问答」对话。密钥仅保存在本机配置中。',
+              'Used for JAV natural-language search, collection AI analysis, and library Q&A. Keys are stored only in local config.'
+            )}
+          </p>
+          <div>
+            <label
+              htmlFor="deepseek-base-url"
+              className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500"
+            >
+              API Base URL
+            </label>
+            <input
+              id="deepseek-base-url"
+              value={deepseekBaseUrlInput}
+              onChange={(e) => {
+                setDeepseekBaseUrlInput(e.target.value)
+                setDeepseekError('')
+              }}
+              placeholder="https://api.deepseek.com"
+              className="w-full max-w-2xl rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="deepseek-api-key"
+              className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500"
+            >
+              API Key
+            </label>
+            <input
+              id="deepseek-api-key"
+              type="password"
+              autoComplete="off"
+              value={deepseekApiKeyInput}
+              onChange={(e) => {
+                setDeepseekApiKeyInput(e.target.value)
+                setDeepseekClearKey(false)
+                setDeepseekError('')
+              }}
+              placeholder={
+                deepseekApiKeySet
+                  ? zh('已保存密钥，输入新值可替换', 'Key is set; enter a new value to replace')
+                  : zh('粘贴 API Key', 'Paste API key')
+              }
+              className="w-full max-w-2xl rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-zinc-700">
+            <input
+              type="checkbox"
+              checked={deepseekClearKey}
+              onChange={(e) => {
+                setDeepseekClearKey(e.target.checked)
+                if (e.target.checked) setDeepseekApiKeyInput('')
+                setDeepseekError('')
+              }}
+              className="h-4 w-4 rounded"
+            />
+            <span>{zh('清除已保存的 API 密钥', 'Clear saved API key')}</span>
+          </label>
+          {deepseekError ? <div className="text-sm text-red-600">{deepseekError}</div> : null}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleSaveDeepseek}
+              disabled={savingDeepseek || deepseekNothingToSave}
+              className="rounded-xl bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+            >
+              {savingDeepseek ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  )
 
   const renderJavPanel = () => {
     const currentLanguage = javMetadataLanguage === 'en' ? 'en' : 'zh'
@@ -740,11 +874,15 @@ export default function GlobalSettingsModal({
                     ? javMetadataLanguage === 'en'
                       ? 'EN'
                       : '中文'
-                    : section.id === 'player'
-                      ? ''
-                      : section.id === 'directories'
-                        ? String(directories.length)
+                    : section.id === 'deepseek'
+                      ? deepseekApiKeySet
+                        ? 'OK'
                         : ''
+                      : section.id === 'player'
+                        ? ''
+                        : section.id === 'directories'
+                          ? String(directories.length)
+                          : ''
 
                 return (
                   <button
@@ -778,6 +916,7 @@ export default function GlobalSettingsModal({
           <section className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-6">
             {activeSection === 'basic' && renderBasicPanel()}
             {activeSection === 'jav' && renderJavPanel()}
+            {activeSection === 'deepseek' && renderDeepseekPanel()}
             {activeSection === 'player' && renderPlayerPanel()}
             {activeSection === 'directories' && renderDirectoriesPanel()}
           </section>

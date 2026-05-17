@@ -1,0 +1,9 @@
+Set-Location d:\code\pboss\PornBoss\web
+npm run build
+Set-Location ..
+$env:GOCACHE = "$pwd\.gocache"
+$env:CGO_ENABLED = "1"
+go build -ldflags "-s -w -X main.buildMode=release" -o pornboss.exe ./cmd/server
+
+
+.\pornboss.exe -addr :17654 -static web\dist

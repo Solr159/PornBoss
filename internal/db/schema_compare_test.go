@@ -9,7 +9,7 @@ import (
 
 	"pornboss/internal/models"
 
-	"gorm.io/driver/sqlite"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 )
@@ -43,6 +43,8 @@ func TestMigratedSchemaMatchesGormModels(t *testing.T) {
 		&models.JavIdol{},
 		&models.JavTagMap{},
 		&models.JavIdolMap{},
+		&models.Collection{},
+		&models.JavCollection{},
 	); err != nil {
 		t.Fatalf("automigrate reference schema: %v", err)
 	}

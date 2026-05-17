@@ -6,12 +6,15 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
+import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined'
+import LibraryBooksOutlinedIcon from '@mui/icons-material/LibraryBooksOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined'
 import SearchIcon from '@mui/icons-material/Search'
 import VideocamOutlinedIcon from '@mui/icons-material/VideocamOutlined'
 
 import { fetchJavIdolPreview } from '@/api'
+import JavCodeInsightModal from '@/components/JavCodeInsightModal'
 import { IdolCard, getIdolCardLayoutProps } from '@/components/JavIdolGrid'
 import { isUserJavTag } from '@/constants/jav'
 import { getJavDisplayTitle } from '@/utils/jav'
@@ -83,6 +86,10 @@ export default function JavGrid({
   openFileLabel,
   onRevealFile,
   onOpenScreenshots,
+  selectionEnabled = false,
+  selectedJavIds = [],
+  onToggleJavSelect,
+  onAddJavToCollection,
 }) {
   const directoryIds = useStore(directoryQueryIds)
   const javMetadataLanguage = useStore((state) =>
@@ -91,7 +98,15 @@ export default function JavGrid({
   const idolPreviewCacheRef = useRef(new Map())
   const idolPreviewInflightRef = useRef(new Map())
   const [coverPreview, setCoverPreview] = useState(null)
+  const [codeInsightCode, setCodeInsightCode] = useState(null)
   const hasItems = Array.isArray(items) && items.length > 0
+  const selectedSet = useMemo(
+    () =>
+      new Set(
+        (selectedJavIds || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+      ),
+    [selectedJavIds]
+  )
   const columnCount = Number.isFinite(Number(columns)) ? Math.floor(Number(columns)) : 0
   const fixedColumnCount = columnCount > 0 ? Math.min(columnCount, 12) : 0
   const gridClassName = fixedColumnCount
@@ -160,11 +175,24 @@ export default function JavGrid({
           titleMaxRows={titleMaxRows}
           idolTagMaxRows={idolTagMaxRows}
           tagMaxRows={tagMaxRows}
+          selectionEnabled={selectionEnabled}
+          selected={selectedSet.has(Number(item.id))}
+          onToggleSelect={onToggleJavSelect}
+          onAddToCollection={onAddJavToCollection}
+          onAskAi={(item) => {
+            const c = String(item?.code || '').trim()
+            if (c) setCodeInsightCode(c)
+          }}
         />
       ))}
       {coverPreview ? (
         <CoverPreviewModal preview={coverPreview} onClose={() => setCoverPreview(null)} />
       ) : null}
+      <JavCodeInsightModal
+        open={Boolean(codeInsightCode)}
+        code={codeInsightCode || ''}
+        onClose={() => setCodeInsightCode(null)}
+      />
     </div>
   )
 }
@@ -610,6 +638,11 @@ function JavCard({
   titleMaxRows,
   idolTagMaxRows,
   tagMaxRows,
+  selectionEnabled = false,
+  selected = false,
+  onToggleSelect,
+  onAddToCollection,
+  onAskAi,
 }) {
   const primaryVideo = useMemo(() => (item?.videos || [])[0], [item])
   const { bgWidthPercent, coverAspectPercent } = useMemo(() => getIdolCardLayoutProps(), [])
@@ -627,6 +660,16 @@ function JavCard({
   const canFilterStudio = studioText && typeof onStudioClick === 'function'
   const codeText = item?.code?.trim()
   const mainTitle = getJavDisplayTitle(item, javMetadataLanguage)
+  const collectionNames = (Array.isArray(item?.collections) ? item.collections : [])
+    .map((c) => String(c?.name || '').trim())
+    .filter(Boolean)
+  const addCollectionTooltip =
+    collectionNames.length > 0
+      ? zh(
+          `加入或管理合集（当前已在：${collectionNames.join('、')}）`,
+          `Add to collection (already in: ${collectionNames.join(', ')})`
+        )
+      : zh('加入合集', 'Add to collection')
   const titleText = [codeText, mainTitle].filter(Boolean).join(' ')
   const normalizedTitleMaxRows = normalizeJavTitleMaxRows(titleMaxRows)
   const titleClampStyle =
@@ -841,7 +884,21 @@ function JavCard({
     typeof previewIdol?.work_count === 'number' && previewIdol.work_count > 0
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-lg border bg-white shadow-sm transition hover:shadow-lg">
+    <div className="relative flex flex-col overflow-hidden rounded-lg border bg-white shadow-sm transition hover:shadow-lg">
+      {selectionEnabled ? (
+        <div className="absolute left-2 top-2 z-20">
+          <label className="flex cursor-pointer items-center rounded bg-white/90 px-1 py-0.5 shadow">
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={() => onToggleSelect?.(item.id)}
+              onClick={(e) => e.stopPropagation()}
+              className="h-4 w-4"
+              aria-label={zh('选择', 'Select')}
+            />
+          </label>
+        </div>
+      ) : null}
       <div className="group relative aspect-[800/538] overflow-hidden bg-gray-100">
         {cover ? (
           <img src={cover} alt={item?.code} className="h-full w-full object-cover" loading="lazy" />
@@ -997,6 +1054,24 @@ function JavCard({
             onFilterLinkClick={handleFilterLinkClick}
           />
         )}
+        {Array.isArray(item?.collections) && item.collections.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {item.collections.slice(0, 4).map((col) => (
+              <span
+                key={col.id}
+                title={zh('所属合集', 'In collection')}
+                className="max-w-[140px] truncate rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-950"
+              >
+                {col.name}
+              </span>
+            ))}
+            {item.collections.length > 4 ? (
+              <span className="self-center text-[10px] text-gray-500">
+                +{item.collections.length - 4}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-center gap-2">
           {Array.isArray(item?.videos) && item.videos.length > 1 && (
             <span className="text-xs text-gray-500">
@@ -1097,6 +1172,36 @@ function JavCard({
               </IconButton>
             </Tooltip>
           )}
+          {typeof onAddToCollection === 'function' && Number(item?.id) > 0 ? (
+            <Tooltip title={addCollectionTooltip}>
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onAddToCollection(item)
+                }}
+                aria-label={addCollectionTooltip}
+                className={`h-6 w-6 text-indigo-700 ${collectionNames.length ? 'ring-1 ring-emerald-400/90 ring-offset-1' : ''}`}
+              >
+                <LibraryBooksOutlinedIcon fontSize="inherit" />
+              </IconButton>
+            </Tooltip>
+          ) : null}
+          {codeText && typeof onAskAi === 'function' ? (
+            <Tooltip title={zh('AI 解读番号', 'AI code insight')}>
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onAskAi(item)
+                }}
+                aria-label={zh('AI 解读番号', 'AI code insight')}
+                className="h-6 w-6 text-violet-700"
+              >
+                <AutoAwesomeOutlinedIcon fontSize="inherit" />
+              </IconButton>
+            </Tooltip>
+          ) : null}
         </div>
       </div>
     </div>

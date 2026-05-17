@@ -28,7 +28,7 @@ func NewRouter(staticDir string) *gin.Engine {
 
 			router.NoRoute(func(c *gin.Context) {
 				path := c.Request.URL.Path
-				if strings.HasPrefix(path, "/videos") || strings.HasPrefix(path, "/tags") || strings.HasPrefix(path, "/sync") || strings.HasPrefix(path, "/healthz") {
+				if strings.HasPrefix(path, "/videos") || strings.HasPrefix(path, "/tags") || strings.HasPrefix(path, "/collections") || strings.HasPrefix(path, "/sync") || strings.HasPrefix(path, "/healthz") {
 					c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 					return
 				}
