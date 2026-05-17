@@ -92,9 +92,6 @@ Go to the [Releases](https://github.com/JavBoss/pornboss/releases) page, downloa
 
 - Windows: double-click `pornboss.exe`. If SmartScreen blocks it on first launch, click "More info" and continue.
 - macOS: double-click `pornboss.command`. If macOS cannot verify the file, open `System Settings` -> `Privacy & Security`, scroll to the bottom, and click `Open Anyway`.
-<p align="center">
-  <img src="screenshot/macos1.png" style="width: 500px; height: auto;">
-</p>
 
 - Linux: open a terminal and run `pornboss`.
 
