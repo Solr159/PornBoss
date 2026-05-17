@@ -14,5 +14,5 @@ func buildOpenCommand(path string, reveal bool) (*exec.Cmd, error) {
 		cmd.SysProcAttr = &syscall.SysProcAttr{CmdLine: "explorer " + selectArg}
 		return cmd, nil
 	}
-	return exec.Command("cmd", "/c", "start", "", path), nil
+	return exec.Command("explorer", path), nil
 }

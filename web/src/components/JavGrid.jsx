@@ -4,6 +4,7 @@ import Fade from '@mui/material/Fade'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
+import MovieCreationIcon from '@mui/icons-material/MovieCreation'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined'
@@ -80,6 +81,7 @@ export default function JavGrid({
   onPlay,
   onIdolClick,
   onStudioClick,
+  onSeriesClick,
   onTagClick,
   onEditTags,
   onOpenFile,
@@ -163,6 +165,7 @@ export default function JavGrid({
           buildJavUrl={buildJavUrl}
           onIdolClick={onIdolClick}
           onStudioClick={onStudioClick}
+          onSeriesClick={onSeriesClick}
           onTagClick={onTagClick}
           onEditTags={onEditTags}
           onOpenFile={onOpenFile}
@@ -626,6 +629,7 @@ function JavCard({
   buildJavUrl,
   onIdolClick,
   onStudioClick,
+  onSeriesClick,
   onTagClick,
   onEditTags,
   onOpenFile,
@@ -658,6 +662,9 @@ function JavCard({
     : ''
   const studioText = String(item?.studio?.name || '').trim()
   const canFilterStudio = studioText && typeof onStudioClick === 'function'
+  const preferredSeries = javMetadataLanguage === 'en' ? item?.series_en : item?.series
+  const seriesText = String(preferredSeries?.name || '').trim()
+  const canFilterSeries = seriesText && typeof onSeriesClick === 'function'
   const codeText = item?.code?.trim()
   const mainTitle = getJavDisplayTitle(item, javMetadataLanguage)
   const collectionNames = (Array.isArray(item?.collections) ? item.collections : [])
@@ -792,6 +799,8 @@ function JavCard({
         tagIds: [],
         studioId: null,
         studioName: '',
+        seriesId: null,
+        seriesName: '',
         random: false,
         tempSort: '',
       }) || '#'
@@ -810,6 +819,8 @@ function JavCard({
         tagIds: [id],
         studioId: null,
         studioName: '',
+        seriesId: null,
+        seriesName: '',
         random: false,
         tempSort: '',
       }) || '#'
@@ -1000,6 +1011,27 @@ function JavCard({
             </span>
           ) : null}
         </div>
+        {seriesText ? (
+          <div className="flex min-w-0 items-start gap-1 text-xs text-gray-600">
+            <Tooltip title={zh('系列', 'Series')} arrow>
+              <span className="inline-flex">
+                <MovieCreationIcon sx={{ fontSize: 16 }} className="shrink-0 text-emerald-600" />
+              </span>
+            </Tooltip>
+            <button
+              type="button"
+              className={`min-w-0 whitespace-normal break-words text-left leading-snug ${
+                canFilterSeries ? 'cursor-pointer hover:text-blue-700 hover:underline' : ''
+              }`}
+              onClick={() => {
+                if (canFilterSeries) onSeriesClick(preferredSeries)
+              }}
+              disabled={!canFilterSeries}
+            >
+              {seriesText}
+            </button>
+          </div>
+        ) : null}
         {Array.isArray(item?.idols) && item.idols.length > 0 && (
           <>
             <IdolTagList

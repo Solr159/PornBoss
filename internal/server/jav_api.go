@@ -26,17 +26,17 @@ func searchJav(c *gin.Context) {
 		}
 		studioID = parsed
 	}
-	search := strings.TrimSpace(c.Query("search"))
-	sort := strings.TrimSpace(c.Query("sort"))
-	collectionID := int64(0)
-	if colParam := strings.TrimSpace(c.Query("collection_id")); colParam != "" {
-		parsed, err := strconv.ParseInt(colParam, 10, 64)
+	seriesID := int64(0)
+	if seriesParam := strings.TrimSpace(c.Query("series_id")); seriesParam != "" {
+		parsed, err := strconv.ParseInt(seriesParam, 10, 64)
 		if err != nil || parsed <= 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid collection_id"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid series_id"})
 			return
 		}
-		collectionID = parsed
+		seriesID = parsed
 	}
+	search := strings.TrimSpace(c.Query("search"))
+	sort := strings.TrimSpace(c.Query("sort"))
 	seedParam := strings.TrimSpace(c.Query("seed"))
 	var seed *int64
 	if seedParam != "" {
@@ -48,7 +48,7 @@ func searchJav(c *gin.Context) {
 		seed = &parsed
 	}
 
-	items, total, err := dbpkg.SearchJav(c.Request.Context(), idolIDs, tagIDs, search, sort, limit, offset, seed, directoryIDs, collectionID, studioID)
+	items, total, err := dbpkg.SearchJav(c.Request.Context(), idolIDs, tagIDs, search, sort, limit, offset, seed, directoryIDs, studioID, seriesID)
 	if err != nil {
 		logging.Error("SearchJav: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
