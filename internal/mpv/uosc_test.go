@@ -19,14 +19,13 @@ func TestEnsureUOSCAssetsCopiesScriptOptionsFontsAndScriptDirectory(t *testing.T
 	}
 
 	expected := map[string]string{
-		filepath.Join(assets.ConfigDir, "script-opts", "uosc.conf"):              files["uosc.conf"],
-		filepath.Join(assets.ConfigDir, "script-opts", "thumbfast.conf"):         files["thumbfast.conf"],
-		filepath.Join(assets.ConfigDir, "scripts", "thumbfast.lua"):              files[filepath.Join("scripts", "thumbfast.lua")],
-		filepath.Join(assets.ConfigDir, "scripts", "uosc", "bin", "ziggy-linux"): files[filepath.Join("scripts", "uosc", "bin", "ziggy-linux")],
-		filepath.Join(assets.ConfigDir, "scripts", "uosc", "main.lua"):           files[filepath.Join("scripts", "uosc", "main.lua")],
-		filepath.Join(assets.ConfigDir, "scripts", "uosc", "lib", "x.lua"):       files[filepath.Join("scripts", "uosc", "lib", "x.lua")],
-		filepath.Join(assets.ConfigDir, "fonts", "uosc_icons.otf"):               files[filepath.Join("fonts", "uosc_icons.otf")],
-		filepath.Join(assets.ConfigDir, "fonts", "uosc_textures.ttf"):            files[filepath.Join("fonts", "uosc_textures.ttf")],
+		filepath.Join(assets.ConfigDir, "script-opts", "uosc.conf"):        files["uosc.conf"],
+		filepath.Join(assets.ConfigDir, "script-opts", "thumbfast.conf"):   files["thumbfast.conf"],
+		filepath.Join(assets.ConfigDir, "scripts", "thumbfast.lua"):        files[filepath.Join("scripts", "thumbfast.lua")],
+		filepath.Join(assets.ConfigDir, "scripts", "uosc", "main.lua"):     files[filepath.Join("scripts", "uosc", "main.lua")],
+		filepath.Join(assets.ConfigDir, "scripts", "uosc", "lib", "x.lua"): files[filepath.Join("scripts", "uosc", "lib", "x.lua")],
+		filepath.Join(assets.ConfigDir, "fonts", "uosc_icons.otf"):         files[filepath.Join("fonts", "uosc_icons.otf")],
+		filepath.Join(assets.ConfigDir, "fonts", "uosc_textures.ttf"):      files[filepath.Join("fonts", "uosc_textures.ttf")],
 	}
 	for path, content := range expected {
 		got, err := os.ReadFile(path)
@@ -123,13 +122,10 @@ func uoscTestFiles() map[string]string {
 	return map[string]string{
 		"uosc.conf":      "timeline_size=40\n",
 		"thumbfast.conf": "max_height=200\nmpv_path=mpv\n",
-		filepath.Join("scripts", "thumbfast.lua"):                    "-- test thumbfast\n",
-		filepath.Join("scripts", "uosc", "bin", "ziggy-darwin"):      "test ziggy darwin",
-		filepath.Join("scripts", "uosc", "bin", "ziggy-linux"):       "test ziggy linux",
-		filepath.Join("scripts", "uosc", "bin", "ziggy-windows.exe"): "test ziggy windows",
-		filepath.Join("scripts", "uosc", "main.lua"):                 "-- test main\n",
-		filepath.Join("scripts", "uosc", "lib", "x.lua"):             "-- test lib\n",
-		filepath.Join("fonts", "uosc_icons.otf"):                     "test icons",
-		filepath.Join("fonts", "uosc_textures.ttf"):                  "test textures",
+		filepath.Join("scripts", "thumbfast.lua"):        "-- test thumbfast\n",
+		filepath.Join("scripts", "uosc", "main.lua"):     "-- test main\n",
+		filepath.Join("scripts", "uosc", "lib", "x.lua"): "-- test lib\n",
+		filepath.Join("fonts", "uosc_icons.otf"):         "test icons",
+		filepath.Join("fonts", "uosc_textures.ttf"):      "test textures",
 	}
 }

@@ -29,9 +29,6 @@ var uoscRequiredFiles = []string{
 	"thumbfast.conf",
 	filepath.Join("scripts", "thumbfast.lua"),
 	filepath.Join("scripts", "uosc", "main.lua"),
-	filepath.Join("scripts", "uosc", "bin", "ziggy-darwin"),
-	filepath.Join("scripts", "uosc", "bin", "ziggy-linux"),
-	filepath.Join("scripts", "uosc", "bin", "ziggy-windows.exe"),
 	filepath.Join("fonts", "uosc_icons.otf"),
 	filepath.Join("fonts", "uosc_textures.ttf"),
 }
@@ -178,7 +175,7 @@ func findUOSCSourceDir() (string, error) {
 		}
 	}
 
-	return "", errors.New("uosc assets not found; expected uosc/uosc.conf, thumbfast.conf, scripts/thumbfast.lua, scripts/uosc, scripts/uosc/bin, and fonts")
+	return "", errors.New("uosc assets not found; expected uosc/uosc.conf, thumbfast.conf, scripts/thumbfast.lua, scripts/uosc, and fonts")
 }
 
 func uoscCandidateDirs(base string) []string {
