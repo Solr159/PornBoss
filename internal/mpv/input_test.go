@@ -39,8 +39,8 @@ func TestBuildConfigContentIncludesRequiredDefaults(t *testing.T) {
 	if !strings.Contains(content, "osd-playing-msg-duration=5000\n") {
 		t.Fatalf("expected osd-playing-msg-duration=5000 in mpv config, got %q", content)
 	}
-	if !strings.Contains(content, "video-align-y=1\n") {
-		t.Fatalf("expected video-align-y=1 in mpv config, got %q", content)
+	if !strings.Contains(content, "video-align-y=0\n") {
+		t.Fatalf("expected fixed-size mpv config to vertically center video, got %q", content)
 	}
 	if strings.Contains(content, "video-margin-ratio-bottom=") {
 		t.Fatalf("expected uosc mpv config to avoid bottom video margin, got %q", content)
@@ -164,6 +164,9 @@ func TestBuildConfigContentCentersConfiguredWindowSize(t *testing.T) {
 	if !strings.Contains(content, "geometry=80%x60%+50%+50%\n") {
 		t.Fatalf("expected centered configured geometry in mpv config, got %q", content)
 	}
+	if !strings.Contains(content, "video-align-y=0\n") {
+		t.Fatalf("expected fixed-size mpv config to vertically center video, got %q", content)
+	}
 }
 
 func TestBuildConfigContentUsesOnlyAutofitForAutomaticWindowSize(t *testing.T) {
@@ -181,6 +184,9 @@ func TestBuildConfigContentUsesOnlyAutofitForAutomaticWindowSize(t *testing.T) {
 
 	if !strings.Contains(content, "autofit=80%x80%\n") {
 		t.Fatalf("expected default autofit size in mpv config, got %q", content)
+	}
+	if !strings.Contains(content, "video-align-y=1\n") {
+		t.Fatalf("expected autofit mpv config to keep video aligned with bottom timeline, got %q", content)
 	}
 	if strings.Contains(content, "auto-window-resize=no\n") {
 		t.Fatalf("expected autofit mpv config to leave automatic window resize enabled, got %q", content)
