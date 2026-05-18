@@ -21,7 +21,10 @@ The browsing experience is somewhat similar to JavDb, JavBus, and JavLibrary, bu
 
 ## Core Philosophy
 
-- **Fully automated managed folder service**: Pornboss provides managed service for local media folders. Add your folders once, and Pornboss automatically handles data fetching, indexing, and updates when folder contents change.
+- **Ready to use, with no external dependencies**: Pornboss includes all runtime dependencies it needs. Add your local folders, wait a short moment, and start using it right away.
+<br>
+
+- **Fully automated managed folder service**: Pornboss provides a managed service for local media folders. Data fetching, indexing, and updates after folder changes are all handled automatically by Pornboss.
 <br>
 
 - **Non-intrusive design**: Pornboss respects your media folders. It only reads folder contents and never modifies them, so you do not need to worry about generated junk such as `.nfo` files or cover images appearing inside your own folders. This also lets Pornboss work alongside other video managers without interfering with them.
