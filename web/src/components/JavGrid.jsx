@@ -669,6 +669,12 @@ function JavCard({
           icon: '/ico/javbus.ico',
         },
         {
+          key: 'javdb',
+          name: 'JavDB',
+          href: `https://javdb.com/search?q=${encodedCode}&f=all`,
+          icon: '/ico/javdb.png',
+        },
+        {
           key: 'missav',
           name: 'MissAV',
           href: `https://missav.ws/ja/${encodedCode}`,
