@@ -109,7 +109,8 @@ func CancelAndReserveDirectoryScan(ctx context.Context, id int64) (func(), error
 // SyncAllDirectories scans all configured active media directories one by one.
 // Each directory is reconciled independently so stale location cleanup is scoped to that
 // directory, while fingerprint matching remains global so moved or duplicated files can keep
-// their existing video metadata, tags, and JAV associations.
+// their existing video metadata, tags, and JAV associations. JAV links are processed as one
+// batch, and the global missing-cover sweep runs once after the whole pass.
 func SyncAllDirectories(ctx context.Context, directories []models.Directory) (*Summary, error) {
 	if common.DB == nil {
 		return nil, errors.New("nil database")
@@ -120,6 +121,16 @@ func SyncAllDirectories(ctx context.Context, directories []models.Directory) (*S
 
 	start := time.Now()
 	summary := &Summary{}
+	javLinks := newJavLinkBatch(ctx)
+	finishJavLinks := func() {
+		if javLinks == nil {
+			return
+		}
+		finishJavLinkBatch(javLinks)
+		javLinks = nil
+	}
+	defer finishJavLinks()
+
 	for _, dir := range directories {
 		if dir.ID == 0 || dir.IsDelete {
 			continue
@@ -127,7 +138,7 @@ func SyncAllDirectories(ctx context.Context, directories []models.Directory) (*S
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		dirSummary, err := SyncDirectory(ctx, dir)
+		dirSummary, err := syncDirectory(ctx, dir, javLinks)
 		if err != nil {
 			if errors.Is(err, ErrDirectoryScanInProgress) {
 				continue
@@ -144,6 +155,11 @@ func SyncAllDirectories(ctx context.Context, directories []models.Directory) (*S
 		summary.Directories += dirSummary.Directories
 	}
 
+	finishJavLinks()
+	if err := enqueueMissingCovers(ctx); err != nil {
+		logging.Error("jav cover enqueue failed: %v", err)
+		return nil, err
+	}
 	summary.Duration = time.Since(start)
 	return summary, nil
 }

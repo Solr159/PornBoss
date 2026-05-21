@@ -93,9 +93,7 @@ func SyncDirectory(ctx context.Context, directory models.Directory) (*Summary, e
 	start := time.Now()
 	javLinks := newJavLinkBatch(ctx)
 	summary, err := syncDirectory(ctx, directory, javLinks)
-	if waitErr := finishJavLinkBatch(ctx, javLinks); err == nil && waitErr != nil {
-		err = waitErr
-	}
+	finishJavLinkBatch(javLinks)
 	if summary != nil {
 		summary.Duration = time.Since(start)
 	}
@@ -469,13 +467,8 @@ func (b *javLinkBatch) worker() {
 	}
 }
 
-func finishJavLinkBatch(ctx context.Context, batch *javLinkBatch) error {
+func finishJavLinkBatch(batch *javLinkBatch) {
 	batch.Wait()
-	if err := enqueueMissingCovers(ctx); err != nil {
-		logging.Error("jav cover enqueue failed: %v", err)
-		return err
-	}
-	return nil
 }
 
 func processVideoLocationJavLink(ctx context.Context, locationID int64) error {
