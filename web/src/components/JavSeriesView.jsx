@@ -2,6 +2,7 @@ import { Tooltip } from '@mui/material'
 import VideocamOutlinedIcon from '@mui/icons-material/VideocamOutlined'
 
 import Pagination from '@/components/Pagination'
+import WaterfallLoader from '@/components/WaterfallLoader'
 import { zh } from '@/utils/i18n'
 
 export default function JavSeriesView({
@@ -20,6 +21,11 @@ export default function JavSeriesView({
   items,
   onSelectSeries,
   onSelectStudio,
+  waterfallMode,
+  onWaterfallModeChange,
+  onLoadMore,
+  loadingMore,
+  hasMore,
 }) {
   return (
     <>
@@ -36,6 +42,8 @@ export default function JavSeriesView({
           onGoToPage={onGoToPage}
           onNext={onNext}
           onLast={onLast}
+          waterfallMode={waterfallMode}
+          onWaterfallModeChange={onWaterfallModeChange}
         />
       </div>
       {loading ? (
@@ -50,6 +58,12 @@ export default function JavSeriesView({
           buildSeriesUrl={buildSeriesUrl}
         />
       )}
+      <WaterfallLoader
+        enabled={waterfallMode && !loading}
+        hasMore={hasMore}
+        loading={loadingMore}
+        onLoadMore={onLoadMore}
+      />
     </>
   )
 }

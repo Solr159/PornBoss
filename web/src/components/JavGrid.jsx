@@ -156,38 +156,40 @@ export default function JavGrid({
   }
 
   return (
-    <div className={gridClassName} style={gridStyle}>
-      {items.map((item) => (
-        <JavCard
-          key={item.id || item.code}
-          item={item}
-          onPlay={onPlay}
-          buildJavUrl={buildJavUrl}
-          onIdolClick={onIdolClick}
-          onStudioClick={onStudioClick}
-          onSeriesClick={onSeriesClick}
-          onTagClick={onTagClick}
-          onEditTags={onEditTags}
-          onOpenFile={onOpenFile}
-          openFileLabel={openFileLabel}
-          onRevealFile={onRevealFile}
-          onOpenScreenshots={onOpenScreenshots}
-          loadIdolPreview={loadIdolPreview}
-          onOpenCoverPreview={setCoverPreview}
-          javMetadataLanguage={javMetadataLanguage}
-          titleMaxRows={titleMaxRows}
-          idolTagMaxRows={idolTagMaxRows}
-          tagMaxRows={tagMaxRows}
-          selectionEnabled={selectionEnabled}
-          selected={selectedSet.has(Number(item.id))}
-          onToggleSelect={onToggleJavSelect}
-          onAddToCollection={onAddJavToCollection}
-          onAskAi={(item) => {
-            const c = String(item?.code || '').trim()
-            if (c) setCodeInsightCode(c)
-          }}
-        />
-      ))}
+    <>
+      <div className={gridClassName} style={gridStyle}>
+        {items.map((item) => (
+          <JavCard
+            key={item.id || item.code}
+            item={item}
+            onPlay={onPlay}
+            buildJavUrl={buildJavUrl}
+            onIdolClick={onIdolClick}
+            onStudioClick={onStudioClick}
+            onSeriesClick={onSeriesClick}
+            onTagClick={onTagClick}
+            onEditTags={onEditTags}
+            onOpenFile={onOpenFile}
+            openFileLabel={openFileLabel}
+            onRevealFile={onRevealFile}
+            onOpenScreenshots={onOpenScreenshots}
+            loadIdolPreview={loadIdolPreview}
+            onOpenCoverPreview={setCoverPreview}
+            javMetadataLanguage={javMetadataLanguage}
+            titleMaxRows={titleMaxRows}
+            idolTagMaxRows={idolTagMaxRows}
+            tagMaxRows={tagMaxRows}
+            selectionEnabled={selectionEnabled}
+            selected={selectedSet.has(Number(item.id))}
+            onToggleSelect={onToggleJavSelect}
+            onAddToCollection={onAddJavToCollection}
+            onAskAi={(item) => {
+              const c = String(item?.code || '').trim()
+              if (c) setCodeInsightCode(c)
+            }}
+          />
+        ))}
+      </div>
       {coverPreview ? (
         <CoverPreviewModal preview={coverPreview} onClose={() => setCoverPreview(null)} />
       ) : null}
@@ -196,7 +198,7 @@ export default function JavGrid({
         code={codeInsightCode || ''}
         onClose={() => setCodeInsightCode(null)}
       />
-    </div>
+    </>
   )
 }
 

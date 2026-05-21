@@ -1,5 +1,6 @@
 import { getIdolCardLayoutProps } from '@/components/JavIdolGrid'
 import Pagination from '@/components/Pagination'
+import WaterfallLoader from '@/components/WaterfallLoader'
 import { zh } from '@/utils/i18n'
 
 export default function JavStudioView({
@@ -17,6 +18,11 @@ export default function JavStudioView({
   onLast,
   items,
   onSelectStudio,
+  waterfallMode,
+  onWaterfallModeChange,
+  onLoadMore,
+  loadingMore,
+  hasMore,
 }) {
   return (
     <>
@@ -33,6 +39,8 @@ export default function JavStudioView({
           onGoToPage={onGoToPage}
           onNext={onNext}
           onLast={onLast}
+          waterfallMode={waterfallMode}
+          onWaterfallModeChange={onWaterfallModeChange}
         />
       </div>
       {loading ? (
@@ -46,6 +54,12 @@ export default function JavStudioView({
           buildStudioUrl={buildStudioUrl}
         />
       )}
+      <WaterfallLoader
+        enabled={waterfallMode && !loading}
+        hasMore={hasMore}
+        loading={loadingMore}
+        onLoadMore={onLoadMore}
+      />
     </>
   )
 }
