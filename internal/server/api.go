@@ -41,6 +41,7 @@ func RegisterRoutes(router *gin.Engine) {
 	router.POST("/videos/tags/replace", replaceTagsForVideos)
 
 	router.GET("/jav", searchJav)
+	router.PATCH("/jav/:id", patchJavMetadata)
 	router.POST("/jav/nl_query", postJavNLQuery)
 	router.POST("/jav/library_chat", postJavLibraryChat)
 	router.POST("/jav/code_insight", postJavCodeInsight)

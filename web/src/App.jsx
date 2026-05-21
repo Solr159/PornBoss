@@ -16,15 +16,23 @@ import {
   createJavTag,
   renameJavTag,
   deleteJavTag,
-  replaceJavTagsForItems,
+  patchJavMetadata,
   resolveJavIdols,
+  createCollection,
+  addJavsToCollection,
+  removeJavsFromCollection,
+  analyzeCollection,
 } from '@/api'
+import CollectionPickerModal from '@/components/CollectionPickerModal'
 import GlobalSettingsModal from '@/components/GlobalSettingsModal'
+import JavCollectionListView from '@/components/JavCollectionListView'
+import JavNlSearchBar from '@/components/JavNlSearchBar'
 import JavIdolView from '@/components/JavIdolView'
 import JavQueryEditorModal from '@/components/JavQueryEditorModal'
 import JavSettingsModal from '@/components/JavSettingsModal'
 import JavSeriesView from '@/components/JavSeriesView'
 import JavStudioView from '@/components/JavStudioView'
+import JavMetadataEditModal from '@/components/JavMetadataEditModal'
 import JavTagModal from '@/components/JavTagModal'
 import JavVideoPickerModal from '@/components/JavVideoPickerModal'
 import JavView from '@/components/JavView'
@@ -151,6 +159,19 @@ export default function App() {
     seriesLoading,
     seriesError,
     loadJavSeries,
+    loadCollections,
+    javCollectionId,
+    javCollectionName,
+    setJavCollectionId,
+    javCollections,
+    javCollectionsLoading,
+    javCollectionsError,
+    javNlHint,
+    javSelectMode,
+    setJavSelectMode,
+    javSelectedIds,
+    toggleJavSelected,
+    clearJavItemSelection,
     directories,
     loadDirectories,
     createDirectory,
@@ -251,8 +272,8 @@ export default function App() {
   )
   const [tagPickerFor, setTagPickerFor] = useState(null)
   const [tagPickerSelected, setTagPickerSelected] = useState([])
-  const [javTagPickerItem, setJavTagPickerItem] = useState(null)
-  const [javTagPickerSelected, setJavTagPickerSelected] = useState([])
+  const [javMetadataEditItem, setJavMetadataEditItem] = useState(null)
+  const [javMetadataSaving, setJavMetadataSaving] = useState(false)
   const [selectionOpsOpen, setSelectionOpsOpen] = useState(false)
   const [selectionTagsOpen, setSelectionTagsOpen] = useState(false)
   const [selectionTagAction, setSelectionTagAction] = useState('add')
@@ -270,6 +291,11 @@ export default function App() {
   const [idolSortInput, setIdolSortInput] = useState(idolSort)
   const [javResolvedIdols, setJavResolvedIdols] = useState({})
   const [toastMessage, setToastMessage] = useState('')
+  const [collectionPickerOpen, setCollectionPickerOpen] = useState(false)
+  const [collectionPickerIds, setCollectionPickerIds] = useState([])
+  const [collectionAnalyzeOpen, setCollectionAnalyzeOpen] = useState(false)
+  const [collectionAnalyzeText, setCollectionAnalyzeText] = useState('')
+  const [collectionAnalyzeBusy, setCollectionAnalyzeBusy] = useState(false)
   const javVideoChoices = javVideoPickerItem?.videos || []
   const locationPickerItem = locationPickerVideo
     ? {
@@ -282,6 +308,7 @@ export default function App() {
     : null
   const defaultPlayer = normalizeDefaultPlayer(config?.default_player)
   const initialViewMode = normalizeInitialViewMode(config?.initial_view_mode)
+  const javMetadataLanguage = config?.jav_metadata_language === 'en' ? 'en' : 'zh'
   const alternatePlayer = defaultPlayer === 'system' ? 'mpv' : 'system'
   const alternatePlayerLabel =
     alternatePlayer === 'mpv'
@@ -678,6 +705,8 @@ export default function App() {
         studioName: studioNameOverride,
         seriesId: seriesIdOverride,
         seriesName: seriesNameOverride,
+        collectionId: collectionIdOverride,
+        collectionName: collectionNameOverride,
         tagIds: tagIdsOverride,
         random: randomOverride,
         seed: seedOverride,
@@ -686,7 +715,7 @@ export default function App() {
       const sp = new URLSearchParams()
       sp.set('view', 'jav')
       const tab = tabOverride ?? javTab
-      if (tab === 'idol' || tab === 'studio' || tab === 'series') {
+      if (tab === 'idol' || tab === 'studio' || tab === 'series' || tab === 'collection') {
         sp.set('tab', tab)
       }
       const searchVal = (searchOverride ?? javSearchTerm).trim()
@@ -721,17 +750,29 @@ export default function App() {
           sp.set('series_name', seriesName)
         }
       }
+      const hasCollectionIdOverride = Object.prototype.hasOwnProperty.call(options, 'collectionId')
+      const collectionId = hasCollectionIdOverride ? collectionIdOverride : javCollectionId
+      const javGridLike = tab === 'list' || tab === 'collection'
+      if (javGridLike && collectionId) {
+        sp.set('collection_id', String(collectionId))
+        const collectionName =
+          collectionNameOverride ??
+          (hasCollectionIdOverride ? '' : String(javCollectionName || '').trim())
+        if (collectionName) {
+          sp.set('collection_name', collectionName)
+        }
+      }
       const hasTempSortOverride = Object.prototype.hasOwnProperty.call(options, 'tempSort')
       const tempSortVal = hasTempSortOverride ? normalizeJavSort(tempSortOverride, '') : javTempSort
       const randomFlag = randomOverride ?? javRandomMode
-      if (tab === 'list' && randomFlag) {
+      if (javGridLike && randomFlag) {
         sp.set('random', '1')
         const seedValue = seedOverride ?? javRandomSeed
         if (seedValue) {
           sp.set('seed', String(seedValue))
         }
       } else {
-        if (tab === 'list' && tempSortVal) {
+        if (javGridLike && tempSortVal) {
           sp.set('temp_sort', tempSortVal)
         }
         sp.delete('random')
@@ -759,6 +800,8 @@ export default function App() {
       javStudioName,
       javSeriesId,
       javSeriesName,
+      javCollectionId,
+      javCollectionName,
       javPage,
       javTempSort,
       javSearchTerm,
@@ -824,14 +867,24 @@ export default function App() {
           javStudioName: jav.tab === 'list' && jav.studioId ? jav.studioName : '',
           javSeriesId: jav.tab === 'list' ? jav.seriesId : null,
           javSeriesName: jav.tab === 'list' && jav.seriesId ? jav.seriesName : '',
+          javCollectionId:
+            jav.tab === 'list' || jav.tab === 'collection' ? jav.collectionId : null,
+          javCollectionName:
+            (jav.tab === 'list' || jav.tab === 'collection') && jav.collectionId
+              ? jav.collectionName
+              : '',
           javPage: jav.random ? 1 : jav.page,
           idolPage: jav.tab === 'idol' ? jav.page : 1,
           studioPage: jav.tab === 'studio' ? jav.page : 1,
           seriesPage: jav.tab === 'series' ? jav.page : 1,
-          javTempSort: jav.tab !== 'list' || jav.random ? '' : jav.tempSort,
+          javTempSort:
+            (jav.tab !== 'list' && jav.tab !== 'collection') || jav.random ? '' : jav.tempSort,
+          javSelectMode: false,
+          javSelectedIds: [],
         })
         setJavSearchInput(jav.search)
-        if (jav.tab === 'list' && jav.random) {
+        const javGridLike = jav.tab === 'list' || jav.tab === 'collection'
+        if (javGridLike && jav.random) {
           useStore.getState().loadJavRandom(jav.seed ?? undefined)
         }
         setHydrated(true)
@@ -947,6 +1000,8 @@ export default function App() {
       loadJavStudios()
     } else if (javTab === 'series') {
       loadJavSeries()
+    } else if (javTab === 'collection' && !javCollectionId) {
+      loadCollections()
     } else {
       loadJavs()
     }
@@ -954,6 +1009,7 @@ export default function App() {
     hydrated,
     isJavMode,
     javTab,
+    javCollectionId,
     javPage,
     javPageSize,
     javSearchTerm,
@@ -976,6 +1032,7 @@ export default function App() {
     loadJavIdols,
     loadJavStudios,
     loadJavSeries,
+    loadCollections,
     configLoaded,
   ])
 
@@ -993,11 +1050,22 @@ export default function App() {
         loadJavStudios({ force: true })
       } else if (tab === 'series') {
         loadJavSeries({ force: true })
+      } else if (tab === 'collection' && !javCollectionId) {
+        loadCollections()
       } else {
         loadJavs({ force: true })
       }
     },
-    [configLoaded, hydrated, loadJavIdols, loadJavSeries, loadJavStudios, loadJavs]
+    [
+      configLoaded,
+      hydrated,
+      javCollectionId,
+      loadCollections,
+      loadJavIdols,
+      loadJavSeries,
+      loadJavStudios,
+      loadJavs,
+    ]
   )
 
   const currentUrlState = useMemo(
@@ -1020,6 +1088,8 @@ export default function App() {
           javStudioName,
           javSeriesId,
           javSeriesName,
+          javCollectionId,
+          javCollectionName,
           javTempSort,
           javRandomMode,
           javRandomSeed,
@@ -1059,6 +1129,8 @@ export default function App() {
       viewMode,
       javStudioName,
       javSeriesName,
+      javCollectionId,
+      javCollectionName,
     ]
   )
 
@@ -1199,17 +1271,26 @@ export default function App() {
     tempSort: '',
   })
   const randomHref = buildVideoUrl({ random: true, page: 1, tagIds: [], search: '' })
+  const javSearchTab =
+    javTab === 'collection' && !javCollectionId ? 'list' : javTab
   const javSearchHref = buildJavUrl({
     search: javSearchInput,
     page: 1,
-    tab: javTab,
+    tab: javSearchTab,
     idolIds: [],
     tagIds: [],
     studioId: null,
     seriesId: null,
+    collectionId: javCollectionId,
     random: false,
     tempSort: '',
   })
+  const filteredCollections = useMemo(() => {
+    const rows = Array.isArray(javCollections) ? javCollections : []
+    const q = (javSearchTerm || '').trim().toLowerCase()
+    if (!q) return rows
+    return rows.filter((row) => String(row?.name || '').toLowerCase().includes(q))
+  }, [javCollections, javSearchTerm])
   const javRandomHref = buildJavUrl({
     random: true,
     page: 1,
@@ -1558,14 +1639,10 @@ export default function App() {
     [videos]
   )
 
-  const openJavTagEditor = useCallback(
+  const openJavMetadataEditor = useCallback(
     (item) => {
       if (!item) return
-      const initial = Array.isArray(item?.tags)
-        ? item.tags.filter((tag) => isUserJavTag(tag)).map((tag) => String(tag.id))
-        : []
-      setJavTagPickerItem(item)
-      setJavTagPickerSelected(initial)
+      setJavMetadataEditItem(item)
       loadJavTags()
     },
     [loadJavTags]
@@ -1587,24 +1664,6 @@ export default function App() {
     }
     return false
   }, [tagPickerExisting, tagPickerFor, tagPickerSelected])
-
-  const javTagPickerExisting = useMemo(() => {
-    if (!javTagPickerItem) return []
-    return Array.isArray(javTagPickerItem?.tags)
-      ? javTagPickerItem.tags.filter((tag) => isUserJavTag(tag)).map((tag) => String(tag.id))
-      : []
-  }, [javTagPickerItem])
-
-  const javTagPickerDirty = useMemo(() => {
-    if (!javTagPickerItem) return false
-    const current = new Set(javTagPickerExisting)
-    const selected = new Set(javTagPickerSelected)
-    if (current.size !== selected.size) return true
-    for (const id of current) {
-      if (!selected.has(id)) return true
-    }
-    return false
-  }, [javTagPickerExisting, javTagPickerItem, javTagPickerSelected])
 
   const handleApplyTags = async () => {
     if (!tagPickerFor) {
@@ -1638,48 +1697,28 @@ export default function App() {
     }
   }
 
-  const handleApplyJavTags = async () => {
-    if (!javTagPickerItem) {
-      setJavTagPickerItem(null)
-      setJavTagPickerSelected([])
-      return
-    }
-    const javId = javTagPickerItem.id
+  const handleApplyJavMetadata = async (item, payload) => {
+    const javId = item?.id
     if (!javId) {
-      setJavTagPickerItem(null)
-      setJavTagPickerSelected([])
+      setJavMetadataEditItem(null)
       return
     }
-    const selectedIds = javTagPickerSelected.map((t) => Number(t)).filter(Boolean)
-    if (!javTagPickerDirty) {
-      setJavTagPickerItem(null)
-      setJavTagPickerSelected([])
-      return
-    }
+    setJavMetadataSaving(true)
     try {
-      await replaceJavTagsForItems([javId], selectedIds)
+      const updated = await patchJavMetadata(javId, payload, {
+        metadataLanguage: javMetadataLanguage,
+      })
       useStore.setState((state) => {
         if (!Array.isArray(state.javItems)) return {}
-        const userTagMap = new Map(javUserTagOptions.map((tag) => [tag.id, tag]))
-        const next = state.javItems.map((item) => {
-          if (item.id !== javId) return item
-          const existingTags = Array.isArray(item.tags) ? item.tags : []
-          for (const tag of existingTags) {
-            if (isUserJavTag(tag) && !userTagMap.has(tag.id)) {
-              userTagMap.set(tag.id, tag)
-            }
-          }
-          const nextUserTags = selectedIds.map((id) => userTagMap.get(id)).filter(Boolean)
-          const nonUserTags = existingTags.filter((tag) => !isUserJavTag(tag))
-          return { ...item, tags: [...nonUserTags, ...nextUserTags] }
-        })
+        const next = state.javItems.map((row) => (row.id === javId ? { ...row, ...updated } : row))
         return { javItems: next }
       })
+      setJavMetadataEditItem(null)
+      loadJavTags({ skipUnchanged: true })
     } catch (err) {
-      console.error('update jav tags failed', err)
+      console.error('update jav metadata failed', err)
     } finally {
-      setJavTagPickerItem(null)
-      setJavTagPickerSelected([])
+      setJavMetadataSaving(false)
     }
   }
 
@@ -1688,9 +1727,9 @@ export default function App() {
     setTagPickerSelected([])
   }
 
-  const handleJavTagPickerClose = () => {
-    setJavTagPickerItem(null)
-    setJavTagPickerSelected([])
+  const handleJavMetadataEditClose = () => {
+    if (javMetadataSaving) return
+    setJavMetadataEditItem(null)
   }
 
   const handleTagPickerToggle = (tagId, checked) => {
@@ -1702,14 +1741,6 @@ export default function App() {
     })
   }
 
-  const handleJavTagPickerToggle = (tagId, checked) => {
-    setJavTagPickerSelected((prev) => {
-      const set = new Set(prev)
-      if (checked) set.add(String(tagId))
-      else set.delete(String(tagId))
-      return Array.from(set)
-    })
-  }
 
   const handleSelectionTagsClose = () => {
     setSelectionTagsOpen(false)
@@ -1780,11 +1811,164 @@ export default function App() {
     }
   }
 
+  const openCollectionPicker = useCallback((ids) => {
+    const clean = Array.from(
+      new Set(
+        (ids || [])
+          .map((id) => Number(id))
+          .filter((id) => Number.isFinite(id) && id > 0)
+      )
+    )
+    if (!clean.length) return
+    setCollectionPickerIds(clean)
+    setCollectionPickerOpen(true)
+    if (!javCollections.length) {
+      loadCollections()
+    }
+  }, [javCollections.length, loadCollections])
+
+  const handleOpenCollection = useCallback(
+    (row) => {
+      const id = Number(row?.id)
+      if (!Number.isFinite(id) || id <= 0) return
+      setJavCollectionId(id, row?.name || '')
+      useStore.setState({
+        javTab: 'collection',
+        javIdolIds: [],
+        javTags: [],
+        javStudioId: null,
+        javStudioName: '',
+        javSeriesId: null,
+        javSeriesName: '',
+        javSearchTerm: '',
+        javPage: 1,
+        javNlHint: '',
+        javSelectMode: false,
+        javSelectedIds: [],
+      })
+      setJavSearchInput('')
+    },
+    [setJavCollectionId, setJavSearchInput]
+  )
+
+  const handleBackToCollectionList = useCallback(() => {
+    setJavCollectionId(null)
+    useStore.setState({
+      javTab: 'collection',
+      javPage: 1,
+      javSelectMode: false,
+      javSelectedIds: [],
+    })
+  }, [setJavCollectionId])
+
+  const handleCreateCollection = useCallback(async () => {
+    const name = window.prompt(zh('合集名称', 'Collection name'))
+    if (!name?.trim()) return
+    try {
+      await createCollection({ name: name.trim() })
+      await loadCollections()
+      showToast(zh('合集已创建', 'Collection created'))
+    } catch (e) {
+      showToast(e.message || zh('创建失败', 'Create failed'))
+    }
+  }, [loadCollections, showToast])
+
+  const handlePickCollection = useCallback(
+    async (collection) => {
+      const collectionId = Number(collection?.id)
+      if (!Number.isFinite(collectionId) || collectionId <= 0 || collectionPickerIds.length === 0) {
+        return
+      }
+      const targetSet = new Set(
+        collectionPickerIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+      )
+      const rows = (javItems || []).filter((row) => targetSet.has(Number(row?.id)))
+      const allIn =
+        rows.length > 0 &&
+        rows.every((row) =>
+          (Array.isArray(row?.collections) ? row.collections : []).some(
+            (col) => Number(col?.id) === collectionId
+          )
+        )
+      try {
+        if (allIn) {
+          await removeJavsFromCollection(collectionId, collectionPickerIds)
+          showToast(zh('已从合集移除', 'Removed from collection'))
+        } else {
+          await addJavsToCollection(collectionId, collectionPickerIds)
+          showToast(zh('已加入合集', 'Added to collection'))
+        }
+        setCollectionPickerOpen(false)
+        clearJavItemSelection()
+        await loadJavs({ force: true })
+        await loadCollections()
+      } catch (e) {
+        showToast(e.message || zh('操作失败', 'Operation failed'))
+      }
+    },
+    [
+      clearJavItemSelection,
+      collectionPickerIds,
+      javItems,
+      loadCollections,
+      loadJavs,
+      showToast,
+    ]
+  )
+
+  const handleRemoveFromCurrentCollection = useCallback(async () => {
+    if (!javCollectionId) return
+    const ids = (javSelectedIds || [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id) && id > 0)
+    if (!ids.length) return
+    try {
+      await removeJavsFromCollection(javCollectionId, ids)
+      clearJavItemSelection()
+      await loadJavs({ force: true })
+      await loadCollections()
+      showToast(zh('已从合集移除', 'Removed from collection'))
+    } catch (e) {
+      showToast(e.message || zh('移除失败', 'Failed to remove'))
+    }
+  }, [
+    clearJavItemSelection,
+    javCollectionId,
+    javSelectedIds,
+    loadCollections,
+    loadJavs,
+    showToast,
+  ])
+
+  const handleAnalyzeCurrentCollection = useCallback(async () => {
+    if (!javCollectionId) return
+    setCollectionAnalyzeBusy(true)
+    try {
+      const resp = await analyzeCollection(javCollectionId)
+      setCollectionAnalyzeText(String(resp?.content || '').trim())
+      setCollectionAnalyzeOpen(true)
+    } catch (e) {
+      showToast(e.message || zh('分析失败', 'Analysis failed'))
+    } finally {
+      setCollectionAnalyzeBusy(false)
+    }
+  }, [javCollectionId, showToast])
+
+  const handleAddSingleJavToCollection = useCallback(
+    (item) => {
+      const id = Number(item?.id)
+      if (!Number.isFinite(id) || id <= 0) return
+      openCollectionPicker([id])
+    },
+    [openCollectionPicker]
+  )
+
   const handleHomeClick = () => {
     setTagModalOpen(false)
     setVideoSettingsOpen(false)
     setJavSettingsOpen(false)
     setGlobalSettingsOpen(false)
+    setCollectionPickerOpen(false)
     if (isJavMode) {
       useStore.setState({
         viewMode: 'jav',
@@ -1799,11 +1983,16 @@ export default function App() {
         javStudioName: '',
         javSeriesId: null,
         javSeriesName: '',
+        javCollectionId: null,
+        javCollectionName: '',
         javSearchTerm: '',
         javPage: 1,
         idolPage: 1,
         studioPage: 1,
         seriesPage: 1,
+        javSelectMode: false,
+        javSelectedIds: [],
+        javNlHint: '',
       })
       setJavSearchInput('')
       forceReloadJavByTab('list')
@@ -1827,18 +2016,29 @@ export default function App() {
 
   const handleSwitchToJav = () => {
     const targetTab =
-      javTab === 'idol' || javTab === 'studio' || javTab === 'series' ? javTab : 'list'
+      javTab === 'idol' || javTab === 'studio' || javTab === 'series' || javTab === 'collection'
+        ? javTab
+        : 'list'
     useStore.setState({ viewMode: 'jav', videoTempSort: '', javTab: targetTab, javTempSort: '' })
     forceReloadJavByTab(targetTab)
   }
 
   const handleSwitchJavTab = (tab) => {
     const nextTab =
-      tab === 'idol' ? 'idol' : tab === 'studio' ? 'studio' : tab === 'series' ? 'series' : 'list'
-    const shouldResetRandomList = nextTab === 'list' && javRandomMode
-    const shouldClearSearch = nextTab === 'list' || nextTab !== javTab || shouldResetRandomList
-    const nextRandomMode = nextTab === 'list' && !shouldResetRandomList ? javRandomMode : false
-    const nextRandomSeed = nextTab === 'list' && !shouldResetRandomList ? javRandomSeed : null
+      tab === 'idol'
+        ? 'idol'
+        : tab === 'studio'
+          ? 'studio'
+          : tab === 'series'
+            ? 'series'
+            : tab === 'collection'
+              ? 'collection'
+              : 'list'
+    const javGridLike = nextTab === 'list' || nextTab === 'collection'
+    const shouldResetRandomList = javGridLike && javRandomMode
+    const shouldClearSearch = javGridLike || nextTab !== javTab || shouldResetRandomList
+    const nextRandomMode = javGridLike && !shouldResetRandomList ? javRandomMode : false
+    const nextRandomSeed = javGridLike && !shouldResetRandomList ? javRandomSeed : null
     const updates = {
       javTab: nextTab,
       javTempSort: '',
@@ -1854,6 +2054,17 @@ export default function App() {
       idolPage: 1,
       studioPage: 1,
       seriesPage: 1,
+      javSelectMode: false,
+      javSelectedIds: [],
+      javNlHint: '',
+    }
+    if (nextTab === 'collection' && javTab !== 'collection') {
+      updates.javCollectionId = null
+      updates.javCollectionName = ''
+    }
+    if (nextTab !== 'collection' && nextTab !== 'list') {
+      updates.javCollectionId = null
+      updates.javCollectionName = ''
     }
     if (shouldClearSearch) {
       updates.javSearchTerm = ''
@@ -2060,7 +2271,9 @@ export default function App() {
         ? studioError
         : javTab === 'series'
           ? seriesError
-          : javError
+          : javTab === 'collection' && !javCollectionId
+            ? javCollectionsError
+            : javError
     : error
   const showDirectorySetupHint =
     hydrated &&
@@ -2079,7 +2292,9 @@ export default function App() {
         ? studioLoading
         : javTab === 'series'
           ? seriesLoading
-          : javLoading
+          : javTab === 'collection' && !javCollectionId
+            ? javCollectionsLoading
+            : javLoading
   const javVideoPickerTitle =
     javVideoPickerAction === 'open'
       ? alternatePlayer === 'mpv'
@@ -2215,6 +2430,98 @@ export default function App() {
               items={studioItems}
               onSelectStudio={handleSelectStudio}
             />
+          ) : javTab === 'collection' && !javCollectionId ? (
+            <JavCollectionListView
+              items={filteredCollections}
+              loading={javCollectionsLoading}
+              error={javCollectionsError}
+              onOpenCollection={handleOpenCollection}
+              onCreateClick={handleCreateCollection}
+              onRefresh={() => loadCollections()}
+              buildCollectionUrl={(row) =>
+                buildJavUrl({
+                  page: 1,
+                  search: '',
+                  tab: 'collection',
+                  collectionId: row.id,
+                  collectionName: row.name,
+                  idolIds: [],
+                  tagIds: [],
+                  studioId: null,
+                  seriesId: null,
+                  tempSort: '',
+                })
+              }
+            />
+          ) : javTab === 'collection' && javCollectionId ? (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleBackToCollectionList}
+                    className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                  >
+                    {zh('← 合集列表', '← Collections')}
+                  </button>
+                  <h1 className="text-lg font-semibold text-gray-900">
+                    {javCollectionName || zh('合集', 'Collection')}
+                  </h1>
+                </div>
+                <button
+                  type="button"
+                  disabled={collectionAnalyzeBusy}
+                  onClick={handleAnalyzeCurrentCollection}
+                  className="rounded border border-violet-300 bg-violet-50 px-3 py-1 text-xs font-medium text-violet-900 hover:bg-violet-100 disabled:opacity-50"
+                >
+                  {collectionAnalyzeBusy
+                    ? zh('分析中…', 'Analyzing...')
+                    : zh('AI 分析合集', 'AI analyze collection')}
+                </button>
+              </div>
+              {javNlHint ? (
+                <div className="rounded border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+                  {javNlHint}
+                </div>
+              ) : null}
+              <JavNlSearchBar collectionId={javCollectionId} />
+              <JavView
+                javPage={javPage}
+                javLastPage={javLastPage}
+                javHasPrev={javHasPrev}
+                javHasNext={javHasNext}
+                javLoading={activeJavLoading}
+                javRandomMode={javRandomMode}
+                javTempSort={javTempSort}
+                javGlobalSort={javSort}
+                buildJavUrl={buildJavUrl}
+                setJavPage={setJavPage}
+                setJavTempSort={setJavTempSort}
+                javItems={javItems}
+                javGridColumns={javGridColumns}
+                javTitleMaxRows={javTitleMaxRows}
+                javIdolTagMaxRows={javIdolTagMaxRows}
+                javTagMaxRows={javTagMaxRows}
+                onPlay={handleJavPlay}
+                onOpenFile={handleJavOpenFile}
+                openFileLabel={alternatePlayerLabel}
+                onRevealFile={handleJavRevealFile}
+                onOpenScreenshots={handleJavOpenScreenshots}
+                onIdolClick={handleJavIdolClick}
+                onStudioClick={handleSelectStudio}
+                onSeriesClick={handleSelectSeries}
+                onTagClick={handleJavTagClick}
+                onEditTags={openJavMetadataEditor}
+                javSelectMode={javSelectMode}
+                onJavSelectModeChange={setJavSelectMode}
+                selectedJavIds={javSelectedIds}
+                onToggleJavSelect={toggleJavSelected}
+                showRemoveFromCollection
+                onOpenAddToCollection={() => openCollectionPicker(javSelectedIds)}
+                onAddJavToCollection={handleAddSingleJavToCollection}
+                onRemoveFromCurrentCollection={handleRemoveFromCurrentCollection}
+              />
+            </div>
           ) : javTab === 'series' ? (
             <JavSeriesView
               page={seriesPage}
@@ -2274,7 +2581,13 @@ export default function App() {
               onStudioClick={handleSelectStudio}
               onSeriesClick={handleSelectSeries}
               onTagClick={handleJavTagClick}
-              onEditTags={openJavTagEditor}
+              onEditTags={openJavMetadataEditor}
+              javSelectMode={javSelectMode}
+              onJavSelectModeChange={setJavSelectMode}
+              selectedJavIds={javSelectedIds}
+              onToggleJavSelect={toggleJavSelected}
+              onOpenAddToCollection={() => openCollectionPicker(javSelectedIds)}
+              onAddJavToCollection={handleAddSingleJavToCollection}
             />
           )
         ) : (
@@ -2444,14 +2757,15 @@ export default function App() {
         onSave={handleApplyTags}
         saveDisabled={!tagPickerDirty}
       />
-      <TagPickerModal
-        open={Boolean(javTagPickerItem)}
-        tags={javUserTagOptions}
-        selectedIds={javTagPickerSelected}
-        onToggleChoice={handleJavTagPickerToggle}
-        onClose={handleJavTagPickerClose}
-        onSave={handleApplyJavTags}
-        saveDisabled={!javTagPickerDirty}
+      <JavMetadataEditModal
+        open={Boolean(javMetadataEditItem)}
+        item={javMetadataEditItem}
+        tags={javTagOptions}
+        directoryIds={javQueryDirectoryIds}
+        metadataLanguage={javMetadataLanguage}
+        onClose={handleJavMetadataEditClose}
+        onSave={handleApplyJavMetadata}
+        saving={javMetadataSaving}
       />
 
       <VideoTagModal
@@ -2655,6 +2969,38 @@ export default function App() {
           useStore.setState({ config: cfg })
         }}
       />
+      <CollectionPickerModal
+        open={collectionPickerOpen}
+        onClose={() => setCollectionPickerOpen(false)}
+        collections={javCollections}
+        loading={javCollectionsLoading}
+        onPick={handlePickCollection}
+        onCreateNew={async () => {
+          setCollectionPickerOpen(false)
+          await handleCreateCollection()
+        }}
+        javTargetIds={collectionPickerIds}
+        javItems={javItems}
+      />
+      {collectionAnalyzeOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="max-h-[80vh] w-full max-w-lg overflow-auto rounded-lg bg-white p-4 shadow-xl">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="text-base font-semibold">
+                {zh('合集 AI 分析', 'Collection AI analysis')}
+              </h2>
+              <button
+                type="button"
+                className="text-sm text-gray-500 hover:text-gray-800"
+                onClick={() => setCollectionAnalyzeOpen(false)}
+              >
+                {zh('关闭', 'Close')}
+              </button>
+            </div>
+            <pre className="whitespace-pre-wrap text-sm text-gray-800">{collectionAnalyzeText}</pre>
+          </div>
+        </div>
+      ) : null}
       <Toast
         open={Boolean(toastMessage)}
         message={toastMessage}

@@ -1,4 +1,5 @@
 import { Button } from '@mui/material'
+
 import { zh } from '@/utils/i18n'
 
 export default function JavCollectionListView({
@@ -8,12 +9,13 @@ export default function JavCollectionListView({
   onOpenCollection,
   onCreateClick,
   onRefresh,
+  buildCollectionUrl,
 }) {
   const list = Array.isArray(items) ? items : []
 
   return (
-    <div className="mx-auto max-w-screen-2xl px-6 py-4">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-semibold text-gray-900">{zh('JAV 合集', 'JAV Collections')}</h1>
         <div className="flex gap-2">
           <Button variant="outlined" size="small" onClick={onRefresh} disabled={loading}>
@@ -30,34 +32,84 @@ export default function JavCollectionListView({
         </div>
       ) : null}
       {loading ? (
-        <div className="text-sm text-gray-500">{zh('加载中…', 'Loading...')}</div>
+        <div className="flex min-h-[200px] items-center justify-center rounded border border-dashed border-gray-200 text-gray-500">
+          {zh('加载中…', 'Loading...')}
+        </div>
       ) : list.length === 0 ? (
-        <div className="text-sm text-gray-500">{zh('暂无合集', 'No collections yet')}</div>
+        <div className="flex min-h-[200px] items-center justify-center rounded border border-dashed border-gray-200 text-gray-500">
+          {zh('暂无合集', 'No collections yet')}
+        </div>
       ) : (
-        <ul className="divide-y rounded-lg border border-gray-200 bg-white">
-          {list.map((row) => (
-            <li key={row.id}>
-              <button
-                type="button"
-                className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50"
-                onClick={() => onOpenCollection?.(row)}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium text-gray-900">{row.name}</div>
-                  {row.description ? (
-                    <div className="mt-0.5 line-clamp-2 text-xs text-gray-600">
-                      {row.description}
-                    </div>
-                  ) : null}
-                </div>
-                <div className="shrink-0 text-xs text-gray-500">
-                  {zh(`${row.count || 0} 部`, `${row.count || 0} items`)}
-                </div>
-              </button>
-            </li>
+        <div className="grid gap-4 bg-white sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+          {list.map((item) => (
+            <CollectionCard
+              key={item.id || item.name}
+              item={item}
+              href={buildCollectionUrl?.(item)}
+              onOpenCollection={onOpenCollection}
+            />
           ))}
-        </ul>
+        </div>
       )}
     </div>
+  )
+}
+
+function CollectionCard({ item, href, onOpenCollection }) {
+  const cover = item?.sample_code ? `/jav/${encodeURIComponent(item.sample_code)}/cover` : null
+  const name = item?.name || zh('未命名合集', 'Untitled collection')
+  const workCount = item?.count || 0
+  const description = String(item?.description || '').trim()
+
+  const handleClick = (e) => {
+    const selection = window.getSelection?.()
+    if (selection && String(selection).trim() !== '') {
+      e.preventDefault()
+      return
+    }
+    const isModified = e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0
+    if (isModified) {
+      return
+    }
+    e.preventDefault()
+    onOpenCollection?.(item)
+  }
+
+  return (
+    <a
+      href={href || '#'}
+      className="group flex cursor-pointer flex-col overflow-hidden rounded-lg border bg-white shadow-sm transition hover:shadow-lg"
+      onClick={handleClick}
+      onKeyDown={(e) => {
+        if (e.key === ' ') {
+          e.preventDefault()
+          onOpenCollection?.(item)
+        }
+      }}
+    >
+      <div className="relative aspect-[800/538] w-full overflow-hidden bg-gray-100">
+        {cover ? (
+          <img
+            src={cover}
+            alt={name}
+            className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.03]"
+            loading="lazy"
+          />
+        ) : (
+          <div className="absolute inset-0 flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-50 to-violet-100 p-4 text-center text-lg font-semibold text-indigo-900">
+            {name}
+          </div>
+        )}
+      </div>
+      <div className="flex flex-1 flex-col gap-1 p-3">
+        <div className="line-clamp-2 text-sm font-semibold leading-tight">{name}</div>
+        {description ? (
+          <div className="line-clamp-2 text-xs text-gray-600">{description}</div>
+        ) : null}
+        <div className="text-xs text-gray-500">
+          {zh(`${workCount} 部作品`, `${workCount} works`)}
+        </div>
+      </div>
+    </a>
   )
 }

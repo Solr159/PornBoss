@@ -15,7 +15,7 @@ import (
 )
 
 func buildJavLibrarySnapshotText(ctx context.Context, directoryIDs []int64, collectionID int64) (string, error) {
-	_, total, err := dbpkg.SearchJav(ctx, nil, nil, "", "recent", 1, 0, nil, directoryIDs, collectionID, 0)
+	_, total, err := dbpkg.SearchJav(ctx, nil, nil, "", "recent", 1, 0, nil, directoryIDs, collectionID, 0, 0)
 	if err != nil {
 		return "", err
 	}

@@ -89,7 +89,7 @@ export default function CollectionPickerModal({
                             ? 'bg-amber-50/70'
                             : ''
                       }`}
-                      onClick={() => onPick?.(c)}
+                      onClick={() => onPick?.(c, mem)}
                     >
                       <span className="min-w-0">
                         <span className="font-medium">{c.name}</span>
@@ -106,10 +106,10 @@ export default function CollectionPickerModal({
                           }`}
                         >
                           {mem === 'all'
-                            ? zh('已在', 'In')
+                            ? zh('点击移除', 'Tap to remove')
                             : mem === 'partial'
                               ? zh('部分在', 'Some')
-                              : ''}
+                              : zh('点击加入', 'Tap to add')}
                         </span>
                       ) : null}
                     </button>

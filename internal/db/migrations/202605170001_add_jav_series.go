@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	goose.AddNamedMigrationContext("202605160001_add_jav_series.go", addJavSeries, irreversibleMigration)
+	goose.AddNamedMigrationContext("202605170001_add_jav_series.go", addJavSeries, irreversibleMigration)
 }
 
 func addJavSeries(ctx context.Context, tx *sql.Tx) error {

@@ -1193,11 +1193,11 @@ function JavCard({
             </IconButton>
           </Tooltip>
           {showEditTags && (
-            <Tooltip title={zh('编辑标签', 'Edit tags')}>
+            <Tooltip title={zh('编辑分类与系列', 'Edit categories & series')}>
               <IconButton
                 size="small"
                 onClick={handleEditTags}
-                aria-label={zh('编辑标签', 'Edit tags')}
+                aria-label={zh('编辑分类与系列', 'Edit categories & series')}
                 className="h-6 w-6"
               >
                 <LocalOfferOutlinedIcon fontSize="inherit" />

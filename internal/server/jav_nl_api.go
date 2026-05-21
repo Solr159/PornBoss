@@ -110,7 +110,7 @@ func postJavNLQuery(c *gin.Context) {
 		sort = "recent"
 	}
 	dirIDs := req.DirectoryIDs
-	items, total, err := dbpkg.SearchJav(c.Request.Context(), idolIDs, tagIDs, strings.TrimSpace(plan.Search), sort, limit, offset, nil, dirIDs, req.CollectionID, studioID)
+	items, total, err := dbpkg.SearchJav(c.Request.Context(), idolIDs, tagIDs, strings.TrimSpace(plan.Search), sort, limit, offset, nil, dirIDs, req.CollectionID, studioID, 0)
 	if err != nil {
 		logging.Error("nl SearchJav: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})

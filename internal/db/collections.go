@@ -21,6 +21,7 @@ type CollectionSummary struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Count       int64  `json:"count"`
+	SampleCode  string `json:"sample_code"`
 }
 
 // CreateCollection inserts a new collection.
@@ -97,7 +98,11 @@ func ListCollections(ctx context.Context) ([]CollectionSummary, error) {
 	var rows []CollectionSummary
 	err := common.DB.WithContext(ctx).
 		Table("collection c").
-		Select("c.id, c.name, c.description, COUNT(jc.jav_id) AS count").
+		Select(`c.id, c.name, c.description, COUNT(jc.jav_id) AS count,
+			(SELECT j.code FROM jav_collection jc2
+			 JOIN jav j ON j.id = jc2.jav_id
+			 WHERE jc2.collection_id = c.id
+			 ORDER BY j.code LIMIT 1) AS sample_code`).
 		Joins("LEFT JOIN jav_collection jc ON jc.collection_id = c.id").
 		Group("c.id, c.name, c.description").
 		Order("c.name COLLATE NOCASE").
@@ -106,6 +111,51 @@ func ListCollections(ctx context.Context) ([]CollectionSummary, error) {
 		return nil, fmt.Errorf("list collections: %w", err)
 	}
 	return rows, nil
+}
+
+type javCollectionRow struct {
+	JavID        int64  `gorm:"column:jav_id"`
+	CollectionID int64  `gorm:"column:collection_id"`
+	Name         string `gorm:"column:name"`
+}
+
+// attachJavCollections fills Collections on each Jav item for API responses.
+func attachJavCollections(ctx context.Context, items []models.Jav) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(items))
+	for _, item := range items {
+		if item.ID > 0 {
+			ids = append(ids, item.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+
+	var rows []javCollectionRow
+	if err := common.DB.WithContext(ctx).
+		Table("jav_collection jc").
+		Select("jc.jav_id, c.id AS collection_id, c.name").
+		Joins("JOIN collection c ON c.id = jc.collection_id").
+		Where("jc.jav_id IN ?", ids).
+		Order("c.name COLLATE NOCASE").
+		Scan(&rows).Error; err != nil {
+		return fmt.Errorf("load jav collections: %w", err)
+	}
+
+	byJavID := make(map[int64][]models.JavCollectionBrief, len(ids))
+	for _, row := range rows {
+		byJavID[row.JavID] = append(byJavID[row.JavID], models.JavCollectionBrief{
+			ID:   row.CollectionID,
+			Name: row.Name,
+		})
+	}
+	for i := range items {
+		items[i].Collections = byJavID[items[i].ID]
+	}
+	return nil
 }
 
 // AddJavsToCollection adds jav rows to a collection (idempotent).

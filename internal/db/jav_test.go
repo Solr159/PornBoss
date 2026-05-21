@@ -163,7 +163,7 @@ func TestSearchJavFiltersByIdolIDs(t *testing.T) {
 	}
 	createVideoLocationsForVideos(t, db, videos...)
 
-	items, total, err := SearchJav(ctx, []int64{idolA.ID, idolB.ID}, nil, "", "code", 20, 0, nil, nil, 0, 0)
+	items, total, err := SearchJav(ctx, []int64{idolA.ID, idolB.ID}, nil, "", "code", 20, 0, nil, nil, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav by idol ids: %v", err)
 	}
@@ -230,7 +230,7 @@ func TestListJavStudiosAndSearchByStudio(t *testing.T) {
 		t.Fatalf("expected sample code for first studio")
 	}
 
-	items, total, err := SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, studioA.ID)
+	items, total, err := SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, studioA.ID, 0)
 	if err != nil {
 		t.Fatalf("SearchJav by studio: %v", err)
 	}
@@ -312,7 +312,7 @@ func TestListJavSeriesAndSearchBySeries(t *testing.T) {
 		t.Fatalf("expected sample code for zh series")
 	}
 
-	items, total, err := SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, seriesA.ID)
+	items, total, err := SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, 0, seriesA.ID)
 	if err != nil {
 		t.Fatalf("SearchJav by zh series: %v", err)
 	}
@@ -351,7 +351,7 @@ func TestListJavSeriesAndSearchBySeries(t *testing.T) {
 		t.Fatalf("unexpected en series: %#v", series[0])
 	}
 
-	items, total, err = SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, seriesA.ID)
+	items, total, err = SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, 0, seriesA.ID)
 	if err != nil {
 		t.Fatalf("SearchJav by zh series in en mode: %v", err)
 	}
@@ -359,7 +359,7 @@ func TestListJavSeriesAndSearchBySeries(t *testing.T) {
 		t.Fatalf("unexpected zh series match in en mode: total=%d len=%d", total, len(items))
 	}
 
-	items, total, err = SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, seriesB.ID)
+	items, total, err = SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, 0, seriesB.ID)
 	if err != nil {
 		t.Fatalf("SearchJav by en series: %v", err)
 	}
@@ -562,6 +562,57 @@ func TestSaveJavInfoReplacesOnlyCurrentProviderTags(t *testing.T) {
 		"Plot Based": int(jav.ProviderJavDatabase),
 		"Favorite":   int(jav.ProviderUser),
 	})
+}
+
+func TestSaveJavInfoRespectsMetadataLocks(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+
+	save := func(info *jav.JavInfo) {
+		t.Helper()
+		if err := gdb.Transaction(func(tx *gorm.DB) error {
+			_, err := saveJavInfoTx(tx, info, now)
+			return err
+		}); err != nil {
+			t.Fatalf("save jav info: %v", err)
+		}
+	}
+
+	save(&jav.JavInfo{
+		Code:     "LOCK-001",
+		Title:    "Original title",
+		Tags:     []string{"Drama"},
+		Studio:   "Original Studio",
+		Series:   "Original Series",
+		Provider: jav.ProviderJavBus,
+	})
+
+	var javRec models.Jav
+	if err := gdb.Where("code = ?", "LOCK-001").First(&javRec).Error; err != nil {
+		t.Fatalf("load jav: %v", err)
+	}
+
+	corrected := "Corrected Series"
+	if _, err := PatchJavMetadata(ctx, javRec.ID, JavMetadataPatch{
+		SeriesName: corrected,
+		TagIDs:     []int64{},
+	}, false); err != nil {
+		t.Fatalf("patch jav metadata: %v", err)
+	}
+
+	save(&jav.JavInfo{
+		Code:     "LOCK-001",
+		Title:    "Scraped title",
+		Tags:     []string{"Cosplay"},
+		Studio:   "Scraped Studio",
+		Series:   "Scraped Series",
+		Provider: jav.ProviderJavBus,
+	})
+
+	assertJavTitles(t, gdb, "LOCK-001", "Scraped title", "")
+	assertJavSeries(t, gdb, "LOCK-001", corrected, false)
+	assertJavTagMaps(t, gdb, "LOCK-001", map[string]int{})
 }
 
 func TestSaveAndUpdateJavStudioAndSeries(t *testing.T) {
@@ -786,14 +837,14 @@ func TestSearchJavPreloadsOnlyCurrentLanguageIdols(t *testing.T) {
 	}
 
 	jav.SetMetadataLanguage("zh")
-	items, total, err := SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, 0)
+	items, total, err := SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav zh: %v", err)
 	}
 	assertSearchJavIdols(t, items, total, []string{"岬ななみ"})
 
 	jav.SetMetadataLanguage("en")
-	items, total, err = SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, 0)
+	items, total, err = SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav en: %v", err)
 	}
@@ -839,14 +890,14 @@ func TestSearchJavUsesCurrentLanguageTitleField(t *testing.T) {
 	createVideoLocationsForVideos(t, gdb, video)
 
 	jav.SetMetadataLanguage("zh")
-	items, total, err := SearchJav(ctx, nil, nil, "日本語", "code", 20, 0, nil, nil, 0, 0)
+	items, total, err := SearchJav(ctx, nil, nil, "日本語", "code", 20, 0, nil, nil, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav zh title: %v", err)
 	}
 	if total != 1 || len(items) != 1 || items[0].Title != "日本語タイトル" {
 		t.Fatalf("unexpected zh search result: total=%d items=%#v", total, items)
 	}
-	items, total, err = SearchJav(ctx, nil, nil, "English", "code", 20, 0, nil, nil, 0, 0)
+	items, total, err = SearchJav(ctx, nil, nil, "English", "code", 20, 0, nil, nil, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav zh english title: %v", err)
 	}
@@ -855,14 +906,14 @@ func TestSearchJavUsesCurrentLanguageTitleField(t *testing.T) {
 	}
 
 	jav.SetMetadataLanguage("en")
-	items, total, err = SearchJav(ctx, nil, nil, "English", "code", 20, 0, nil, nil, 0, 0)
+	items, total, err = SearchJav(ctx, nil, nil, "English", "code", 20, 0, nil, nil, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav en title: %v", err)
 	}
 	if total != 1 || len(items) != 1 || items[0].TitleEn != "English Title" {
 		t.Fatalf("unexpected en search result: total=%d items=%#v", total, items)
 	}
-	items, total, err = SearchJav(ctx, nil, nil, "日本語", "code", 20, 0, nil, nil, 0, 0)
+	items, total, err = SearchJav(ctx, nil, nil, "日本語", "code", 20, 0, nil, nil, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav en japanese title: %v", err)
 	}
@@ -1079,7 +1130,7 @@ func TestJavBindingUsesVideoLocationsAndCountsTagWorks(t *testing.T) {
 		t.Fatalf("create locations: %v", err)
 	}
 
-	items, total, err := SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, 0)
+	items, total, err := SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav: %v", err)
 	}
@@ -1261,7 +1312,7 @@ func TestSearchJavSortByDurationDesc(t *testing.T) {
 	}
 	createVideoLocationsForVideos(t, db, videos...)
 
-	items, total, err := SearchJav(ctx, nil, nil, "", "duration", 20, 0, nil, nil, 0, 0)
+	items, total, err := SearchJav(ctx, nil, nil, "", "duration", 20, 0, nil, nil, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav: %v", err)
 	}
@@ -1278,7 +1329,7 @@ func TestSearchJavSortByDurationDesc(t *testing.T) {
 		t.Fatalf("unexpected second jav: got %d want %d", items[1].ID, shortJav.ID)
 	}
 
-	items, total, err = SearchJav(ctx, nil, nil, "", "duration_asc", 20, 0, nil, nil, 0, 0)
+	items, total, err = SearchJav(ctx, nil, nil, "", "duration_asc", 20, 0, nil, nil, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("SearchJav duration_asc: %v", err)
 	}

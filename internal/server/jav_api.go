@@ -35,6 +35,15 @@ func searchJav(c *gin.Context) {
 		}
 		seriesID = parsed
 	}
+	collectionID := int64(0)
+	if collectionParam := strings.TrimSpace(c.Query("collection_id")); collectionParam != "" {
+		parsed, err := strconv.ParseInt(collectionParam, 10, 64)
+		if err != nil || parsed <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid collection_id"})
+			return
+		}
+		collectionID = parsed
+	}
 	search := strings.TrimSpace(c.Query("search"))
 	sort := strings.TrimSpace(c.Query("sort"))
 	seedParam := strings.TrimSpace(c.Query("seed"))
@@ -48,7 +57,7 @@ func searchJav(c *gin.Context) {
 		seed = &parsed
 	}
 
-	items, total, err := dbpkg.SearchJav(c.Request.Context(), idolIDs, tagIDs, search, sort, limit, offset, seed, directoryIDs, studioID, seriesID)
+	items, total, err := dbpkg.SearchJav(c.Request.Context(), idolIDs, tagIDs, search, sort, limit, offset, seed, directoryIDs, collectionID, studioID, seriesID)
 	if err != nil {
 		logging.Error("SearchJav: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})

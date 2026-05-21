@@ -112,50 +112,35 @@ func (m *CoverManager) handleTask(parent context.Context, code string) error {
 	ctx, cancel := context.WithTimeout(parent, 45*time.Second)
 	defer cancel()
 
-	coverURL, err := m.fetchCoverURL(code)
-	if err != nil {
-		if errors.Is(err, util.ErrCachedNotFound) {
-			return nil
-		}
-		return err
-	}
-	if coverURL == "" {
-		return errors.New("cover url not found")
-	}
-
-	if err := m.downloadCover(ctx, code, coverURL); err != nil {
-		if errors.Is(err, util.ErrCachedNotFound) {
-			return nil
-		}
-		return err
-	}
-	return nil
-}
-
-func (m *CoverManager) fetchCoverURL(code string) (string, error) {
-	if m == nil {
-		return "", errors.New("cover manager not configured")
-	}
 	var lastErr error
 	for _, provider := range m.providers {
 		coverURL, err := jav.LookupCoverURLByCode(code, provider)
-		if err == nil {
-			coverURL = strings.TrimSpace(coverURL)
-			if coverURL != "" {
-				return coverURL, nil
+		if err != nil {
+			if errors.Is(err, jav.ResourceNotFonud) {
+				continue
 			}
+			lastErr = err
+			logging.Error("fetch cover url failed: provider=%s code=%s err=%v", provider.String(), code, err)
 			continue
 		}
-		if errors.Is(err, jav.ResourceNotFonud) {
+		coverURL = strings.TrimSpace(coverURL)
+		if coverURL == "" {
 			continue
 		}
-		lastErr = err
-		logging.Error("fetch cover url failed: provider=%s code=%s err=%v", provider.String(), code, err)
+		if err := m.downloadCover(ctx, code, coverURL); err != nil {
+			if errors.Is(err, util.ErrCachedNotFound) {
+				continue
+			}
+			lastErr = err
+			logging.Error("download cover failed: provider=%s code=%s url=%s err=%v", provider.String(), code, coverURL, err)
+			continue
+		}
+		return nil
 	}
 	if lastErr != nil {
-		return "", fmt.Errorf("fetch cover url: %w", lastErr)
+		return lastErr
 	}
-	return "", util.ErrCachedNotFound
+	return nil
 }
 
 func (m *CoverManager) downloadCover(ctx context.Context, code, coverURL string) error {
@@ -211,18 +196,26 @@ func (m *CoverManager) downloadCover(ctx context.Context, code, coverURL string)
 	return nil
 }
 
+const coverDownloadUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
 func setCoverDownloadHeaders(req *http.Request) {
 	if req == nil || req.URL == nil {
 		return
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; JavCoverBot/1.0)")
 	host := strings.ToLower(req.URL.Hostname())
-	if host == "javbus.com" || strings.HasSuffix(host, ".javbus.com") {
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	switch {
+	case host == "javbus.com" || strings.HasSuffix(host, ".javbus.com"):
+		req.Header.Set("User-Agent", coverDownloadUserAgent)
 		req.Header.Set("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
 		req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
 		req.Header.Set("Referer", "https://www.javbus.com/")
 		req.Header.Set("Cookie", "age=verified; existmag=mag")
+	case host == "dmm.co.jp" || strings.HasSuffix(host, ".dmm.co.jp"):
+		req.Header.Set("User-Agent", coverDownloadUserAgent)
+		req.Header.Set("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+		req.Header.Set("Accept-Language", "ja-JP,ja;q=0.9,en-US,en;q=0.8")
+		req.Header.Set("Referer", "https://www.dmm.co.jp/")
 	}
 }
 

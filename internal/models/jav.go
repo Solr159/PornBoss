@@ -16,10 +16,16 @@ type Jav struct {
 	SeriesEn    *JavSeries `json:"series_en,omitempty" gorm:"foreignKey:SeriesEnID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
 	ReleaseUnix int64      `json:"release_unix"`
 	DurationMin int        `json:"duration_min"`
-	Provider    int        `json:"provider" gorm:"not null;default:0"`
-	FetchedAt   time.Time  `json:"fetched_at"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	Provider       int        `json:"provider" gorm:"not null;default:0"`
+	FetchedAt      time.Time  `json:"fetched_at"`
+	TitleLocked    bool       `json:"title_locked" gorm:"not null;default:0"`
+	TitleEnLocked  bool       `json:"title_en_locked" gorm:"not null;default:0"`
+	StudioLocked   bool       `json:"studio_locked" gorm:"not null;default:0"`
+	SeriesLocked   bool       `json:"series_locked" gorm:"not null;default:0"`
+	SeriesEnLocked bool       `json:"series_en_locked" gorm:"not null;default:0"`
+	TagsLocked     bool       `json:"tags_locked" gorm:"not null;default:0"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 	Tags        []JavTag   `json:"tags,omitempty" gorm:"many2many:jav_tag_map"`
 	Idols       []JavIdol  `json:"idols,omitempty" gorm:"many2many:jav_idol_map"`
 	Videos      []Video    `json:"videos,omitempty" gorm:"-"`

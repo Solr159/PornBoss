@@ -17,6 +17,7 @@ import {
   fetchJavSeries,
   fetchJavTags,
   fetchConfig,
+  fetchCollections,
 } from '@/api'
 import { normalizeIdolSort, normalizeJavSort } from '@/constants/jav'
 import { normalizeVideoSort } from '@/constants/video'
@@ -126,7 +127,15 @@ export const useStore = create((set, get) => ({
   javRandomMode: false,
   javRandomSeed: null,
   viewMode: 'video', // video | jav
-  javTab: 'list', // list | idol | studio | series
+  javTab: 'list', // list | idol | studio | series | collection
+  javCollectionId: null,
+  javCollectionName: '',
+  javCollections: [],
+  javCollectionsLoading: false,
+  javCollectionsError: null,
+  javNlHint: '',
+  javSelectMode: false,
+  javSelectedIds: [],
   javPage: 1,
   javPageSize: JAV_PAGE_SIZE,
   javGridColumns: JAV_GRID_COLUMNS_AUTO,
@@ -284,9 +293,36 @@ export const useStore = create((set, get) => ({
     set({ viewMode: mode, ...(mode === 'jav' ? { videoTempSort: '' } : { javTempSort: '' }) })
   },
   setJavTab: (tab) => {
-    if (tab !== 'list' && tab !== 'idol' && tab !== 'studio' && tab !== 'series') return
+    if (tab !== 'list' && tab !== 'idol' && tab !== 'studio' && tab !== 'series' && tab !== 'collection') {
+      return
+    }
     set({ javTab: tab, javTempSort: '' })
   },
+  setJavCollectionId: (id, name = '') => {
+    const cid = Number(id)
+    const nextId = Number.isFinite(cid) && cid > 0 ? cid : null
+    set({
+      javCollectionId: nextId,
+      javCollectionName: nextId ? String(name || '').trim() : '',
+      javPage: 1,
+      javTempSort: '',
+      javRandomMode: false,
+      javRandomSeed: null,
+    })
+  },
+  setJavSelectMode: (enabled) => {
+    set({ javSelectMode: Boolean(enabled), ...(enabled ? {} : { javSelectedIds: [] }) })
+  },
+  toggleJavSelected: (javId) => {
+    const id = Number(javId)
+    if (!Number.isFinite(id) || id <= 0) return
+    const current = get().javSelectedIds || []
+    const exists = current.includes(id)
+    set({
+      javSelectedIds: exists ? current.filter((x) => x !== id) : [...current, id],
+    })
+  },
+  clearJavItemSelection: () => set({ javSelectedIds: [], javSelectMode: false }),
   setJavIdolIds: (idolIds) => {
     const clean = Array.from(
       new Set(
@@ -613,6 +649,7 @@ export const useStore = create((set, get) => ({
       javTags,
       javStudioId,
       javSeriesId,
+      javCollectionId,
       javSort,
       javTempSort,
       javRandomMode,
@@ -630,6 +667,7 @@ export const useStore = create((set, get) => ({
       (javTags || []).join(','),
       javStudioId || '',
       javSeriesId || '',
+      javCollectionId || '',
       effectiveSort,
       javRandomMode ? javRandomSeed || '' : '',
       directoryIds.join(','),
@@ -648,6 +686,7 @@ export const useStore = create((set, get) => ({
         tagIds: javTags,
         studioId: javStudioId,
         seriesId: javSeriesId,
+        collectionId: javCollectionId,
         sort: javRandomMode ? 'random' : effectiveSort,
         seed: javRandomMode ? javRandomSeed : null,
         directoryIds,
@@ -718,6 +757,20 @@ export const useStore = create((set, get) => ({
       set({ studioError: e.message || zh('加载片商失败', 'Failed to load studios') })
     } finally {
       set({ studioLoading: false })
+    }
+  },
+  loadCollections: async () => {
+    set({ javCollectionsLoading: true, javCollectionsError: null })
+    try {
+      const items = await fetchCollections()
+      set({ javCollections: Array.isArray(items) ? items : [] })
+    } catch (e) {
+      set({
+        javCollectionsError: e.message || zh('加载合集失败', 'Failed to load collections'),
+        javCollections: [],
+      })
+    } finally {
+      set({ javCollectionsLoading: false })
     }
   },
   loadJavSeries: async (options = {}) => {

@@ -279,6 +279,7 @@ export async function fetchJavs({
   tagIds = [],
   studioId = null,
   seriesId = null,
+  collectionId = null,
   sort = '',
   seed = null,
   directoryIds = [],
@@ -291,6 +292,7 @@ export async function fetchJavs({
   if (tagIds.length) params.set('tag_ids', tagIds.join(','))
   if (studioId) params.set('studio_id', String(studioId))
   if (seriesId) params.set('series_id', String(seriesId))
+  if (collectionId) params.set('collection_id', String(collectionId))
   if (sort) params.set('sort', sort)
   if (seed != null) params.set('seed', String(seed))
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
@@ -357,6 +359,23 @@ export async function deleteJavTagsBatch(tagIds) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || zh('批量删除 JAV 标签失败', 'Failed to delete JAV tags'))
   }
+}
+
+export async function patchJavMetadata(javId, payload, { metadataLanguage } = {}) {
+  const params = new URLSearchParams()
+  if (metadataLanguage === 'en') params.set('metadata_lang', 'en')
+  else if (metadataLanguage) params.set('metadata_lang', 'ja')
+  const query = params.toString()
+  const res = await fetch(`/jav/${encodeURIComponent(javId)}${query ? `?${query}` : ''}`, {
+    method: 'PATCH',
+    headers: jsonHeaders,
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('更新 JAV 信息失败', 'Failed to update JAV metadata'))
+  }
+  return res.json()
 }
 
 export async function replaceJavTagsForItems(javIds, tagIds) {
@@ -462,6 +481,158 @@ export async function fetchJavIdolPreview(id, { directoryIds = [] } = {}) {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || zh('加载女优预览失败', 'Failed to load idol preview'))
+  }
+  return res.json()
+}
+
+export async function postJavNlQuery({
+  query,
+  directoryIds = [],
+  collectionId,
+  limit = 24,
+  offset = 0,
+  sort = 'recent',
+} = {}) {
+  const res = await fetch('/jav/nl_query', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({
+      query,
+      directory_ids: directoryIds,
+      collection_id: collectionId > 0 ? collectionId : undefined,
+      limit,
+      offset,
+      sort,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('自然语言检索失败', 'Natural language search failed'))
+  }
+  return res.json()
+}
+
+export async function postJavLibraryChat({
+  message,
+  history = [],
+  directoryIds = [],
+  collectionId,
+  mode = 'library',
+  focusCode = '',
+} = {}) {
+  const res = await fetch('/jav/library_chat', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({
+      message,
+      history,
+      directory_ids: directoryIds,
+      collection_id: collectionId > 0 ? collectionId : undefined,
+      mode,
+      focus_code: focusCode,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('库助手对话失败', 'Library chat failed'))
+  }
+  return res.json()
+}
+
+export async function postJavCodeInsight(code) {
+  const res = await fetch('/jav/code_insight', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ code }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('番号解读失败', 'Code insight failed'))
+  }
+  return res.json()
+}
+
+export async function fetchCollections() {
+  const res = await fetch('/collections')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('加载合集失败', 'Failed to load collections'))
+  }
+  return res.json()
+}
+
+export async function createCollection({ name, description = '' }) {
+  const res = await fetch('/collections', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ name, description }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('创建合集失败', 'Failed to create collection'))
+  }
+  return res.json()
+}
+
+export async function fetchCollection(id) {
+  const res = await fetch(`/collections/${encodeURIComponent(id)}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('加载合集失败', 'Failed to load collection'))
+  }
+  return res.json()
+}
+
+export async function updateCollection(id, payload) {
+  const res = await fetch(`/collections/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: jsonHeaders,
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('更新合集失败', 'Failed to update collection'))
+  }
+  return res.json()
+}
+
+export async function deleteCollection(id) {
+  const res = await fetch(`/collections/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('删除合集失败', 'Failed to delete collection'))
+  }
+}
+
+export async function addJavsToCollection(collectionId, javIds) {
+  const res = await fetch('/collections/javs/add', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ collection_id: collectionId, jav_ids: javIds }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('加入合集失败', 'Failed to add to collection'))
+  }
+}
+
+export async function removeJavsFromCollection(collectionId, javIds) {
+  const res = await fetch('/collections/javs/remove', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ collection_id: collectionId, jav_ids: javIds }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('移出合集失败', 'Failed to remove from collection'))
+  }
+}
+
+export async function analyzeCollection(id) {
+  const res = await fetch(`/collections/${encodeURIComponent(id)}/analyze`, { method: 'POST' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('合集分析失败', 'Collection analysis failed'))
   }
   return res.json()
 }
