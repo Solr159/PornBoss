@@ -208,19 +208,66 @@ func parseDocument(doc *html.Node) *JavInfo {
 
 	tags := collectGenres(doc)
 	actors := collectActors(doc)
+	isUncensored := parseJavBusIsUncensored(doc)
 
 	if title == "" && len(tags) == 0 && len(actors) == 0 {
 		return nil
 	}
 	return &JavInfo{
-		Title:       title,
-		Code:        code,
-		ReleaseUnix: releaseUnix,
-		DurationMin: duration,
-		Tags:        tags,
-		Actors:      actors,
-		Provider:    ProviderJavBus,
+		Title:        title,
+		Code:         code,
+		ReleaseUnix:  releaseUnix,
+		DurationMin:  duration,
+		Tags:         tags,
+		Actors:       actors,
+		IsUncensored: &isUncensored,
+		Provider:     ProviderJavBus,
 	}
+}
+
+func parseJavBusIsUncensored(root *html.Node) bool {
+	var found bool
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if found {
+			return
+		}
+		if n.Type == html.ElementNode && n.Data == "li" && hasClass(n, "active") {
+			href, text := firstAnchorHrefAndText(n)
+			text = strings.ToLower(strings.TrimSpace(text))
+			href = strings.ToLower(strings.TrimSpace(href))
+			if strings.Contains(href, "/uncensored") || strings.Contains(text, "無碼") || strings.Contains(text, "无码") || strings.Contains(text, "uncensored") {
+				found = true
+				return
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(root)
+	return found
+}
+
+func firstAnchorHrefAndText(root *html.Node) (string, string) {
+	var href string
+	var text string
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if href != "" || text != "" {
+			return
+		}
+		if n.Type == html.ElementNode && n.Data == "a" {
+			href = attrValue(n, "href")
+			text = flattenText(n)
+			return
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(root)
+	return href, text
 }
 
 func parseJavBusCoverURL(root *html.Node, pageURL string) string {

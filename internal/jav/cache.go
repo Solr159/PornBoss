@@ -18,8 +18,10 @@ const (
 )
 
 var lookupJavCacheKeyVersionByProvider = map[Provider]string{
+	ProviderJavBus:      "v2",
 	ProviderJavDatabase: "v2",
 	ProviderAvmoo:       "v2",
+	ProviderAvsox:       "v2",
 }
 
 // LookupCache is a persistent key-value store for provider lookup results.

@@ -32,6 +32,44 @@ func TestSetCoverDownloadHeadersForJavBus(t *testing.T) {
 	}
 }
 
+func TestNewCoverManagerUsesExpandedWorkers(t *testing.T) {
+	manager := NewCoverManager(t.TempDir(), []jav.Provider{jav.ProviderJavBus})
+	if manager == nil {
+		t.Fatal("NewCoverManager returned nil")
+	}
+	if manager.workers != 32 {
+		t.Fatalf("workers = %d, want 32", manager.workers)
+	}
+}
+
+func TestEnqueueDeduplicatesScheduledCodes(t *testing.T) {
+	manager := &CoverManager{
+		tasks:     make(chan string, 2),
+		scheduled: make(map[string]struct{}),
+	}
+
+	manager.Enqueue("ABC-001")
+	manager.Enqueue("abc-001")
+	manager.Enqueue(" ABC-001 ")
+	manager.Enqueue("ABC-002")
+
+	if got := len(manager.tasks); got != 2 {
+		t.Fatalf("queued tasks = %d, want 2", got)
+	}
+	if got := <-manager.tasks; got != "abc-001" {
+		t.Fatalf("first task = %q, want normalized abc-001", got)
+	}
+	if got := <-manager.tasks; got != "abc-002" {
+		t.Fatalf("second task = %q, want normalized abc-002", got)
+	}
+
+	manager.clearScheduled("ABC-001")
+	manager.Enqueue("ABC-001")
+	if got := len(manager.tasks); got != 1 {
+		t.Fatalf("queued tasks after clear = %d, want 1", got)
+	}
+}
+
 func TestDownloadCoverRejectsSmallFile(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/jpeg")

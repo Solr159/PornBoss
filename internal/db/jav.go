@@ -273,6 +273,7 @@ func visibleScrapedJavTagProviders() []int {
 		jav.ProviderJavBus,
 		jav.ProviderJavDB,
 		jav.ProviderAvmoo,
+		jav.ProviderAvsox,
 		jav.ProviderJavDatabase,
 		jav.ProviderThePornDB,
 	}
@@ -1287,6 +1288,37 @@ func ListJavsMissingTitle(ctx context.Context) ([]JavMetadataScanItem, error) {
 	return items, nil
 }
 
+// ListJavsMissingUncensored returns JAV rows whose censored/uncensored state is unknown.
+func ListJavsMissingUncensored(ctx context.Context) ([]JavMetadataScanItem, error) {
+	var items []JavMetadataScanItem
+	if err := common.DB.WithContext(ctx).
+		Model(&models.Jav{}).
+		Select("id, code").
+		Where("COALESCE(code, '') <> ''").
+		Where("is_uncensored IS NULL").
+		Order("created_at ASC, id ASC").
+		Find(&items).Error; err != nil {
+		return nil, fmt.Errorf("list javs missing uncensored state: %w", err)
+	}
+	return items, nil
+}
+
+// ListUncensoredJavsMissingStudioOrSeries returns uncensored JAV rows missing studio or non-English series data.
+func ListUncensoredJavsMissingStudioOrSeries(ctx context.Context) ([]JavMetadataScanItem, error) {
+	var items []JavMetadataScanItem
+	if err := common.DB.WithContext(ctx).
+		Model(&models.Jav{}).
+		Select("id, code, studio_id, series_id").
+		Where("COALESCE(code, '') <> ''").
+		Where("COALESCE(is_uncensored, 0) <> 0").
+		Where("studio_id IS NULL OR series_id IS NULL").
+		Order("created_at ASC, id ASC").
+		Find(&items).Error; err != nil {
+		return nil, fmt.Errorf("list uncensored javs missing studio or series: %w", err)
+	}
+	return items, nil
+}
+
 // UpdateMissingJavSeriesStudios assigns a studio to series that can be inferred from a linked JAV row.
 func UpdateMissingJavSeriesStudios(ctx context.Context) (int64, error) {
 	type candidate struct {
@@ -1416,6 +1448,10 @@ func saveJavInfoTx(tx *gorm.DB, info *jav.JavInfo, now ...time.Time) (*models.Ja
 	javRec.ReleaseUnix = info.ReleaseUnix
 	javRec.DurationMin = info.DurationMin
 	javRec.FetchedAt = ts
+	if info.IsUncensored != nil {
+		isUncensored := *info.IsUncensored
+		javRec.IsUncensored = &isUncensored
+	}
 	if studio := strings.TrimSpace(info.Studio); studio != "" {
 		studioRec, err := ensureStudioTx(tx, studio)
 		if err != nil {
@@ -1449,6 +1485,21 @@ func saveJavInfoTx(tx *gorm.DB, info *jav.JavInfo, now ...time.Time) (*models.Ja
 		return nil, err
 	}
 	return javRec, nil
+}
+
+// UpdateJavIsUncensoredIfUnknown records an uncensored/censored classification
+// without overwriting an existing explicit value.
+func UpdateJavIsUncensoredIfUnknown(ctx context.Context, javID int64, isUncensored bool) error {
+	if javID == 0 {
+		return errors.New("jav id cannot be zero")
+	}
+	if err := common.DB.WithContext(ctx).
+		Model(&models.Jav{}).
+		Where("id = ? AND is_uncensored IS NULL", javID).
+		Update("is_uncensored", isUncensored).Error; err != nil {
+		return fmt.Errorf("update jav is_uncensored: %w", err)
+	}
+	return nil
 }
 
 func normalizeJavTagProvider(provider jav.Provider) jav.Provider {

@@ -85,11 +85,11 @@ func TestLookupCacheKeyVersionIsProviderSpecific(t *testing.T) {
 		want     string
 	}{
 		{
-			name:     "javbus lookup jav keeps default version",
+			name:     "javbus lookup jav uses provider version",
 			provider: ProviderJavBus,
 			method:   "lookup_jav",
 			input:    "abc-001",
-			want:     "v1:jav:javbus:lookup_jav:ABC-001",
+			want:     "v2:jav:javbus:lookup_jav:ABC-001",
 		},
 		{
 			name:     "javdatabase lookup jav uses provider version",
@@ -104,6 +104,13 @@ func TestLookupCacheKeyVersionIsProviderSpecific(t *testing.T) {
 			method:   "lookup_jav",
 			input:    "abc-001",
 			want:     "v2:jav:avmoo:lookup_jav:ABC-001",
+		},
+		{
+			name:     "avsox lookup jav uses provider version",
+			provider: ProviderAvsox,
+			method:   "lookup_jav",
+			input:    "030919_047",
+			want:     "v2:jav:avsox:lookup_jav:030919_047",
 		},
 		{
 			name:     "javdatabase cover keeps default version",

@@ -3,6 +3,8 @@ package jav
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -68,5 +70,46 @@ func TestParseJavBusCoverURL(t *testing.T) {
 	got := parseJavBusCoverURL(doc, "https://www.javbus.com/ABC-001")
 	if got != "https://www.javbus.com/pics/cover/c85j_b.jpg" {
 		t.Fatalf("unexpected cover url: %q", got)
+	}
+}
+
+func TestParseJavBusUncensoredFromFixture(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "temp", "javbus-uncensor.html"))
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	doc, err := html.Parse(strings.NewReader(string(data)))
+	if err != nil {
+		t.Fatalf("parse fixture: %v", err)
+	}
+
+	info := parseDocument(doc)
+	if info == nil {
+		t.Fatal("expected info, got nil")
+	}
+	if info.Code != "051526-001" {
+		t.Fatalf("unexpected code: %q", info.Code)
+	}
+	if info.IsUncensored == nil || !*info.IsUncensored {
+		t.Fatal("expected uncensored javbus page")
+	}
+}
+
+func TestParseJavBusCensoredNavIsNotUncensored(t *testing.T) {
+	doc, err := html.Parse(strings.NewReader(`
+		<html>
+			<body>
+				<ul class="nav navbar-nav">
+					<li class="active"><a href="https://www.javbus.com/">有碼</a></li>
+					<li><a href="https://www.javbus.com/uncensored">無碼</a></li>
+				</ul>
+			</body>
+		</html>`))
+	if err != nil {
+		t.Fatalf("parse fixture: %v", err)
+	}
+
+	if parseJavBusIsUncensored(doc) {
+		t.Fatal("did not expect censored javbus page to be marked uncensored")
 	}
 }

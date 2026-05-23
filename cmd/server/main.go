@@ -118,6 +118,7 @@ func main() {
 		jav.ProviderJavDatabase,
 		jav.ProviderJavBus,
 		jav.ProviderThePornDB,
+		jav.ProviderAvsox,
 	})
 
 	common.AppConfig = cfg
