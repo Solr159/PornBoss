@@ -30,10 +30,14 @@ func StartJavMetadataScanner(ctx context.Context, interval time.Duration) {
 	}()
 }
 
-// ScanJavMetadata scans JAV rows with missing English title, studio, or series data and queries metadata providers for it.
+// ScanJavMetadata scans JAV rows with missing title, English title, studio, or series data and queries metadata providers for it.
 func ScanJavMetadata(ctx context.Context) error {
 	if common.DB == nil {
 		return errors.New("nil db")
+	}
+
+	if err := scanMissingJavTitles(ctx); err != nil {
+		return err
 	}
 
 	items, err := db.ListJavsMissingMetadata(ctx)
@@ -127,6 +131,43 @@ func ScanJavMetadata(ctx context.Context) error {
 	}
 	if updated > 0 {
 		logging.Info("updated %d jav series studio ids", updated)
+	}
+	return nil
+}
+
+func scanMissingJavTitles(ctx context.Context) error {
+	items, err := db.ListJavsMissingTitle(ctx)
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		code := strings.TrimSpace(item.Code)
+		if code == "" {
+			continue
+		}
+
+		for _, provider := range []jav.Provider{jav.ProviderJavBus, jav.ProviderAvmoo} {
+			info, err := jav.LookupJavByCode(code, provider)
+			if err != nil {
+				if !errors.Is(err, jav.ResourceNotFonud) {
+					logging.Error("lookup %s metadata failed id=%d code=%s err=%v", provider.String(), item.ID, code, err)
+				}
+				continue
+			}
+			if info == nil || strings.TrimSpace(info.Title) == "" {
+				continue
+			}
+			if _, err := db.SaveJavInfo(ctx, info); err != nil {
+				logging.Error("update jav title metadata failed provider=%s id=%d code=%s err=%v", provider.String(), item.ID, code, err)
+				continue
+			}
+			logging.Info("jav title metadata updated provider=%s id=%d code=%s title=%s", provider.String(), item.ID, code, strings.TrimSpace(info.Title))
+			break
+		}
 	}
 	return nil
 }
