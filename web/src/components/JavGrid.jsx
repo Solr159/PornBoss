@@ -738,7 +738,12 @@ function JavCard({
     event?.stopPropagation()
     onEditTags?.(item)
   }
-  const tags = Array.isArray(item?.tags) ? item.tags : []
+  const tags = useMemo(() => {
+    const rawTags = Array.isArray(item?.tags) ? item.tags : []
+    const userTags = rawTags.filter((tag) => isUserJavTag(tag))
+    const scrapedTags = rawTags.filter((tag) => !isUserJavTag(tag))
+    return [...userTags, ...scrapedTags]
+  }, [item?.tags])
   const showEditTags = typeof onEditTags === 'function'
   const [previewIdol, setPreviewIdol] = useState(null)
   const [hoverAnchorEl, setHoverAnchorEl] = useState(null)
