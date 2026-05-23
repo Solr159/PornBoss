@@ -233,6 +233,12 @@ function CoverPreviewModal({ preview, onClose }) {
   )
 }
 
+function JavCoverImage({ src, alt }) {
+  return (
+    <img src={src} alt={alt} className="h-full w-full object-contain object-top" loading="lazy" />
+  )
+}
+
 function normalizeIdolTagMaxRows(value) {
   const rows = Math.floor(Number(value))
   return Number.isFinite(rows) && rows > 0 ? Math.min(rows, 12) : 0
@@ -549,7 +555,7 @@ function JavTagList({ tags, maxRows, buildTagFilterHref, onTagClick, onFilterLin
             : 'bg-orange-500 hover:bg-orange-600'
           return (
             <a
-              key={tag.id || tag.name}
+              key={`${tag.id || tag.name}-${tag.provider || 0}`}
               href={buildTagFilterHref(tag)}
               className={`rounded-full px-2 py-1 text-xs font-medium text-white transition ${tagClass}`}
               onClick={(event) => onFilterLinkClick(event, () => onTagClick?.(tag))}
@@ -577,7 +583,7 @@ function JavTagList({ tags, maxRows, buildTagFilterHref, onTagClick, onFilterLin
         >
           {tags.map((tag) => (
             <span
-              key={tag.id || tag.name}
+              key={`${tag.id || tag.name}-${tag.provider || 0}`}
               data-jav-tag-measure
               className="rounded-full px-2 py-1 text-xs font-medium"
             >
@@ -861,9 +867,9 @@ function JavCard({
 
   return (
     <div className="flex flex-col overflow-hidden rounded-lg border bg-white shadow-sm transition hover:shadow-lg">
-      <div className="group relative aspect-[800/538] overflow-hidden bg-gray-100">
+      <div className="group relative aspect-[800/538] overflow-hidden bg-white">
         {cover ? (
-          <img src={cover} alt={item?.code} className="h-full w-full object-cover" loading="lazy" />
+          <JavCoverImage src={cover} alt={item?.code || zh('JAV 封面', 'JAV cover')} />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 text-lg font-semibold text-gray-600">
             {item?.code || zh('未知番号', 'Unknown code')}

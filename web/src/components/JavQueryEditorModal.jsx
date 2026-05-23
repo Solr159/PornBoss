@@ -535,7 +535,7 @@ export default function JavQueryEditorModal({
               <div className="flex flex-wrap gap-2">
                 {selectedTags.map((tag) => (
                   <span
-                    key={tag.id}
+                    key={`${tag.id}-${tag.provider || 0}`}
                     className="inline-flex max-w-full items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700"
                   >
                     <span className="truncate">{tag.name}</span>
@@ -572,7 +572,7 @@ export default function JavQueryEditorModal({
                           type="button"
                           role="checkbox"
                           aria-checked={checked}
-                          key={tag.id}
+                          key={`${tag.id}-${tag.provider || 0}`}
                           onMouseDown={(event) => event.preventDefault()}
                           onClick={() => toggleTag(tag.id)}
                           className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-slate-50"

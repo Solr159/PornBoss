@@ -106,10 +106,8 @@ func SearchJav(ctx context.Context, idolIDs []int64, tagIDs []int64, search, sor
 	default:
 		// ignore unknown values
 	}
-	visibleTagProviders := visibleJavTagProviders()
 	query := filtered.
 		Preload("Studio").
-		Preload("Tags", "provider IN ?", visibleTagProviders).
 		Preload("Idols", "COALESCE(is_english, 0) = ?", jav.CurrentMetadataLanguageIsEnglish()).
 		Limit(limit).
 		Offset(offset)
@@ -129,7 +127,57 @@ func SearchJav(ctx context.Context, idolIDs []int64, tagIDs []int64, search, sor
 	if err := attachJavLocationVideos(ctx, items, directoryIDs); err != nil {
 		return nil, 0, err
 	}
+	if err := attachVisibleJavTags(ctx, items); err != nil {
+		return nil, 0, err
+	}
 	return items, total, nil
+}
+
+func attachVisibleJavTags(ctx context.Context, items []models.Jav) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(items))
+	indexByID := make(map[int64]int, len(items))
+	for i, item := range items {
+		if item.ID > 0 {
+			ids = append(ids, item.ID)
+			indexByID[item.ID] = i
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+
+	type row struct {
+		JavID    int64  `gorm:"column:jav_id"`
+		ID       int64  `gorm:"column:id"`
+		Name     string `gorm:"column:name"`
+		Provider int    `gorm:"column:provider"`
+	}
+	var rows []row
+	if err := common.DB.WithContext(ctx).
+		Table("jav_tag_map jtm").
+		Select("jtm.jav_id, jt.id, jt.name, jtm.provider").
+		Joins("JOIN jav_tag jt ON jt.id = jtm.jav_tag_id").
+		Where("jtm.jav_id IN ?", ids).
+		Where("jtm.provider IN ?", visibleJavTagProviders()).
+		Order("jtm.jav_id, jt.name, jtm.provider").
+		Scan(&rows).Error; err != nil {
+		return fmt.Errorf("load jav tags: %w", err)
+	}
+	for _, r := range rows {
+		i, ok := indexByID[r.JavID]
+		if !ok {
+			continue
+		}
+		items[i].Tags = append(items[i].Tags, models.JavTag{
+			ID:       r.ID,
+			Name:     r.Name,
+			Provider: r.Provider,
+		})
+	}
+	return nil
 }
 
 func attachJavLocationVideos(ctx context.Context, items []models.Jav, directoryIDs []int64) error {
@@ -181,31 +229,62 @@ func attachJavLocationVideos(ctx context.Context, items []models.Jav, directoryI
 
 // ListJavTags returns JAV tags with the number of works for each tag.
 func ListJavTags(ctx context.Context, directoryIDs []int64) ([]JavTagCount, error) {
+	scrapedTags, err := listJavTagsForProviders(ctx, directoryIDs, visibleScrapedJavTagProviders(), int(jav.PreferredProvider()))
+	if err != nil {
+		return nil, err
+	}
+	userTags, err := listJavTagsForProviders(ctx, directoryIDs, []int{int(jav.ProviderUser)}, int(jav.ProviderUser))
+	if err != nil {
+		return nil, err
+	}
+	tags := append(scrapedTags, userTags...)
+	return tags, nil
+}
+
+func listJavTagsForProviders(ctx context.Context, directoryIDs []int64, providers []int, outputProvider int) ([]JavTagCount, error) {
+	if len(providers) == 0 {
+		return nil, nil
+	}
 	var tags []JavTagCount
-	visibleProviders := visibleJavTagProviders()
-	query := common.DB.WithContext(ctx).
+	activeLocationSQL := activeLocationWhereSQL("vl", "d") + directoryFilterSQL("vl", directoryIDs)
+	isUser := outputProvider == int(jav.ProviderUser)
+	if err := common.DB.WithContext(ctx).
 		Table("jav_tag jt").
-		Select("jt.id, jt.name, jt.provider, COUNT(DISTINCT CASE WHEN "+activeLocationWhereSQL("vl", "d")+" THEN jtm.jav_id END) AS count").
-		Joins("LEFT JOIN jav_tag_map jtm ON jtm.jav_tag_id = jt.id").
+		Select("jt.id, jt.name, ? AS provider, COUNT(DISTINCT CASE WHEN "+activeLocationSQL+" THEN jtm.jav_id END) AS count", outputProvider).
+		Joins("JOIN jav_tag_map jtm ON jtm.jav_tag_id = jt.id AND jtm.provider IN ?", providers).
 		Joins("LEFT JOIN video_location vl ON vl.jav_id = jtm.jav_id").
 		Joins("LEFT JOIN directory d ON d.id = vl.directory_id").
-		Where("jt.provider IN ?", visibleProviders)
-	query = applyDirectoryFilter(query, "vl", directoryIDs)
-	if err := query.
-		Group("jt.id, jt.name, jt.provider").
-		Order("jt.name, jt.provider").
+		Where("COALESCE(jt.is_user, 0) = ?", isUser).
+		Group("jt.id, jt.name").
+		Order("jt.name").
 		Scan(&tags).Error; err != nil {
 		return nil, fmt.Errorf("list jav tags: %w", err)
 	}
 	return tags, nil
 }
 
-func visibleJavTagProviders() []int {
-	current := int(jav.PreferredProvider())
-	if current <= 0 {
-		current = int(jav.ProviderJavBus)
+func visibleScrapedJavTagProviders() []int {
+	currentLanguage := jav.CurrentMetadataLanguage()
+	candidates := []jav.Provider{
+		jav.ProviderJavBus,
+		jav.ProviderJavDB,
+		jav.ProviderAvmoo,
+		jav.ProviderJavDatabase,
+		jav.ProviderThePornDB,
 	}
-	return []int{current, int(jav.ProviderUser)}
+	providers := make([]int, 0, len(candidates)+1)
+	for _, provider := range candidates {
+		if jav.ProviderMetadataLanguage(provider) == currentLanguage {
+			providers = append(providers, int(provider))
+		}
+	}
+	return providers
+}
+
+func visibleJavTagProviders() []int {
+	providers := visibleScrapedJavTagProviders()
+	providers = append(providers, int(jav.ProviderUser))
+	return providers
 }
 
 // CreateJavTag creates a user-defined JAV tag.
@@ -215,10 +294,20 @@ func CreateJavTag(ctx context.Context, name string) (*models.JavTag, error) {
 		return nil, errors.New("tag name cannot be empty")
 	}
 
-	tag := models.JavTag{Name: name, Provider: int(jav.ProviderUser)}
+	var tag models.JavTag
+	err := common.DB.WithContext(ctx).Where("name = ? AND is_user = ?", name, true).First(&tag).Error
+	if err == nil {
+		tag.Provider = int(jav.ProviderUser)
+		return &tag, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("find jav tag %q: %w", name, err)
+	}
+	tag = models.JavTag{Name: name, IsUser: true}
 	if err := common.DB.WithContext(ctx).Create(&tag).Error; err != nil {
 		return nil, fmt.Errorf("create jav tag %q: %w", name, err)
 	}
+	tag.Provider = int(jav.ProviderUser)
 	return &tag, nil
 }
 
@@ -236,13 +325,13 @@ func RenameJavTag(ctx context.Context, id int64, newName string) error {
 	if err := common.DB.WithContext(ctx).First(&tag, id).Error; err != nil {
 		return fmt.Errorf("find jav tag: %w", err)
 	}
-	if !isUserJavTagProvider(tag.Provider) {
+	if !tag.IsUser {
 		return errors.New("tag is not user-defined")
 	}
 
 	if err := common.DB.WithContext(ctx).
 		Model(&models.JavTag{}).
-		Where("id = ? AND provider = ?", id, int(jav.ProviderUser)).
+		Where("id = ?", id).
 		Update("name", newName).Error; err != nil {
 		return fmt.Errorf("rename jav tag: %w", err)
 	}
@@ -259,16 +348,16 @@ func DeleteJavTag(ctx context.Context, id int64) error {
 	if err := common.DB.WithContext(ctx).First(&tag, id).Error; err != nil {
 		return fmt.Errorf("find jav tag: %w", err)
 	}
-	if !isUserJavTagProvider(tag.Provider) {
+	if !tag.IsUser {
 		return errors.New("tag is not user-defined")
 	}
 
 	return common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("jav_tag_id = ?", id).Delete(&models.JavTagMap{}).Error; err != nil {
+		if err := tx.Where("jav_tag_id = ? AND provider = ?", id, int(jav.ProviderUser)).Delete(&models.JavTagMap{}).Error; err != nil {
 			return fmt.Errorf("delete jav tag relations: %w", err)
 		}
-		if err := tx.Delete(&models.JavTag{}, id).Error; err != nil {
-			return fmt.Errorf("delete jav tag: %w", err)
+		if err := deleteJavTagIfUnusedTx(tx, id); err != nil {
+			return err
 		}
 		return nil
 	})
@@ -283,8 +372,9 @@ func DeleteJavTags(ctx context.Context, ids []int64) error {
 
 	var count int64
 	if err := common.DB.WithContext(ctx).
-		Model(&models.JavTag{}).
-		Where("id IN ? AND provider = ?", cleanIDs, int(jav.ProviderUser)).
+		Table("jav_tag jt").
+		Where("jt.id IN ?", cleanIDs).
+		Where("COALESCE(jt.is_user, 0) = ?", true).
 		Count(&count).Error; err != nil {
 		return fmt.Errorf("find jav tags: %w", err)
 	}
@@ -293,11 +383,13 @@ func DeleteJavTags(ctx context.Context, ids []int64) error {
 	}
 
 	return common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("jav_tag_id IN ?", cleanIDs).Delete(&models.JavTagMap{}).Error; err != nil {
+		if err := tx.Where("jav_tag_id IN ? AND provider = ?", cleanIDs, int(jav.ProviderUser)).Delete(&models.JavTagMap{}).Error; err != nil {
 			return fmt.Errorf("delete jav tag relations: %w", err)
 		}
-		if err := tx.Where("id IN ?", cleanIDs).Delete(&models.JavTag{}).Error; err != nil {
-			return fmt.Errorf("delete jav tag: %w", err)
+		for _, id := range cleanIDs {
+			if err := deleteJavTagIfUnusedTx(tx, id); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -318,14 +410,14 @@ func AddJavTagToJavs(ctx context.Context, tagID int64, javIDs []int64) error {
 		if err := tx.First(&tag, tagID).Error; err != nil {
 			return fmt.Errorf("find jav tag: %w", err)
 		}
-		if !isUserJavTagProvider(tag.Provider) {
+		if !tag.IsUser {
 			return errors.New("tag is not user-defined")
 		}
 
 		now := time.Now()
 		rows := make([]models.JavTagMap, 0, len(cleanIDs))
 		for _, javID := range cleanIDs {
-			rows = append(rows, models.JavTagMap{JavID: javID, JavTagID: tagID, CreatedAt: now})
+			rows = append(rows, models.JavTagMap{JavID: javID, JavTagID: tagID, Provider: int(jav.ProviderUser), CreatedAt: now})
 		}
 		if len(rows) == 0 {
 			return nil
@@ -351,12 +443,12 @@ func RemoveJavTagFromJavs(ctx context.Context, tagID int64, javIDs []int64) erro
 	if err := common.DB.WithContext(ctx).First(&tag, tagID).Error; err != nil {
 		return fmt.Errorf("find jav tag: %w", err)
 	}
-	if !isUserJavTagProvider(tag.Provider) {
+	if !tag.IsUser {
 		return errors.New("tag is not user-defined")
 	}
 
 	if err := common.DB.WithContext(ctx).
-		Where("jav_id IN ? AND jav_tag_id = ?", cleanIDs, tagID).
+		Where("jav_id IN ? AND jav_tag_id = ? AND provider = ?", cleanIDs, tagID, int(jav.ProviderUser)).
 		Delete(&models.JavTagMap{}).Error; err != nil {
 		return fmt.Errorf("delete jav tag map: %w", err)
 	}
@@ -375,7 +467,8 @@ func ReplaceJavUserTags(ctx context.Context, javIDs, tagIDs []int64) error {
 		var count int64
 		if err := common.DB.WithContext(ctx).
 			Model(&models.JavTag{}).
-			Where("id IN ? AND provider = ?", cleanTagIDs, int(jav.ProviderUser)).
+			Where("id IN ?", cleanTagIDs).
+			Where("is_user = ?", true).
 			Count(&count).Error; err != nil {
 			return fmt.Errorf("find jav tags: %w", err)
 		}
@@ -386,7 +479,7 @@ func ReplaceJavUserTags(ctx context.Context, javIDs, tagIDs []int64) error {
 
 	return common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.
-			Where("jav_id IN ? AND jav_tag_id IN (SELECT id FROM jav_tag WHERE provider = ?)", cleanJavIDs, int(jav.ProviderUser)).
+			Where("jav_id IN ? AND provider = ?", cleanJavIDs, int(jav.ProviderUser)).
 			Delete(&models.JavTagMap{}).Error; err != nil {
 			return fmt.Errorf("delete jav tag map: %w", err)
 		}
@@ -397,7 +490,7 @@ func ReplaceJavUserTags(ctx context.Context, javIDs, tagIDs []int64) error {
 		rows := make([]models.JavTagMap, 0, len(cleanJavIDs)*len(cleanTagIDs))
 		for _, javID := range cleanJavIDs {
 			for _, tagID := range cleanTagIDs {
-				rows = append(rows, models.JavTagMap{JavID: javID, JavTagID: tagID, CreatedAt: now})
+				rows = append(rows, models.JavTagMap{JavID: javID, JavTagID: tagID, Provider: int(jav.ProviderUser), CreatedAt: now})
 			}
 		}
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&rows).Error; err != nil {
@@ -436,8 +529,7 @@ func buildJavFilter(ctx context.Context, idolIDs []int64, tagIDs []int64, search
 	if len(tagIDs) > 0 {
 		q = q.
 			Joins("JOIN jav_tag_map jtm ON jtm.jav_id = jav.id").
-			Joins("JOIN jav_tag jt ON jt.id = jtm.jav_tag_id").
-			Where("jt.provider IN ?", visibleTagProviders).
+			Where("jtm.provider IN ?", visibleTagProviders).
 			Where("jtm.jav_tag_id IN ?", tagIDs).
 			Group("jav.id").
 			Having("COUNT(DISTINCT jtm.jav_tag_id) = ?", len(tagIDs))
@@ -1166,6 +1258,21 @@ func ListJavsMissingMetadata(ctx context.Context) ([]JavMetadataScanItem, error)
 	return items, nil
 }
 
+// ListJavsMissingTitle returns JAV rows whose primary title is empty.
+func ListJavsMissingTitle(ctx context.Context) ([]JavMetadataScanItem, error) {
+	var items []JavMetadataScanItem
+	if err := common.DB.WithContext(ctx).
+		Model(&models.Jav{}).
+		Select("id, code, title_en, studio_id, series_id, series_en_id").
+		Where("COALESCE(code, '') <> ''").
+		Where("TRIM(COALESCE(title, '')) = ''").
+		Order("created_at ASC, id ASC").
+		Find(&items).Error; err != nil {
+		return nil, fmt.Errorf("list javs missing title: %w", err)
+	}
+	return items, nil
+}
+
 // UpdateMissingJavSeriesStudios assigns a studio to series that can be inferred from a linked JAV row.
 func UpdateMissingJavSeriesStudios(ctx context.Context) (int64, error) {
 	type candidate struct {
@@ -1398,11 +1505,10 @@ func ensureJavTagsTx(tx *gorm.DB, names []string, provider jav.Provider) ([]mode
 	if len(unique) == 0 {
 		return nil, nil
 	}
-	provider = normalizeJavTagProvider(provider)
 	var tags []models.JavTag
 	for _, name := range unique {
-		tag := models.JavTag{Name: name, Provider: int(provider)}
-		if err := tx.Where("name = ? AND provider = ?", name, int(provider)).FirstOrCreate(&tag).Error; err != nil {
+		tag := models.JavTag{Name: name, IsUser: false}
+		if err := tx.Where("name = ? AND is_user = ?", name, false).FirstOrCreate(&tag).Error; err != nil {
 			return nil, fmt.Errorf("ensure jav tag %q: %w", name, err)
 		}
 		tags = append(tags, tag)
@@ -1416,7 +1522,7 @@ func replaceJavTagsForProviderTx(tx *gorm.DB, javID int64, tags []models.JavTag,
 	}
 	provider = normalizeJavTagProvider(provider)
 	if err := tx.
-		Where("jav_id = ? AND jav_tag_id IN (SELECT id FROM jav_tag WHERE provider = ?)", javID, int(provider)).
+		Where("jav_id = ? AND provider = ?", javID, int(provider)).
 		Delete(&models.JavTagMap{}).Error; err != nil {
 		return fmt.Errorf("delete jav tag maps for provider: %w", err)
 	}
@@ -1429,7 +1535,7 @@ func replaceJavTagsForProviderTx(tx *gorm.DB, javID int64, tags []models.JavTag,
 		if tag.ID == 0 {
 			continue
 		}
-		rows = append(rows, models.JavTagMap{JavID: javID, JavTagID: tag.ID, CreatedAt: now})
+		rows = append(rows, models.JavTagMap{JavID: javID, JavTagID: tag.ID, Provider: int(provider), CreatedAt: now})
 	}
 	if len(rows) == 0 {
 		return nil
@@ -1440,8 +1546,21 @@ func replaceJavTagsForProviderTx(tx *gorm.DB, javID int64, tags []models.JavTag,
 	return nil
 }
 
-func isUserJavTagProvider(provider int) bool {
-	return jav.ParseProvider(provider) == jav.ProviderUser
+func deleteJavTagIfUnusedTx(tx *gorm.DB, tagID int64) error {
+	if tagID <= 0 {
+		return nil
+	}
+	var count int64
+	if err := tx.Model(&models.JavTagMap{}).Where("jav_tag_id = ?", tagID).Count(&count).Error; err != nil {
+		return fmt.Errorf("count jav tag maps: %w", err)
+	}
+	if count > 0 {
+		return nil
+	}
+	if err := tx.Delete(&models.JavTag{}, tagID).Error; err != nil {
+		return fmt.Errorf("delete jav tag: %w", err)
+	}
+	return nil
 }
 
 func appendJavIdolsForProviderLanguageTx(tx *gorm.DB, javRec *models.Jav, names []string, provider jav.Provider) error {

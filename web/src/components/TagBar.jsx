@@ -17,7 +17,7 @@ export default function TagBar({
         if (multiSelect) {
           return (
             <label
-              key={t.id}
+              key={`${t.id}-${t.provider || 0}`}
               className={
                 neumorphic
                   ? `skeuo-tag skeuo-tag--toggle ${checked ? 'skeuo-tag--selected' : ''}`
@@ -51,7 +51,7 @@ export default function TagBar({
         }
         return (
           <button
-            key={t.id}
+            key={`${t.id}-${t.provider || 0}`}
             type="button"
             className={
               neumorphic
