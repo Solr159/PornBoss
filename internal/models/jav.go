@@ -16,7 +16,6 @@ type Jav struct {
 	SeriesEn    *JavSeries `json:"series_en,omitempty" gorm:"foreignKey:SeriesEnID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
 	ReleaseUnix int64      `json:"release_unix"`
 	DurationMin int        `json:"duration_min"`
-	Provider       int        `json:"provider" gorm:"not null;default:0"`
 	FetchedAt      time.Time  `json:"fetched_at"`
 	TitleLocked    bool       `json:"title_locked" gorm:"not null;default:0"`
 	TitleEnLocked  bool       `json:"title_en_locked" gorm:"not null;default:0"`
@@ -26,7 +25,7 @@ type Jav struct {
 	TagsLocked     bool       `json:"tags_locked" gorm:"not null;default:0"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
-	Tags        []JavTag   `json:"tags,omitempty" gorm:"many2many:jav_tag_map"`
+	Tags           []JavTag   `json:"tags,omitempty" gorm:"-"`
 	Idols       []JavIdol  `json:"idols,omitempty" gorm:"many2many:jav_idol_map"`
 	Videos      []Video    `json:"videos,omitempty" gorm:"-"`
 	// Collections lists user playlists containing this work (filled by list/search APIs, not persisted on jav row).
@@ -58,8 +57,9 @@ type JavSeries struct {
 
 type JavTag struct {
 	ID        int64     `json:"id" gorm:"primaryKey"`
-	Name      string    `json:"name" gorm:"uniqueIndex:idx_jav_tag_name_source"`
-	Provider  int       `json:"provider" gorm:"not null;default:0;index:idx_jav_tag_provider;uniqueIndex:idx_jav_tag_name_source"`
+	Name      string    `json:"name" gorm:"uniqueIndex:idx_jav_tag_name_user"`
+	IsUser    bool      `json:"is_user" gorm:"not null;default:0;uniqueIndex:idx_jav_tag_name_user"`
+	Provider  int       `json:"provider" gorm:"-"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -87,6 +87,7 @@ type JavTagMap struct {
 	Jav       Jav       `gorm:"foreignKey:JavID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	JavTagID  int64     `gorm:"primaryKey"`
 	JavTag    JavTag    `gorm:"foreignKey:JavTagID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Provider  int       `gorm:"primaryKey;not null;default:0;index"`
 	CreatedAt time.Time `gorm:"autoCreateTime"`
 }
 

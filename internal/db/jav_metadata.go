@@ -192,10 +192,7 @@ func PatchJavMetadata(ctx context.Context, javID int64, patch JavMetadataPatch, 
 }
 
 func loadJavForResponse(ctx context.Context, javID int64, isEnglish bool) (*models.Jav, error) {
-	visibleTagProviders := visibleJavTagProviders()
-	query := common.DB.WithContext(ctx).
-		Preload("Studio").
-		Preload("Tags", "provider IN ?", visibleTagProviders)
+	query := common.DB.WithContext(ctx).Preload("Studio")
 	if isEnglish {
 		query = query.Preload("SeriesEn")
 	} else {
@@ -205,7 +202,11 @@ func loadJavForResponse(ctx context.Context, javID int64, isEnglish bool) (*mode
 	if err := query.First(&rec, javID).Error; err != nil {
 		return nil, fmt.Errorf("load jav: %w", err)
 	}
-	return &rec, nil
+	items := []models.Jav{rec}
+	if err := attachVisibleJavTags(ctx, items); err != nil {
+		return nil, err
+	}
+	return &items[0], nil
 }
 
 func replaceJavAllTagsTx(tx *gorm.DB, javID int64, tagIDs []int64) error {

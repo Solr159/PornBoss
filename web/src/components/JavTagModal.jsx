@@ -1,9 +1,28 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Button, IconButton, TextField } from '@mui/material'
+import AddIcon from '@mui/icons-material/Add'
+import CheckBoxOutlinedIcon from '@mui/icons-material/CheckBoxOutlined'
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined'
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
+import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined'
 
 import TagBar from '@/components/TagBar'
 import { isUserJavTag } from '@/constants/jav'
 import { zh } from '@/utils/i18n'
+
+const compactButtonSx = {
+  minHeight: 28,
+  px: 1.25,
+  py: 0.25,
+  fontSize: '0.75rem',
+  lineHeight: 1.25,
+  '& .MuiButton-startIcon': {
+    marginRight: 0.5,
+    '& svg': {
+      fontSize: 16,
+    },
+  },
+}
 
 export default function JavTagModal({
   open,
@@ -130,7 +149,7 @@ export default function JavTagModal({
           const canRename = isUserJavTag(t)
           const showRenameHint = editMode && hoverTagId === t.id && canRename
           const showDelete = editMode && hoverTagId === t.id && canRename
-          const baseTagClass = canRename ? 'skeuo-tag--user' : 'skeuo-tag--scraped'
+          const baseTagClass = 'skeuo-tag--scraped'
           const interactiveTagClass = editMode
             ? showRenameHint
               ? 'skeuo-tag--active'
@@ -138,7 +157,7 @@ export default function JavTagModal({
             : 'skeuo-tag--button'
           return (
             <div
-              key={t.id}
+              key={`${t.id}-${t.provider || 0}`}
               className={`skeuo-tag ${baseTagClass} ${interactiveTagClass}`}
               onMouseEnter={() => {
                 if (editMode) setHoverTagId(t.id)
@@ -166,11 +185,18 @@ export default function JavTagModal({
                 )}
               </button>
               {showDelete && (
-                <button
+                <IconButton
+                  size="small"
                   type="button"
                   aria-label={zh('删除标签', 'Delete tag')}
                   disabled={deletingId === t.id}
                   className="skeuo-tag-delete"
+                  sx={{
+                    borderRadius: 0,
+                    padding: 0,
+                    width: '1.5rem',
+                    height: '1.5rem',
+                  }}
                   onClick={async (event) => {
                     event.preventDefault()
                     event.stopPropagation()
@@ -191,7 +217,7 @@ export default function JavTagModal({
                   }}
                 >
                   <CloseOutlinedIcon fontSize="inherit" className="h-3.5 w-3.5" />
-                </button>
+                </IconButton>
               )}
             </div>
           )
@@ -208,13 +234,15 @@ export default function JavTagModal({
           <h2 className="text-lg font-semibold text-slate-900">
             {zh('标签管理', 'Tag Management')}
           </h2>
-          <button
+          <Button
+            size="small"
+            variant="text"
             onClick={onClose}
-            className="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-200"
             aria-label={zh('关闭', 'Close')}
+            sx={compactButtonSx}
           >
             {zh('关闭', 'Close')}
-          </button>
+          </Button>
         </div>
         <div className="space-y-6 p-6">
           <section className="space-y-4">
@@ -231,23 +259,29 @@ export default function JavTagModal({
                   )}
                   {!multiSelect && (
                     <div className="flex flex-wrap items-center gap-2">
-                      <button
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={editMode ? null : <EditOutlinedIcon fontSize="small" />}
                         onClick={handleToggleEditMode}
-                        className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                        sx={compactButtonSx}
                       >
                         {editMode ? zh('退出编辑', 'Exit edit') : zh('编辑', 'Edit')}
-                      </button>
+                      </Button>
                       {!editMode && (
-                        <button
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<AddIcon fontSize="small" />}
                           onClick={() => {
                             setCreateError('')
                             setNewTagName('')
                             setCreateOpen(true)
                           }}
-                          className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                          sx={compactButtonSx}
                         >
                           {zh('新增标签', 'New tag')}
-                        </button>
+                        </Button>
                       )}
                     </div>
                   )}
@@ -267,30 +301,36 @@ export default function JavTagModal({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 {!editMode && (
-                  <button
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={multiSelect ? null : <CheckBoxOutlinedIcon fontSize="small" />}
                     onClick={() => {
                       setMultiSelect((prev) => !prev)
                       setSelectedTagIds([])
                       setEditMode(false)
                       setHoverTagId(null)
                     }}
-                    className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                    sx={compactButtonSx}
                   >
                     {multiSelect ? zh('退出多选', 'Exit multi-select') : zh('多选', 'Multi-select')}
-                  </button>
+                  </Button>
                 )}
                 {multiSelect && (
-                  <button
+                  <Button
+                    size="small"
+                    variant="contained"
+                    startIcon={<SearchOutlinedIcon fontSize="small" />}
                     onClick={() => {
                       if (selectedIds.length === 0) return
                       onApplyTagFilter(selectedIds)
                       onClose()
                     }}
                     disabled={selectedIds.length === 0}
-                    className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+                    sx={compactButtonSx}
                   >
                     {zh('查找视频', 'Find videos')}
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
@@ -305,31 +345,36 @@ export default function JavTagModal({
               <h3 className="text-base font-semibold text-slate-900">
                 {zh('新增标签', 'New tag')}
               </h3>
-              <button
+              <IconButton
+                size="small"
                 onClick={() => setCreateOpen(false)}
-                className="rounded px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
                 aria-label={zh('关闭新增标签', 'Close new tag')}
               >
-                ✕
-              </button>
+                <CloseOutlinedIcon fontSize="small" />
+              </IconButton>
             </div>
             <div className="space-y-3">
-              <input
+              <TextField
+                size="small"
+                fullWidth
                 value={newTagName}
                 onChange={(e) => setNewTagName(e.target.value)}
                 placeholder={zh('请输入标签名', 'Enter tag name')}
-                className="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               {createError && <div className="text-sm text-red-600">{createError}</div>}
             </div>
             <div className="mt-4 flex justify-end gap-2">
-              <button
+              <Button
+                size="small"
+                variant="outlined"
                 onClick={() => setCreateOpen(false)}
-                className="rounded border px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                sx={compactButtonSx}
               >
                 {zh('取消', 'Cancel')}
-              </button>
-              <button
+              </Button>
+              <Button
+                size="small"
+                variant="contained"
                 onClick={async () => {
                   const trimmed = newTagName.trim()
                   if (!trimmed) {
@@ -349,10 +394,10 @@ export default function JavTagModal({
                   }
                 }}
                 disabled={creating}
-                className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-60"
+                sx={compactButtonSx}
               >
                 {creating ? zh('创建中…', 'Creating...') : zh('创建', 'Create')}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -364,20 +409,21 @@ export default function JavTagModal({
               <h3 className="text-base font-semibold text-slate-900">
                 {zh('重命名标签', 'Rename tag')}
               </h3>
-              <button
+              <IconButton
+                size="small"
                 onClick={handleCloseRename}
-                className="rounded px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
                 aria-label={zh('关闭重命名', 'Close rename')}
               >
-                ✕
-              </button>
+                <CloseOutlinedIcon fontSize="small" />
+              </IconButton>
             </div>
             <div className="space-y-3">
-              <input
+              <TextField
+                size="small"
+                fullWidth
                 value={renameTagName}
                 onChange={(e) => setRenameTagName(e.target.value)}
                 placeholder={zh('请输入新的标签名', 'Enter a new tag name')}
-                className="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 onKeyDown={(event) => {
                   if (event.key === 'Escape') {
                     handleCloseRename()
@@ -387,13 +433,17 @@ export default function JavTagModal({
               {renameError && <div className="text-sm text-red-600">{renameError}</div>}
             </div>
             <div className="mt-4 flex justify-end gap-2">
-              <button
+              <Button
+                size="small"
+                variant="outlined"
                 onClick={handleCloseRename}
-                className="rounded border px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                sx={compactButtonSx}
               >
                 {zh('取消', 'Cancel')}
-              </button>
-              <button
+              </Button>
+              <Button
+                size="small"
+                variant="contained"
                 onClick={async () => {
                   const trimmed = renameTagName.trim()
                   if (!trimmed) {
@@ -420,10 +470,10 @@ export default function JavTagModal({
                   }
                 }}
                 disabled={renaming}
-                className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-60"
+                sx={compactButtonSx}
               >
                 {renaming ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

@@ -476,13 +476,8 @@ func processVideoLocationJavLink(ctx context.Context, locationID int64) error {
 	if err != nil || v == nil {
 		return err
 	}
-	return processJavScanVideo(ctx, *v)
-}
 
-func processJavScanVideo(ctx context.Context, v db.JavScanVideo) error {
-	preferredProvider := jav.PreferredProvider()
-
-	if v.JavID != nil && jav.ParseProvider(v.JavProvider) == preferredProvider {
+	if v.JavID != nil {
 		return nil
 	}
 	if v.DurationSec > 0 && v.DurationSec < 3600 {
@@ -501,10 +496,10 @@ func processJavScanVideo(ctx context.Context, v db.JavScanVideo) error {
 			logging.Error("jav lookup existing failed location=%d code=%s err=%v", v.LocationID, code, err)
 			continue
 		}
-		if existJav == nil || jav.ParseProvider(existJav.Provider) != preferredProvider {
+		if existJav == nil {
 			continue
 		}
-		if err := db.SetVideoLocationJavID(ctx, v.LocationID, existJav.ID, v.UpdatedAt); err != nil {
+		if err := db.SetVideoLocationJavIDForVideo(ctx, v.LocationID, v.VideoID, existJav.ID, v.UpdatedAt); err != nil {
 			logging.Error("set video location jav failed location=%d code=%s err=%v", v.LocationID, code, err)
 		} else {
 			enqueueCover(existJav.Code)
@@ -512,28 +507,38 @@ func processJavScanVideo(ctx context.Context, v db.JavScanVideo) error {
 		return nil
 	}
 
+	if linked, err := lookupAndLinkVideoLocationJav(ctx, v, filename, possibleCodes, jav.ProviderJavBus); err != nil || linked {
+		return err
+	}
+	if linked, err := lookupAndLinkVideoLocationJav(ctx, v, filename, possibleCodes, jav.ProviderJavDatabase); err != nil || linked {
+		return err
+	}
+	return nil
+}
+
+func lookupAndLinkVideoLocationJav(ctx context.Context, v *db.JavScanVideo, filename string, possibleCodes []string, provider jav.Provider) (bool, error) {
 	for _, code := range possibleCodes {
-		info, err := jav.LookupJavByCode(code, preferredProvider)
+		info, err := jav.LookupJavByCode(code, provider)
 		if err != nil {
 			if errors.Is(err, jav.ResourceNotFonud) {
 				continue
 			}
-			logging.Error("jav lookup failed location=%s code=%s err=%v", filename, code, err)
+			logging.Error("jav lookup failed provider=%s location=%s code=%s err=%v", provider.String(), filename, code, err)
 			continue
 		}
 		if info == nil {
 			continue
 		}
 
-		if _, err := db.SaveJavInfoAndLinkLocation(ctx, info, v.LocationID, v.UpdatedAt); err != nil {
-			logging.Error("link video location->jav failed location=%s code=%s err=%v", filename, info.Code, err)
+		if _, err := db.SaveJavInfoAndLinkLocationForVideo(ctx, info, v.LocationID, v.VideoID, v.UpdatedAt); err != nil {
+			logging.Error("link video location->jav failed provider=%s location=%s code=%s err=%v", provider.String(), filename, info.Code, err)
 		} else {
-			logging.Info("link video location->jav success location=%s code=%s", filename, info.Code)
+			logging.Info("link video location->jav success provider=%s location=%s code=%s", provider.String(), filename, info.Code)
 			enqueueCover(info.Code)
 		}
-		return nil
+		return true, nil
 	}
-	return nil
+	return false, nil
 }
 
 func enqueueCover(code string) {

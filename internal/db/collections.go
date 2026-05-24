@@ -227,18 +227,19 @@ func ListJavsInCollectionForAnalysis(ctx context.Context, collectionID int64, li
 	if limit > 300 {
 		limit = 300
 	}
-	visibleTagProviders := visibleJavTagProviders()
 	isEnglish := jav.CurrentMetadataLanguageIsEnglish()
 	var items []models.Jav
 	q := common.DB.WithContext(ctx).
 		Model(&models.Jav{}).
 		Joins("JOIN jav_collection jc ON jc.jav_id = jav.id AND jc.collection_id = ?", collectionID).
-		Preload("Tags", "provider IN ?", visibleTagProviders).
 		Preload("Idols", "COALESCE(is_english, 0) = ?", isEnglish).
 		Order("jav.code").
 		Limit(limit)
 	if err := q.Find(&items).Error; err != nil {
 		return nil, fmt.Errorf("list javs for analysis: %w", err)
+	}
+	if err := attachVisibleJavTags(ctx, items); err != nil {
+		return nil, err
 	}
 	return items, nil
 }

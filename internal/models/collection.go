@@ -13,8 +13,8 @@ type Collection struct {
 
 // JavCollection is the join table between collections and jav rows.
 type JavCollection struct {
-	CollectionID int64     `json:"collection_id" gorm:"primaryKey"`
-	JavID        int64     `json:"jav_id" gorm:"primaryKey"`
+	CollectionID int64     `json:"collection_id" gorm:"primaryKey;not null"`
+	JavID        int64     `json:"jav_id" gorm:"primaryKey;not null;index:idx_jav_collection_jav_id"`
 	CreatedAt    time.Time `json:"created_at"`
 
 	Collection Collection `json:"-" gorm:"foreignKey:CollectionID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`

@@ -529,15 +529,16 @@ func assertModelIndexes(t *testing.T, db *gorm.DB) {
 		"idx_tag_name",
 	})
 	assertTableIndexes(t, db, "jav_tag", []string{
-		"idx_jav_tag_name_source",
-		"idx_jav_tag_provider",
+		"idx_jav_tag_name_user",
 	})
 	assertTableIndexes(t, db, "jav_idol", []string{
 		"idx_jav_idol_name_language",
 	})
 	assertTableIndexes(t, db, "config", nil)
 	assertTableIndexes(t, db, "video_tag", nil)
-	assertTableIndexes(t, db, "jav_tag_map", nil)
+	assertTableIndexes(t, db, "jav_tag_map", []string{
+		"idx_jav_tag_map_provider",
+	})
 	assertTableIndexes(t, db, "jav_idol_map", []string{
 		"idx_jav_idol_map_jav_idol_id_jav_id",
 	})

@@ -27,6 +27,10 @@ type CoverManager struct {
 
 const minValidCoverSizeBytes int64 = 30 * 1024
 
+var errInvalidCover = errors.New("invalid cover")
+
+var lookupCoverURLByCode = jav.LookupCoverURLByCode
+
 // NewCoverManager creates a manager when coverDir and providers are provided.
 func NewCoverManager(coverDir string, providers []jav.Provider) *CoverManager {
 	coverDir = strings.TrimSpace(coverDir)
@@ -112,9 +116,22 @@ func (m *CoverManager) handleTask(parent context.Context, code string) error {
 	ctx, cancel := context.WithTimeout(parent, 45*time.Second)
 	defer cancel()
 
+	if err := m.downloadCoverFromProviders(ctx, code); err != nil {
+		if errors.Is(err, util.ErrCachedNotFound) {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+func (m *CoverManager) downloadCoverFromProviders(ctx context.Context, code string) error {
+	if m == nil {
+		return errors.New("cover manager not configured")
+	}
 	var lastErr error
 	for _, provider := range m.providers {
-		coverURL, err := jav.LookupCoverURLByCode(code, provider)
+		coverURL, err := lookupCoverURLByCode(code, provider)
 		if err != nil {
 			if errors.Is(err, jav.ResourceNotFonud) {
 				continue
@@ -123,24 +140,26 @@ func (m *CoverManager) handleTask(parent context.Context, code string) error {
 			logging.Error("fetch cover url failed: provider=%s code=%s err=%v", provider.String(), code, err)
 			continue
 		}
+
 		coverURL = strings.TrimSpace(coverURL)
 		if coverURL == "" {
 			continue
 		}
 		if err := m.downloadCover(ctx, code, coverURL); err != nil {
-			if errors.Is(err, util.ErrCachedNotFound) {
+			if errors.Is(err, util.ErrCachedNotFound) || errors.Is(err, errInvalidCover) {
+				lastErr = err
 				continue
 			}
 			lastErr = err
-			logging.Error("download cover failed: provider=%s code=%s url=%s err=%v", provider.String(), code, coverURL, err)
+			logging.Error("download cover failed: provider=%s code=%s err=%v", provider.String(), code, err)
 			continue
 		}
 		return nil
 	}
 	if lastErr != nil {
-		return lastErr
+		return fmt.Errorf("download cover from providers: %w", lastErr)
 	}
-	return nil
+	return util.ErrCachedNotFound
 }
 
 func (m *CoverManager) downloadCover(ctx context.Context, code, coverURL string) error {
@@ -182,13 +201,20 @@ func (m *CoverManager) downloadCover(ctx context.Context, code, coverURL string)
 	if err != nil {
 		return fmt.Errorf("create temp: %w", err)
 	}
-	if _, err := io.Copy(out, resp.Body); err != nil {
+	written, err := io.Copy(out, resp.Body)
+	if err != nil {
 		out.Close()
 		_ = os.Remove(tmp)
 		return fmt.Errorf("write cover: %w", err)
 	}
-	out.Close()
-
+	if err := out.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("close cover: %w", err)
+	}
+	if written < minValidCoverSizeBytes {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("%w: size %d below minimum %d", errInvalidCover, written, minValidCoverSizeBytes)
+	}
 	if err := os.Rename(tmp, target); err != nil {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("finalize cover: %w", err)
