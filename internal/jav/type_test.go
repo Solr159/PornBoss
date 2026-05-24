@@ -1,6 +1,10 @@
 package jav
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 func TestMetadataLanguageDefaultsToChinese(t *testing.T) {
 	SetMetadataLanguage("")
@@ -35,6 +39,7 @@ func TestProviderLanguageHelpers(t *testing.T) {
 		{ProviderJavBus, MetadataLanguageChinese, false},
 		{ProviderJavDB, MetadataLanguageChinese, false},
 		{ProviderAvmoo, MetadataLanguageChinese, false},
+		{ProviderAvsox, MetadataLanguageChinese, false},
 		{ProviderJavDatabase, MetadataLanguageEnglish, true},
 		{ProviderThePornDB, MetadataLanguageEnglish, true},
 		{ProviderUser, MetadataLanguageChinese, false},
@@ -57,6 +62,7 @@ func TestLookupProvidersByProviderIncludesMetadataProviders(t *testing.T) {
 		ProviderJavDatabase,
 		ProviderJavDB,
 		ProviderAvmoo,
+		ProviderAvsox,
 		ProviderThePornDB,
 		ProviderJavModel,
 	}
@@ -69,6 +75,16 @@ func TestLookupProvidersByProviderIncludesMetadataProviders(t *testing.T) {
 		if got == nil {
 			t.Fatalf("lookup provider for %s is nil", provider.String())
 		}
+	}
+}
+
+func TestJavInfoOmitsUncensoredWhenUnset(t *testing.T) {
+	data, err := json.Marshal(JavInfo{Code: "ABC-001", Provider: ProviderAvmoo})
+	if err != nil {
+		t.Fatalf("marshal jav info: %v", err)
+	}
+	if strings.Contains(string(data), "IsUncensored") {
+		t.Fatalf("unexpected IsUncensored field: %s", data)
 	}
 }
 

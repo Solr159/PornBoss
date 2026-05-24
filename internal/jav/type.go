@@ -21,6 +21,7 @@ const (
 	ProviderAvmoo
 	ProviderThePornDB
 	ProviderJavModel
+	ProviderAvsox
 )
 
 func (p Provider) String() string {
@@ -39,6 +40,8 @@ func (p Provider) String() string {
 		return "theporndb"
 	case ProviderJavModel:
 		return "javmodel"
+	case ProviderAvsox:
+		return "avsox"
 	default:
 		return "unknown"
 	}
@@ -48,7 +51,7 @@ func (p Provider) String() string {
 func ParseProvider(value int) Provider {
 	p := Provider(value)
 	switch p {
-	case ProviderJavBus, ProviderJavDatabase, ProviderUser, ProviderJavDB, ProviderAvmoo, ProviderThePornDB, ProviderJavModel:
+	case ProviderJavBus, ProviderJavDatabase, ProviderUser, ProviderJavDB, ProviderAvmoo, ProviderThePornDB, ProviderJavModel, ProviderAvsox:
 		return p
 	default:
 		return ProviderUnknown
@@ -77,12 +80,14 @@ var lookupProvidersByProvider = map[Provider]lookupProvider{
 	ProviderAvmoo:       avmooProvider,
 	ProviderThePornDB:   thePornDBProvider,
 	ProviderJavModel:    javModelProvider,
+	ProviderAvsox:       avsoxProvider,
 }
 
 var metadataLanguageByProvider = map[Provider]MetadataLanguage{
 	ProviderJavBus:      MetadataLanguageChinese,
 	ProviderJavDB:       MetadataLanguageChinese,
 	ProviderAvmoo:       MetadataLanguageChinese,
+	ProviderAvsox:       MetadataLanguageChinese,
 	ProviderJavDatabase: MetadataLanguageEnglish,
 	ProviderThePornDB:   MetadataLanguageEnglish,
 }
@@ -152,15 +157,16 @@ func PreferredProvider() Provider {
 
 // JavInfo holds basic metadata extracted from a JAV metadata provider.
 type JavInfo struct {
-	Title       string
-	Code        string
-	Studio      string
-	Series      string
-	ReleaseUnix int64
-	DurationMin int
-	Tags        []string
-	Actors      []string
-	Provider    Provider
+	Title        string
+	Code         string
+	Studio       string
+	Series       string
+	ReleaseUnix  int64
+	DurationMin  int
+	Tags         []string
+	Actors       []string
+	IsUncensored *bool `json:",omitempty"`
+	Provider     Provider
 }
 
 // ActressInfo describes basic actress profile fields from JavDatabase.

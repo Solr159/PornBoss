@@ -31,12 +31,19 @@ func StartJavMetadataScanner(ctx context.Context, interval time.Duration) {
 }
 
 // ScanJavMetadata scans JAV rows with missing title, English title, studio, or series data and queries metadata providers for it.
+// TODO: AVMOO和AVSOX爬虫限流较慢，会拖慢整个扫描过程，后续考虑单独异步处理这两个爬虫相关的信息补齐。
 func ScanJavMetadata(ctx context.Context) error {
 	if common.DB == nil {
 		return errors.New("nil db")
 	}
 
-	if err := scanMissingJavTitles(ctx); err != nil {
+	if err := scanMissingJavZhInfo(ctx); err != nil {
+		return err
+	}
+	if err := scanMissingJavUncensored(ctx); err != nil {
+		return err
+	}
+	if err := scanMissingUncensoredJavStudioSeries(ctx); err != nil {
 		return err
 	}
 
@@ -135,7 +142,93 @@ func ScanJavMetadata(ctx context.Context) error {
 	return nil
 }
 
-func scanMissingJavTitles(ctx context.Context) error {
+// jav表uncensored字段是新增的，存量数据中使用javbus获取的jav的uncensored状态未知，这个函数专门用javbus重新获取一遍来补齐这个信息。
+func scanMissingJavUncensored(ctx context.Context) error {
+	items, err := db.ListJavsMissingUncensored(ctx)
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		code := strings.TrimSpace(item.Code)
+		if code == "" {
+			continue
+		}
+
+		for _, provider := range []jav.Provider{jav.ProviderJavBus} {
+			info, err := jav.LookupJavByCode(code, provider)
+			if err != nil {
+				if !errors.Is(err, jav.ResourceNotFonud) {
+					logging.Error("lookup %s uncensored state failed id=%d code=%s err=%v", provider.String(), item.ID, code, err)
+				}
+				continue
+			}
+			if info == nil || info.IsUncensored == nil {
+				continue
+			}
+			if err := db.UpdateJavIsUncensoredIfUnknown(ctx, item.ID, *info.IsUncensored); err != nil {
+				logging.Error("update jav is_uncensored failed provider=%s id=%d code=%s err=%v", provider.String(), item.ID, code, err)
+				continue
+			}
+			logging.Info("jav is_uncensored updated provider=%s id=%d code=%s is_uncensored=%t", provider.String(), item.ID, code, *info.IsUncensored)
+			break
+		}
+	}
+	return nil
+}
+
+func scanMissingUncensoredJavStudioSeries(ctx context.Context) error {
+	items, err := db.ListUncensoredJavsMissingStudioOrSeries(ctx)
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		code := strings.TrimSpace(item.Code)
+		if code == "" {
+			continue
+		}
+
+		info, err := jav.LookupJavByCode(code, jav.ProviderAvsox)
+		if err != nil {
+			if !errors.Is(err, jav.ResourceNotFonud) {
+				logging.Error("lookup avsox uncensored metadata failed id=%d code=%s err=%v", item.ID, code, err)
+			}
+			continue
+		}
+		if info == nil {
+			continue
+		}
+
+		studio := strings.TrimSpace(info.Studio)
+		if item.StudioID == nil && studio != "" {
+			if err := db.UpdateJavStudio(ctx, item.ID, studio); err != nil {
+				logging.Error("update uncensored jav studio failed id=%d code=%s err=%v", item.ID, code, err)
+			} else {
+				logging.Info("uncensored jav studio updated provider=%s id=%d code=%s studio=%s", jav.ProviderAvsox.String(), item.ID, code, studio)
+			}
+		}
+
+		series := strings.TrimSpace(info.Series)
+		if item.SeriesID == nil && series != "" {
+			if err := db.UpdateJavSeries(ctx, item.ID, series, false); err != nil {
+				logging.Error("update uncensored jav series failed id=%d code=%s err=%v", item.ID, code, err)
+			} else {
+				logging.Info("uncensored jav series updated provider=%s id=%d code=%s series=%s", jav.ProviderAvsox.String(), item.ID, code, series)
+			}
+		}
+	}
+	return nil
+}
+
+// 某些信息可能是通过英文数据源javdatabase获取的，缺少中日文元数据信息，这个函数专门用来补齐。
+func scanMissingJavZhInfo(ctx context.Context) error {
 	items, err := db.ListJavsMissingTitle(ctx)
 	if err != nil {
 		return err

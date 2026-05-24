@@ -10,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"pornboss/internal/common/logging"
@@ -23,6 +24,8 @@ type CoverManager struct {
 	coverDir  string
 	workers   int
 	providers []jav.Provider
+	mu        sync.Mutex
+	scheduled map[string]struct{}
 }
 
 const minValidCoverSizeBytes int64 = 30 * 1024
@@ -41,8 +44,9 @@ func NewCoverManager(coverDir string, providers []jav.Provider) *CoverManager {
 	return &CoverManager{
 		tasks:     make(chan string, 5000), // larger buffer to reduce producer blocking
 		coverDir:  coverDir,
-		workers:   10,
+		workers:   8,
 		providers: providers,
+		scheduled: make(map[string]struct{}),
 	}
 }
 
@@ -64,10 +68,25 @@ func (m *CoverManager) Enqueue(code string) {
 	if m == nil {
 		return
 	}
-	code = strings.TrimSpace(code)
+	code = normalizeCode(code)
 	if code == "" {
 		return
 	}
+	if m.tasks == nil {
+		return
+	}
+
+	m.mu.Lock()
+	if m.scheduled == nil {
+		m.scheduled = make(map[string]struct{})
+	}
+	if _, ok := m.scheduled[code]; ok {
+		m.mu.Unlock()
+		return
+	}
+	m.scheduled[code] = struct{}{}
+	m.mu.Unlock()
+
 	m.tasks <- code
 }
 
@@ -97,11 +116,27 @@ func (m *CoverManager) worker(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case code := <-m.tasks:
-			if err := m.handleTask(ctx, code); err != nil {
-				logging.Error("jav cover: code=%s err=%v", code, err)
-			}
+			func() {
+				defer m.clearScheduled(code)
+				if err := m.handleTask(ctx, code); err != nil {
+					logging.Error("jav cover: code=%s err=%v", code, err)
+				}
+			}()
 		}
 	}
+}
+
+func (m *CoverManager) clearScheduled(code string) {
+	if m == nil {
+		return
+	}
+	code = normalizeCode(code)
+	if code == "" {
+		return
+	}
+	m.mu.Lock()
+	delete(m.scheduled, code)
+	m.mu.Unlock()
 }
 
 func (m *CoverManager) handleTask(parent context.Context, code string) error {

@@ -510,6 +510,64 @@ func TestSaveJavInfoAppendsIdolsOnlyWhenLanguageMappingMissing(t *testing.T) {
 	})
 }
 
+func TestSaveJavInfoPersistsUncensoredState(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+
+	save := func(info *jav.JavInfo) {
+		t.Helper()
+		if err := gdb.Transaction(func(tx *gorm.DB) error {
+			_, err := saveJavInfoTx(tx, info, now)
+			return err
+		}); err != nil {
+			t.Fatalf("save jav info: %v", err)
+		}
+	}
+	assertState := func(code string, want *bool) {
+		t.Helper()
+		var rec models.Jav
+		if err := gdb.Where("code = ?", code).First(&rec).Error; err != nil {
+			t.Fatalf("load jav %s: %v", code, err)
+		}
+		if want == nil {
+			if rec.IsUncensored != nil {
+				t.Fatalf("%s is_uncensored = %v, want nil", code, *rec.IsUncensored)
+			}
+			return
+		}
+		if rec.IsUncensored == nil || *rec.IsUncensored != *want {
+			t.Fatalf("%s is_uncensored = %v, want %v", code, rec.IsUncensored, *want)
+		}
+	}
+
+	uncensored := true
+	censored := false
+	save(&jav.JavInfo{Code: "UNC-001", Title: "Uncensored", IsUncensored: &uncensored, Provider: jav.ProviderJavBus})
+	save(&jav.JavInfo{Code: "CEN-001", Title: "Censored", IsUncensored: &censored, Provider: jav.ProviderJavBus})
+	save(&jav.JavInfo{Code: "UNK-001", Title: "Unknown", Provider: jav.ProviderJavDatabase})
+
+	assertState("UNC-001", &uncensored)
+	assertState("CEN-001", &censored)
+	assertState("UNK-001", nil)
+
+	save(&jav.JavInfo{Code: "UNC-001", Title: "Unknown refresh", Provider: jav.ProviderJavDatabase})
+	assertState("UNC-001", &uncensored)
+
+	var unknownRec models.Jav
+	if err := gdb.Where("code = ?", "UNK-001").First(&unknownRec).Error; err != nil {
+		t.Fatalf("load unknown jav: %v", err)
+	}
+	if err := UpdateJavIsUncensoredIfUnknown(ctx, unknownRec.ID, uncensored); err != nil {
+		t.Fatalf("update unknown is_uncensored: %v", err)
+	}
+	assertState("UNK-001", &uncensored)
+	if err := UpdateJavIsUncensoredIfUnknown(ctx, unknownRec.ID, censored); err != nil {
+		t.Fatalf("update known is_uncensored: %v", err)
+	}
+	assertState("UNK-001", &uncensored)
+}
+
 func TestSaveJavInfoReplacesOnlyCurrentProviderTags(t *testing.T) {
 	gdb := openTestDB(t)
 	now := time.Unix(1710000000, 0).UTC()
@@ -666,6 +724,7 @@ func TestJavTagsFilterProvidersByCurrentLanguage(t *testing.T) {
 		{Name: "Shared"},
 		{Name: "JavDB Only"},
 		{Name: "Avmoo Only"},
+		{Name: "Avsox Only"},
 		{Name: "English Only"},
 		{Name: "TPDB Only"},
 		{Name: "User Only", IsUser: true},
@@ -682,6 +741,7 @@ func TestJavTagsFilterProvidersByCurrentLanguage(t *testing.T) {
 		{JavID: javRec2.ID, JavTagID: byName["Shared"].ID, Provider: int(jav.ProviderJavDB), CreatedAt: now},
 		{JavID: javRec.ID, JavTagID: byName["JavDB Only"].ID, Provider: int(jav.ProviderJavDB), CreatedAt: now},
 		{JavID: javRec.ID, JavTagID: byName["Avmoo Only"].ID, Provider: int(jav.ProviderAvmoo), CreatedAt: now},
+		{JavID: javRec.ID, JavTagID: byName["Avsox Only"].ID, Provider: int(jav.ProviderAvsox), CreatedAt: now},
 		{JavID: javRec.ID, JavTagID: byName["English Only"].ID, Provider: int(jav.ProviderJavDatabase), CreatedAt: now},
 		{JavID: javRec.ID, JavTagID: byName["TPDB Only"].ID, Provider: int(jav.ProviderThePornDB), CreatedAt: now},
 		{JavID: javRec.ID, JavTagID: byName["User Only"].ID, Provider: int(jav.ProviderUser), CreatedAt: now},
@@ -696,20 +756,21 @@ func TestJavTagsFilterProvidersByCurrentLanguage(t *testing.T) {
 		t.Fatalf("ListJavTags zh: %v", err)
 	}
 	assertJavTagProviderNames(t, zhTags, map[int][]string{
-		int(jav.ProviderJavBus): {"Avmoo Only", "JavDB Only", "Shared"},
+		int(jav.ProviderJavBus): {"Avmoo Only", "Avsox Only", "JavDB Only", "Shared"},
 		int(jav.ProviderUser):   {"User Only"},
 	})
 	assertJavTagCounts(t, zhTags, map[string]int64{
 		"Shared":     2,
 		"JavDB Only": 1,
 		"Avmoo Only": 1,
+		"Avsox Only": 1,
 		"User Only":  1,
 	})
 	items, total, err := SearchJav(ctx, nil, []int64{byName["JavDB Only"].ID}, "", "code", 20, 0, nil, nil)
 	if err != nil {
 		t.Fatalf("SearchJav zh tag: %v", err)
 	}
-	if total != 1 || len(items) != 1 || len(items[0].Tags) != 4 {
+	if total != 1 || len(items) != 1 || len(items[0].Tags) != 5 {
 		t.Fatalf("unexpected zh search result: total=%d items=%#v", total, items)
 	}
 
@@ -796,6 +857,87 @@ func TestListJavsMissingTitle(t *testing.T) {
 	}
 	if items[0].Code != "MISS-001" || items[1].Code != "MISS-002" {
 		t.Fatalf("unexpected codes: got %q, %q", items[0].Code, items[1].Code)
+	}
+}
+
+func TestListJavsMissingUncensored(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+	uncensored := true
+	censored := false
+
+	rows := []models.Jav{
+		{Code: "MISS-001", FetchedAt: now, CreatedAt: now},
+		{Code: "MISS-002", FetchedAt: now.Add(time.Second), CreatedAt: now.Add(time.Second)},
+		{Code: "UNC-001", IsUncensored: &uncensored, FetchedAt: now.Add(2 * time.Second), CreatedAt: now.Add(2 * time.Second)},
+		{Code: "CEN-001", IsUncensored: &censored, FetchedAt: now.Add(3 * time.Second), CreatedAt: now.Add(3 * time.Second)},
+		{Code: "", FetchedAt: now.Add(4 * time.Second), CreatedAt: now.Add(4 * time.Second)},
+	}
+	if err := gdb.Create(&rows).Error; err != nil {
+		t.Fatalf("create jav rows: %v", err)
+	}
+
+	items, err := ListJavsMissingUncensored(ctx)
+	if err != nil {
+		t.Fatalf("ListJavsMissingUncensored: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("unexpected item count: got %d want 2", len(items))
+	}
+	if items[0].Code != "MISS-001" || items[1].Code != "MISS-002" {
+		t.Fatalf("unexpected codes: got %q, %q", items[0].Code, items[1].Code)
+	}
+}
+
+func TestListUncensoredJavsMissingStudioOrSeries(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+	uncensored := true
+	censored := false
+
+	studio := models.JavStudio{Name: "Studio A"}
+	if err := gdb.Create(&studio).Error; err != nil {
+		t.Fatalf("create studio: %v", err)
+	}
+	series := models.JavSeries{Name: "Series A", StudioID: &studio.ID}
+	if err := gdb.Create(&series).Error; err != nil {
+		t.Fatalf("create series: %v", err)
+	}
+
+	rows := []models.Jav{
+		{Code: "MISS-BOTH", IsUncensored: &uncensored, FetchedAt: now, CreatedAt: now},
+		{Code: "MISS-STUDIO", IsUncensored: &uncensored, SeriesID: &series.ID, FetchedAt: now.Add(time.Second), CreatedAt: now.Add(time.Second)},
+		{Code: "MISS-SERIES", IsUncensored: &uncensored, StudioID: &studio.ID, FetchedAt: now.Add(2 * time.Second), CreatedAt: now.Add(2 * time.Second)},
+		{Code: "HAVE-BOTH", IsUncensored: &uncensored, StudioID: &studio.ID, SeriesID: &series.ID, FetchedAt: now.Add(3 * time.Second), CreatedAt: now.Add(3 * time.Second)},
+		{Code: "CEN-MISS", IsUncensored: &censored, FetchedAt: now.Add(4 * time.Second), CreatedAt: now.Add(4 * time.Second)},
+		{Code: "UNK-MISS", FetchedAt: now.Add(5 * time.Second), CreatedAt: now.Add(5 * time.Second)},
+		{Code: "", IsUncensored: &uncensored, FetchedAt: now.Add(6 * time.Second), CreatedAt: now.Add(6 * time.Second)},
+	}
+	if err := gdb.Create(&rows).Error; err != nil {
+		t.Fatalf("create jav rows: %v", err)
+	}
+
+	items, err := ListUncensoredJavsMissingStudioOrSeries(ctx)
+	if err != nil {
+		t.Fatalf("ListUncensoredJavsMissingStudioOrSeries: %v", err)
+	}
+	if len(items) != 3 {
+		t.Fatalf("unexpected item count: got %d want 3", len(items))
+	}
+	got := []string{items[0].Code, items[1].Code, items[2].Code}
+	want := []string{"MISS-BOTH", "MISS-STUDIO", "MISS-SERIES"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("unexpected codes: got %#v want %#v", got, want)
+		}
+	}
+	if items[1].SeriesID == nil || *items[1].SeriesID != series.ID {
+		t.Fatalf("expected existing series id on second item: %#v", items[1])
+	}
+	if items[2].StudioID == nil || *items[2].StudioID != studio.ID {
+		t.Fatalf("expected existing studio id on third item: %#v", items[2])
 	}
 }
 
