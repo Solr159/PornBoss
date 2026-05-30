@@ -447,6 +447,18 @@ export async function fetchJavStudioJavDBURL({ studioId = null } = {}) {
   return data?.url || ''
 }
 
+export async function fetchJavStudioPreview(id, { directoryIds = [] } = {}) {
+  const params = new URLSearchParams()
+  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
+  const query = params.toString()
+  const res = await fetch(`/jav/studios/${encodeURIComponent(id)}${query ? `?${query}` : ''}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('加载片商预览失败', 'Failed to load studio preview'))
+  }
+  return res.json()
+}
+
 export async function fetchJavSeries({
   limit = 25,
   offset = 0,
@@ -476,6 +488,18 @@ export async function fetchJavSeriesJavDBURL({ seriesId = null } = {}) {
   }
   const data = await res.json()
   return data?.url || ''
+}
+
+export async function fetchJavSeriesPreview(id, { directoryIds = [] } = {}) {
+  const params = new URLSearchParams()
+  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
+  const query = params.toString()
+  const res = await fetch(`/jav/series/${encodeURIComponent(id)}${query ? `?${query}` : ''}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('加载系列预览失败', 'Failed to load series preview'))
+  }
+  return res.json()
 }
 
 export async function fetchJavIdolPreview(id, { directoryIds = [] } = {}) {

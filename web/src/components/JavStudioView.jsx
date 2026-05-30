@@ -91,7 +91,7 @@ function JavStudioGrid({ items, onSelectStudio, buildStudioUrl }) {
   )
 }
 
-function StudioCard({ item, href, onSelectStudio }) {
+export function StudioCard({ item, href, onSelectStudio }) {
   const { bgWidthPercent, coverAspectPercent } = getIdolCardLayoutProps()
   const cover = item?.sample_code ? `/jav/${encodeURIComponent(item.sample_code)}/cover` : null
   const name = item?.name || zh('未知片商', 'Unknown studio')

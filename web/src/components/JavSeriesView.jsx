@@ -95,7 +95,7 @@ function JavSeriesGrid({ items, onSelectSeries, onSelectStudio, buildSeriesUrl }
   )
 }
 
-function SeriesCard({ item, href, onSelectSeries, onSelectStudio }) {
+export function SeriesCard({ item, href, onSelectSeries, onSelectStudio }) {
   const sampleCode = String(item?.sample_code || '').trim()
   const cover = sampleCode ? `/jav/${encodeURIComponent(sampleCode)}/cover` : null
   const name = item?.name || zh('未知系列', 'Unknown series')

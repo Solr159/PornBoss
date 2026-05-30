@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"pornboss/internal/common"
 	"pornboss/internal/common/logging"
@@ -37,6 +38,29 @@ func listJavStudios(c *gin.Context) {
 	})
 }
 
+func getJavStudio(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	directoryIDs := parseDirectoryIDs(c.Query("directory_ids"))
+	item, err := dbpkg.GetJavStudioSummary(c.Request.Context(), id, directoryIDs)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "studio not found"})
+			return
+		}
+		logging.Error("get jav studio id=%d: %v", id, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+
+	enrichJavStudioSummary(c.Request.Context(), item, javCoverDir(), directoryIDs)
+	c.JSON(http.StatusOK, item)
+}
+
 func listJavSeries(c *gin.Context) {
 	limit := queryInt(c, "limit", 100)
 	offset := queryInt(c, "offset", 0)
@@ -56,6 +80,29 @@ func listJavSeries(c *gin.Context) {
 		"items": items,
 		"total": total,
 	})
+}
+
+func getJavSeries(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	directoryIDs := parseDirectoryIDs(c.Query("directory_ids"))
+	item, err := dbpkg.GetJavSeriesSummary(c.Request.Context(), id, directoryIDs)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "series not found"})
+			return
+		}
+		logging.Error("get jav series id=%d: %v", id, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+
+	enrichJavSeriesSummary(c.Request.Context(), item, javCoverDir(), directoryIDs)
+	c.JSON(http.StatusOK, item)
 }
 
 func getJavSeriesJavDBURL(c *gin.Context) {
@@ -139,25 +186,25 @@ func getJavStudioJavDBURL(c *gin.Context) {
 }
 
 func enrichJavStudioSummaries(ctx context.Context, items []dbpkg.JavStudioSummary, directoryIDs []int64) {
-	cfg := common.AppConfig
-	coverDir := ""
-	if cfg != nil {
-		coverDir = cfg.JavCoverDir
-	}
+	coverDir := javCoverDir()
 	for i := range items {
 		enrichJavStudioSummary(ctx, &items[i], coverDir, directoryIDs)
 	}
 }
 
 func enrichJavSeriesSummaries(ctx context.Context, items []dbpkg.JavSeriesSummary, directoryIDs []int64) {
-	cfg := common.AppConfig
-	coverDir := ""
-	if cfg != nil {
-		coverDir = cfg.JavCoverDir
-	}
+	coverDir := javCoverDir()
 	for i := range items {
 		enrichJavSeriesSummary(ctx, &items[i], coverDir, directoryIDs)
 	}
+}
+
+func javCoverDir() string {
+	cfg := common.AppConfig
+	if cfg != nil {
+		return cfg.JavCoverDir
+	}
+	return ""
 }
 
 func enrichJavStudioSummary(ctx context.Context, item *dbpkg.JavStudioSummary, coverDir string, directoryIDs []int64) {

@@ -650,6 +650,35 @@ func ListJavStudios(ctx context.Context, search string, limit, offset int, direc
 	return items, total, nil
 }
 
+// GetJavStudioSummary returns one studio summary for hover preview usage.
+func GetJavStudioSummary(ctx context.Context, studioID int64, directoryIDs []int64) (*JavStudioSummary, error) {
+	if studioID <= 0 {
+		return nil, errors.New("studio id must be positive")
+	}
+
+	var item JavStudioSummary
+	query := common.DB.WithContext(ctx).
+		Table("jav_studio js").
+		Joins("JOIN jav j ON j.studio_id = js.id").
+		Joins("JOIN video_location vl ON vl.jav_id = j.id").
+		Joins("JOIN directory d ON d.id = vl.directory_id").
+		Where("js.id = ?", studioID).
+		Where(activeLocationWhereSQL("vl", "d"))
+	query = applyDirectoryFilter(query, "vl", directoryIDs)
+	tx := query.
+		Select("js.id, js.name, COUNT(DISTINCT j.id) AS work_count, MIN(j.code) AS sample_code").
+		Group("js.id, js.name").
+		Limit(1).
+		Scan(&item)
+	if tx.Error != nil {
+		return nil, fmt.Errorf("get jav studio summary: %w", tx.Error)
+	}
+	if tx.RowsAffected == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return &item, nil
+}
+
 // ListStudioCoverCodes returns a prioritized list of codes for a studio.
 func ListStudioCoverCodes(ctx context.Context, studioID int64, directoryIDs []int64) ([]string, error) {
 	if studioID <= 0 {
@@ -721,6 +750,39 @@ func ListJavSeries(ctx context.Context, search string, limit, offset int, direct
 	}
 
 	return items, total, nil
+}
+
+// GetJavSeriesSummary returns one series summary for hover preview usage.
+func GetJavSeriesSummary(ctx context.Context, seriesID int64, directoryIDs []int64) (*JavSeriesSummary, error) {
+	if seriesID <= 0 {
+		return nil, errors.New("series id must be positive")
+	}
+
+	isEnglish := jav.CurrentMetadataLanguageIsEnglish()
+	seriesColumn := javSeriesColumn()
+	var item JavSeriesSummary
+	query := common.DB.WithContext(ctx).
+		Table("jav_series js").
+		Joins("JOIN jav j ON j."+seriesColumn+" = js.id").
+		Joins("LEFT JOIN jav_studio jst ON jst.id = js.studio_id").
+		Joins("JOIN video_location vl ON vl.jav_id = j.id").
+		Joins("JOIN directory d ON d.id = vl.directory_id").
+		Where("js.id = ?", seriesID).
+		Where("COALESCE(js.is_english, 0) = ?", isEnglish).
+		Where(activeLocationWhereSQL("vl", "d"))
+	query = applyDirectoryFilter(query, "vl", directoryIDs)
+	tx := query.
+		Select("js.id, js.name, js.is_english, js.studio_id, jst.name AS studio_name, COUNT(DISTINCT j.id) AS work_count, MIN(j.code) AS sample_code").
+		Group("js.id, js.name, js.is_english, js.studio_id, jst.name").
+		Limit(1).
+		Scan(&item)
+	if tx.Error != nil {
+		return nil, fmt.Errorf("get jav series summary: %w", tx.Error)
+	}
+	if tx.RowsAffected == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return &item, nil
 }
 
 // ListSeriesCoverCodes returns a prioritized list of codes for a series.
