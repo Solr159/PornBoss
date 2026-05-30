@@ -157,10 +157,11 @@ func (m *memoryLookupCache) Set(key string, value []byte, expiresAt time.Time) e
 }
 
 type countingLookupProvider struct {
-	javInfo  *JavInfo
-	actress  *ActressInfo
-	coverURL string
-	err      error
+	javInfo    *JavInfo
+	actress    *ActressInfo
+	coverURL   string
+	profileURL string
+	err        error
 
 	javCalls int
 }
@@ -171,6 +172,10 @@ func (p *countingLookupProvider) LookupActressByCode(string) (*ActressInfo, erro
 
 func (p *countingLookupProvider) LookupActressByName(string) (*ActressInfo, error) {
 	return p.actress, p.err
+}
+
+func (p *countingLookupProvider) LookupActressURLByCodeAndName(string, string) (string, error) {
+	return p.profileURL, p.err
 }
 
 func (p *countingLookupProvider) LookupCoverURLByCode(string) (string, error) {

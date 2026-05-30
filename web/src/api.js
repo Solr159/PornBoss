@@ -466,6 +466,19 @@ export async function fetchJavIdolPreview(id, { directoryIds = [] } = {}) {
   return res.json()
 }
 
+export async function fetchJavIdolJavDBURL({ code = '', name = '' } = {}) {
+  const params = new URLSearchParams()
+  params.set('code', code)
+  params.set('name', name)
+  const res = await fetch(`/jav/idols/javdb-url?${params.toString()}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('加载 JavDB 女优链接失败', 'Failed to load JavDB idol URL'))
+  }
+  const data = await res.json()
+  return data?.url || ''
+}
+
 export async function resolveJavIdols(ids = []) {
   const clean = Array.from(
     new Set(

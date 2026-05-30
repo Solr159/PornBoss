@@ -27,6 +27,11 @@ func (javModel) LookupActressByCode(code string) (*ActressInfo, error) {
 	return nil, errors.New("javmodel: lookup actress not supported")
 }
 
+// LookupActressURLByCodeAndName implements lookupProvider.
+func (javModel) LookupActressURLByCodeAndName(code, name string) (string, error) {
+	return "", errors.New("javmodel: lookup actress url not supported")
+}
+
 // LookupCoverURLByCode resolves a cover image URL for a movie code.
 func (javModel) LookupCoverURLByCode(code string) (string, error) {
 	return "", errors.New("javmodel: lookup cover not supported")

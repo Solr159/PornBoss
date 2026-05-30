@@ -45,6 +45,11 @@ func (javDatabase) LookupActressByCode(code string) (*ActressInfo, error) {
 	return lookupActressByCode(code)
 }
 
+// LookupActressURLByCodeAndName implements lookupProvider.
+func (javDatabase) LookupActressURLByCodeAndName(code, name string) (string, error) {
+	return "", errors.New("javdatabase: lookup actress url not supported")
+}
+
 // LookupCoverURLByCode resolves the cover image URL for a given movie code.
 func (javDatabase) LookupCoverURLByCode(code string) (string, error) {
 	code = strings.TrimSpace(code)

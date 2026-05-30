@@ -64,6 +64,11 @@ func (javBus) LookupActressByCode(code string) (*ActressInfo, error) {
 	return nil, errors.New("javbus: lookup actress not supported")
 }
 
+// LookupActressURLByCodeAndName implements lookupProvider.
+func (javBus) LookupActressURLByCodeAndName(code, name string) (string, error) {
+	return "", errors.New("javbus: lookup actress url not supported")
+}
+
 // LookupCoverURLByCode resolves a cover image URL for a movie code.
 func (javBus) LookupCoverURLByCode(code string) (string, error) {
 	code = strings.TrimSpace(code)

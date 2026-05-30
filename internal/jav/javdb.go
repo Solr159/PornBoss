@@ -48,6 +48,28 @@ func (javDB) LookupActressByCode(code string) (*ActressInfo, error) {
 	return nil, errors.New("javdb: lookup actress not supported")
 }
 
+// LookupActressURLByCodeAndName resolves an actress profile URL from a movie detail page.
+func (javDB) LookupActressURLByCodeAndName(code, name string) (string, error) {
+	code = strings.TrimSpace(code)
+	name = strings.TrimSpace(name)
+	if code == "" || name == "" {
+		return "", ResourceNotFonud
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	doc, detailURL, err := fetchJavDBDetailByCode(ctx, code)
+	if err != nil {
+		return "", err
+	}
+	actressURL := parseJavDBActressURLByName(doc, name, detailURL)
+	if actressURL == "" {
+		return "", ResourceNotFonud
+	}
+	return actressURL, nil
+}
+
 // LookupCoverURLByCode resolves a cover image URL for a movie code.
 func (javDB) LookupCoverURLByCode(code string) (string, error) {
 	code = strings.TrimSpace(code)
@@ -492,6 +514,39 @@ func collectJavDBActorTexts(root *html.Node) []string {
 	}
 	walk(root)
 	return texts
+}
+
+func parseJavDBActressURLByName(root *html.Node, name, pageURL string) string {
+	name = strings.TrimSpace(name)
+	if root == nil || name == "" {
+		return ""
+	}
+
+	var actressURL string
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if actressURL != "" {
+			return
+		}
+		if n.Type == html.ElementNode && n.Data == "a" && !isJavDBMaleActorLink(n) {
+			text := strings.TrimSpace(flattenText(n))
+			href := strings.TrimSpace(attrValue(n, "href"))
+			if text == name && href != "" && isJavDBActorURL(href) {
+				actressURL = resolveURL(pageURL, href)
+				return
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(root)
+	return actressURL
+}
+
+func isJavDBActorURL(href string) bool {
+	href = strings.ToLower(strings.TrimSpace(href))
+	return strings.Contains(href, "/actors/")
 }
 
 func isJavDBMaleActorLink(anchor *html.Node) bool {

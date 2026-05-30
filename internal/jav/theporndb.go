@@ -33,6 +33,11 @@ func (thePornDB) LookupActressByName(name string) (*ActressInfo, error) {
 	return nil, errors.New("theporndb: lookup actress not supported")
 }
 
+// LookupActressURLByCodeAndName implements lookupProvider.
+func (thePornDB) LookupActressURLByCodeAndName(code, name string) (string, error) {
+	return "", errors.New("theporndb: lookup actress url not supported")
+}
+
 // LookupJavByCode implements lookupProvider.
 func (thePornDB) LookupJavByCode(code string) (*JavInfo, error) {
 	code = strings.TrimSpace(code)
