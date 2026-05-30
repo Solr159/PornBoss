@@ -182,6 +182,9 @@ function StudioCard({ item, href, onSelectStudio }) {
             {name}
           </div>
         )}
+        <div className="absolute left-2 top-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
+          {zh(`作品 ${workCount}`, `${workCount} works`)}
+        </div>
         <button
           type="button"
           className={`absolute bottom-2 left-2 flex h-7 w-7 items-center justify-center rounded-full text-white opacity-0 shadow-lg shadow-black/60 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 ${
@@ -202,9 +205,6 @@ function StudioCard({ item, href, onSelectStudio }) {
       </div>
       <div className="flex flex-1 flex-col gap-1 p-3">
         <div className="line-clamp-2 text-sm font-semibold leading-tight">{name}</div>
-        <div className="text-xs text-gray-500">
-          {zh(`${workCount} 部作品`, `${workCount} works`)}
-        </div>
       </div>
     </a>
   )
