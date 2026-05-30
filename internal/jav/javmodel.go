@@ -93,13 +93,10 @@ func (javModel) LookupActressByJapaneseName(name string) (*ActressInfo, error) {
 	if info == nil {
 		return nil, ResourceNotFonud
 	}
-	if info.RomanName == "" && romanName != "" {
-		info.RomanName = romanName
+	info, err = finalizeJavModelActressInfo(name, romanName, detailURL, info)
+	if err != nil {
+		return nil, err
 	}
-	if info.JapaneseName == "" && containsJapaneseRunes(name) {
-		info.JapaneseName = name
-	}
-	info.ProfileURL = detailURL
 	logging.Info("javmodel: found actress profile name=%s roman=%s japanese=%s chinese=%s", name, info.RomanName, info.JapaneseName, info.ChineseName)
 	return info, nil
 }
@@ -294,6 +291,28 @@ func parseJavModelActressInfo(root *html.Node) *ActressInfo {
 	}
 
 	return info
+}
+
+func finalizeJavModelActressInfo(name, romanName, detailURL string, info *ActressInfo) (*ActressInfo, error) {
+	if info == nil {
+		return nil, ResourceNotFonud
+	}
+	name = strings.TrimSpace(name)
+	if info.RomanName == "" && romanName != "" {
+		info.RomanName = romanName
+	}
+	japaneseName := strings.TrimSpace(info.JapaneseName)
+	if japaneseName == "" {
+		logging.Info("javmodel: missing japanese name in profile input=%s roman=%s", name, info.RomanName)
+		return nil, ResourceNotFonud
+	}
+	if japaneseName != name {
+		logging.Info("javmodel: japanese name mismatch input=%s parsed=%s roman=%s", name, info.JapaneseName, info.RomanName)
+		return nil, ResourceNotFonud
+	}
+	info.JapaneseName = japaneseName
+	info.ProfileURL = detailURL
+	return info, nil
 }
 
 func extractJavModelProfileFields(root *html.Node) javModelProfileFields {
