@@ -240,8 +240,8 @@ function buildDisplayNames({
 }) {
   if (javMetadataLanguage === 'en') {
     const primaryName = firstNonEmpty(
-      romanName,
       name,
+      romanName,
       japaneseName,
       chineseName,
       zh('Unknown idol', 'Unknown idol')
@@ -254,8 +254,8 @@ function buildDisplayNames({
 
   if (chineseLocale) {
     const primaryName = firstNonEmpty(
-      japaneseName,
       name,
+      japaneseName,
       romanName,
       chineseName,
       zh('未知女优', 'Unknown idol')
@@ -266,8 +266,8 @@ function buildDisplayNames({
     }
   }
   const primaryName = firstNonEmpty(
-    romanName,
     name,
+    romanName,
     japaneseName,
     chineseName,
     zh('Unknown idol', 'Unknown idol')
