@@ -162,6 +162,7 @@ type countingLookupProvider struct {
 	coverURL   string
 	profileURL string
 	seriesURL  string
+	studioURL  string
 	err        error
 
 	javCalls int
@@ -190,4 +191,8 @@ func (p *countingLookupProvider) LookupJavByCode(string) (*JavInfo, error) {
 
 func (p *countingLookupProvider) LookupSeriesURLByCode(string) (string, error) {
 	return p.seriesURL, p.err
+}
+
+func (p *countingLookupProvider) LookupStudioURLByCode(string) (string, error) {
+	return p.studioURL, p.err
 }

@@ -75,6 +75,11 @@ func (avmoo) LookupSeriesURLByCode(code string) (string, error) {
 	return "", errors.New("avmoo: lookup series url not supported")
 }
 
+// LookupStudioURLByCode implements lookupProvider.
+func (avmoo) LookupStudioURLByCode(code string) (string, error) {
+	return "", errors.New("avmoo: lookup studio url not supported")
+}
+
 // LookupJavByCode fetches metadata for a given code.
 func (avmoo) LookupJavByCode(code string) (*JavInfo, error) {
 	code = strings.TrimSpace(code)

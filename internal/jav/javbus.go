@@ -95,6 +95,11 @@ func (javBus) LookupSeriesURLByCode(code string) (string, error) {
 	return "", errors.New("javbus: lookup series url not supported")
 }
 
+// LookupStudioURLByCode implements lookupProvider.
+func (javBus) LookupStudioURLByCode(code string) (string, error) {
+	return "", errors.New("javbus: lookup studio url not supported")
+}
+
 func fetchInfo(ctx context.Context, code string) (*JavInfo, error) {
 	doc, url, err := fetchJavBusDocument(ctx, code)
 	if err != nil {

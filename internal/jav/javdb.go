@@ -91,6 +91,27 @@ func (javDB) LookupSeriesURLByCode(code string) (string, error) {
 	return seriesURL, nil
 }
 
+// LookupStudioURLByCode resolves a studio detail URL from a movie detail page.
+func (javDB) LookupStudioURLByCode(code string) (string, error) {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return "", ResourceNotFonud
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	doc, detailURL, err := fetchJavDBDetailByCode(ctx, code)
+	if err != nil {
+		return "", err
+	}
+	studioURL := parseJavDBStudioURL(doc, detailURL)
+	if studioURL == "" {
+		return "", ResourceNotFonud
+	}
+	return studioURL, nil
+}
+
 // LookupCoverURLByCode resolves a cover image URL for a movie code.
 func (javDB) LookupCoverURLByCode(code string) (string, error) {
 	code = strings.TrimSpace(code)
@@ -566,14 +587,22 @@ func parseJavDBActressURLByName(root *html.Node, name, pageURL string) string {
 }
 
 func parseJavDBSeriesURL(root *html.Node, pageURL string) string {
+	return parseJavDBPanelURL(root, pageURL, "系列", isJavDBSeriesURL)
+}
+
+func parseJavDBStudioURL(root *html.Node, pageURL string) string {
+	return parseJavDBPanelURL(root, pageURL, "片商", isJavDBStudioURL)
+}
+
+func parseJavDBPanelURL(root *html.Node, pageURL, wantLabel string, matchHref func(string) bool) string {
 	if root == nil {
 		return ""
 	}
 
-	var seriesURL string
+	var matchedURL string
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
-		if seriesURL != "" {
+		if matchedURL != "" {
 			return
 		}
 		if n.Type == html.ElementNode && n.Data == "div" && hasClass(n, "panel-block") {
@@ -581,10 +610,10 @@ func parseJavDBSeriesURL(root *html.Node, pageURL string) string {
 				label := strings.TrimSpace(flattenText(strong))
 				label = strings.TrimSuffix(label, ":")
 				label = strings.TrimSuffix(label, "：")
-				if normalizeJavDBLabel(label) == "系列" {
+				if normalizeJavDBLabel(label) == wantLabel {
 					for _, href := range collectAnchorHrefs(n) {
-						if isJavDBSeriesURL(href) {
-							seriesURL = resolveURL(pageURL, href)
+						if matchHref(href) {
+							matchedURL = resolveURL(pageURL, href)
 							return
 						}
 					}
@@ -596,7 +625,7 @@ func parseJavDBSeriesURL(root *html.Node, pageURL string) string {
 		}
 	}
 	walk(root)
-	return seriesURL
+	return matchedURL
 }
 
 func isJavDBActorURL(href string) bool {
@@ -607,6 +636,11 @@ func isJavDBActorURL(href string) bool {
 func isJavDBSeriesURL(href string) bool {
 	href = strings.ToLower(strings.TrimSpace(href))
 	return strings.Contains(href, "/series/")
+}
+
+func isJavDBStudioURL(href string) bool {
+	href = strings.ToLower(strings.TrimSpace(href))
+	return strings.Contains(href, "/makers/")
 }
 
 func isJavDBMaleActorLink(anchor *html.Node) bool {

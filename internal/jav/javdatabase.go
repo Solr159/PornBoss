@@ -83,6 +83,11 @@ func (javDatabase) LookupSeriesURLByCode(code string) (string, error) {
 	return "", errors.New("javdatabase: lookup series url not supported")
 }
 
+// LookupStudioURLByCode implements lookupProvider.
+func (javDatabase) LookupStudioURLByCode(code string) (string, error) {
+	return "", errors.New("javdatabase: lookup studio url not supported")
+}
+
 // LookupJavByCode fetches metadata for a given code.
 func (javDatabase) LookupJavByCode(code string) (*JavInfo, error) {
 	code = strings.TrimSpace(code)

@@ -96,6 +96,11 @@ func (thePornDB) LookupSeriesURLByCode(code string) (string, error) {
 	return "", errors.New("theporndb: lookup series url not supported")
 }
 
+// LookupStudioURLByCode implements lookupProvider.
+func (thePornDB) LookupStudioURLByCode(code string) (string, error) {
+	return "", errors.New("theporndb: lookup studio url not supported")
+}
+
 func fetchThePornDBJavByCode(ctx context.Context, code string) (*thePornDBResponse, error) {
 	code = strings.ToLower(strings.TrimSpace(code))
 	if code == "" {

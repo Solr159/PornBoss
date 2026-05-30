@@ -435,6 +435,18 @@ export async function fetchJavStudios({
   return res.json()
 }
 
+export async function fetchJavStudioJavDBURL({ studioId = null } = {}) {
+  const params = new URLSearchParams()
+  params.set('studio_id', String(studioId || ''))
+  const res = await fetch(`/jav/studios/javdb-url?${params.toString()}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('加载 JavDB 片商链接失败', 'Failed to load JavDB studio URL'))
+  }
+  const data = await res.json()
+  return data?.url || ''
+}
+
 export async function fetchJavSeries({
   limit = 25,
   offset = 0,

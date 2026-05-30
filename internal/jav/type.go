@@ -193,6 +193,7 @@ type lookupProvider interface {
 	LookupCoverURLByCode(code string) (string, error)
 	LookupJavByCode(code string) (*JavInfo, error)
 	LookupSeriesURLByCode(code string) (string, error)
+	LookupStudioURLByCode(code string) (string, error)
 }
 
 func lookupProviderFor(provider Provider) (lookupProvider, error) {
@@ -311,6 +312,25 @@ func LookupSeriesURLByCode(code string, provider Provider) (seriesURL string, er
 	seriesURL, err = lookup.LookupSeriesURLByCode(code)
 	cacheableLookupResult(cacheKey, seriesURL, err)
 	return seriesURL, err
+}
+
+// LookupStudioURLByCode fetches a studio detail URL using a movie code.
+func LookupStudioURLByCode(code string, provider Provider) (studioURL string, err error) {
+	lookup, err := lookupProviderFor(provider)
+	if err != nil {
+		return "", err
+	}
+	cacheKey := lookupCacheKey(provider, "lookup_studio_url", code)
+	if cached, ok, err := lookupCacheGet[string](cacheKey); ok {
+		if cached == nil {
+			return "", err
+		}
+		return *cached, err
+	}
+	defer recoverUnsupportedProvider(&err)
+	studioURL, err = lookup.LookupStudioURLByCode(code)
+	cacheableLookupResult(cacheKey, studioURL, err)
+	return studioURL, err
 }
 
 func recoverUnsupportedProvider(err *error) {

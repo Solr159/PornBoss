@@ -215,6 +215,29 @@ func TestParseJavDBSeriesURL(t *testing.T) {
 	}
 }
 
+func TestParseJavDBStudioURL(t *testing.T) {
+	doc, err := html.Parse(strings.NewReader(`
+<!doctype html>
+<html>
+<body>
+  <nav class="panel movie-panel-info">
+    <div class="panel-block">
+      <strong>片商:</strong>
+      <span class="value"><a href="/makers/ZXX">IDEA POCKET</a></span>
+    </div>
+  </nav>
+</body>
+</html>`))
+	if err != nil {
+		t.Fatalf("parse html: %v", err)
+	}
+
+	got := parseJavDBStudioURL(doc, "https://javdb.com/v/kKdRm")
+	if got != "https://javdb.com/makers/ZXX" {
+		t.Fatalf("unexpected studio url: %q", got)
+	}
+}
+
 func TestParseJavDBCoverURL(t *testing.T) {
 	doc, err := html.Parse(strings.NewReader(`
 <!doctype html>

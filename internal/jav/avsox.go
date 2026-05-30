@@ -74,6 +74,11 @@ func (avsox) LookupSeriesURLByCode(code string) (string, error) {
 	return "", errors.New("avsox: lookup series url not supported")
 }
 
+// LookupStudioURLByCode implements lookupProvider.
+func (avsox) LookupStudioURLByCode(code string) (string, error) {
+	return "", errors.New("avsox: lookup studio url not supported")
+}
+
 // LookupJavByCode fetches metadata for a given code.
 func (avsox) LookupJavByCode(code string) (*JavInfo, error) {
 	code = strings.TrimSpace(code)

@@ -98,6 +98,46 @@ func getJavSeriesJavDBURL(c *gin.Context) {
 	c.JSON(http.StatusNotFound, gin.H{"error": "javdb series url not found"})
 }
 
+func getJavStudioJavDBURL(c *gin.Context) {
+	studioID, err := strconv.ParseInt(strings.TrimSpace(c.Query("studio_id")), 10, 64)
+	if err != nil || studioID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "studio_id is required"})
+		return
+	}
+
+	codes, err := dbpkg.ListStudioCoverCodes(c.Request.Context(), studioID, nil)
+	if err != nil {
+		logging.Error("list studio codes id=%d: %v", studioID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+
+	var lastErr error
+	for i, code := range codes {
+		if i >= 3 {
+			break
+		}
+		code = strings.TrimSpace(code)
+		if code == "" {
+			continue
+		}
+		studioURL, err := jav.LookupStudioURLByCode(code, jav.ProviderJavDB)
+		if err == nil && strings.TrimSpace(studioURL) != "" {
+			c.JSON(http.StatusOK, gin.H{"url": studioURL})
+			return
+		}
+		if err != nil && !errors.Is(err, jav.ResourceNotFonud) {
+			lastErr = err
+			logging.Error("lookup javdb studio url studio_id=%d code=%s: %v", studioID, code, err)
+		}
+	}
+	if lastErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	c.JSON(http.StatusNotFound, gin.H{"error": "javdb studio url not found"})
+}
+
 func enrichJavStudioSummaries(ctx context.Context, items []dbpkg.JavStudioSummary, directoryIDs []int64) {
 	cfg := common.AppConfig
 	coverDir := ""
