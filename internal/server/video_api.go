@@ -423,9 +423,11 @@ func renameVideoLocation(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "path is not a file"})
 		return
 	}
-	if _, err := os.Stat(newFullPath); err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "target file already exists"})
-		return
+	if targetInfo, err := os.Stat(newFullPath); err == nil {
+		if !os.SameFile(info, targetInfo) {
+			c.JSON(http.StatusConflict, gin.H{"error": "target file already exists"})
+			return
+		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		logging.Error("stat video rename target error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
@@ -444,6 +446,10 @@ func renameVideoLocation(c *gin.Context) {
 	if _, err := dbpkg.UpdateVideoLocationPath(c.Request.Context(), locationID, nextRel, modifiedAt); err != nil {
 		if rollbackErr := os.Rename(newFullPath, oldFullPath); rollbackErr != nil {
 			logging.Error("rollback video file rename failed: %v", rollbackErr)
+		}
+		if errors.Is(err, dbpkg.ErrVideoLocationPathConflict) {
+			c.JSON(http.StatusConflict, gin.H{"error": "target path already exists"})
+			return
 		}
 		logging.Error("update video location after rename error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})

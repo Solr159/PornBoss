@@ -538,12 +538,13 @@ export default function App() {
           }
           return { videos: nextVideos, selectedVideoMeta: nextMeta }
         })
+        await loadVideos({ force: true })
       } catch (err) {
         console.error(zh('重命名视频失败', 'Failed to rename video'), err)
         showToast(err?.message || zh('重命名视频失败', 'Failed to rename video'))
       }
     },
-    [showToast]
+    [loadVideos, showToast]
   )
 
   const handleDeleteVideo = useCallback(

@@ -15,6 +15,9 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// ErrVideoLocationPathConflict is returned when an active location already uses the target path.
+var ErrVideoLocationPathConflict = errors.New("video location path already exists")
+
 // AllVideoLocations returns every known video location; used for scan bookkeeping.
 func AllVideoLocations(ctx context.Context) ([]models.VideoLocation, error) {
 	var locations []models.VideoLocation
@@ -170,7 +173,7 @@ func GetActiveVideoLocation(ctx context.Context, videoID, locationID int64) (*mo
 	return &loc, nil
 }
 
-// VideoLocationPathExists reports whether any location row already uses the directory/path pair.
+// VideoLocationPathExists reports whether any active location row already uses the directory/path pair.
 func VideoLocationPathExists(ctx context.Context, directoryID int64, relativePath string) (bool, error) {
 	relativePath = cleanRelativePathForDB(relativePath)
 	if directoryID <= 0 || relativePath == "" {
@@ -180,6 +183,7 @@ func VideoLocationPathExists(ctx context.Context, directoryID int64, relativePat
 	if err := common.DB.WithContext(ctx).
 		Model(&models.VideoLocation{}).
 		Where("directory_id = ? AND relative_path = ?", directoryID, relativePath).
+		Where("COALESCE(is_delete, 0) = 0").
 		Count(&count).Error; err != nil {
 		return false, fmt.Errorf("check video location path: %w", err)
 	}
@@ -198,22 +202,56 @@ func UpdateVideoLocationPath(ctx context.Context, locationID int64, relativePath
 		"modified_at":   modifiedAt,
 		"updated_at":    gorm.Expr("CURRENT_TIMESTAMP"),
 	}
-	if err := common.DB.WithContext(ctx).
-		Model(&models.VideoLocation{}).
-		Where("id = ?", locationID).
-		Updates(updates).Error; err != nil {
-		return nil, fmt.Errorf("update video location path: %w", err)
-	}
 
 	var loc models.VideoLocation
-	if err := common.DB.WithContext(ctx).
-		Model(&models.VideoLocation{}).
-		Where("id = ?", locationID).
-		Preload("DirectoryRef").
-		Preload("Video").
-		Preload("Video.Tags").
-		First(&loc).Error; err != nil {
-		return nil, fmt.Errorf("load updated video location: %w", err)
+	err := common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var current models.VideoLocation
+		if err := tx.
+			Model(&models.VideoLocation{}).
+			Where("id = ?", locationID).
+			First(&current).Error; err != nil {
+			return fmt.Errorf("load current video location: %w", err)
+		}
+
+		var activeConflicts int64
+		if err := tx.
+			Model(&models.VideoLocation{}).
+			Where("directory_id = ? AND relative_path = ? AND id <> ?", current.DirectoryID, relativePath, locationID).
+			Where("COALESCE(is_delete, 0) = 0").
+			Count(&activeConflicts).Error; err != nil {
+			return fmt.Errorf("check active video location path: %w", err)
+		}
+		if activeConflicts > 0 {
+			return ErrVideoLocationPathConflict
+		}
+
+		if err := tx.
+			Where("directory_id = ? AND relative_path = ? AND id <> ?", current.DirectoryID, relativePath, locationID).
+			Where("COALESCE(is_delete, 0) <> 0").
+			Delete(&models.VideoLocation{}).Error; err != nil {
+			return fmt.Errorf("clear hidden video location path: %w", err)
+		}
+
+		if err := tx.
+			Model(&models.VideoLocation{}).
+			Where("id = ?", locationID).
+			Updates(updates).Error; err != nil {
+			return fmt.Errorf("save video location path: %w", err)
+		}
+
+		if err := tx.
+			Model(&models.VideoLocation{}).
+			Where("id = ?", locationID).
+			Preload("DirectoryRef").
+			Preload("Video").
+			Preload("Video.Tags").
+			First(&loc).Error; err != nil {
+			return fmt.Errorf("load updated video location: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update video location path: %w", err)
 	}
 	return &loc, nil
 }
