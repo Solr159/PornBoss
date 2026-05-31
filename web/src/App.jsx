@@ -333,6 +333,9 @@ export default function App() {
   const showToast = useCallback((message) => {
     setToastMessage(String(message || '').trim())
   }, [])
+  const closeToast = useCallback(() => {
+    setToastMessage('')
+  }, [])
   const handleOpenTagModal = useCallback(() => {
     loadTags()
     setTagModalOpen(true)
@@ -3063,11 +3066,7 @@ export default function App() {
           useStore.setState({ config: cfg })
         }}
       />
-      <Toast
-        open={Boolean(toastMessage)}
-        message={toastMessage}
-        onClose={() => setToastMessage('')}
-      />
+      <Toast open={Boolean(toastMessage)} message={toastMessage} onClose={closeToast} />
     </div>
   )
 }
