@@ -13,6 +13,7 @@ import {
   deleteDirectory as deleteDirectoryApi,
   fetchJavs,
   fetchJavIdols,
+  fetchJavIdolFavoriteGroups,
   fetchJavStudios,
   fetchJavSeries,
   fetchJavTags,
@@ -42,6 +43,7 @@ let seriesLoadMoreSeq = 0
 let lastVideoFetchKey = null
 let lastJavFetchKey = null
 let lastIdolFetchKey = null
+let lastIdolFavoriteGroupFetchKey = null
 let lastStudioFetchKey = null
 let lastSeriesFetchKey = null
 let lastTagFetchKey = null
@@ -154,6 +156,7 @@ const idolListRequestKey = (state, directoryIds = directoryQueryIds(state)) =>
     state.idolPageSize,
     state.javSearchTerm || '',
     state.idolSort,
+    state.idolFavoriteGroupId || '',
     directoryIds.join(','),
   ].join('|')
 
@@ -234,11 +237,15 @@ export const useStore = create((set, get) => ({
   idolPage: 1,
   idolPageSize: JAV_PAGE_SIZE,
   idolSort: 'work',
+  idolFavoriteGroupId: null,
   idolItems: [],
   idolTotal: 0,
   idolLoading: false,
   idolLoadingMore: false,
   idolError: null,
+  idolFavoriteGroups: [],
+  idolFavoriteGroupsLoading: false,
+  idolFavoriteGroupsError: null,
   studioPage: 1,
   studioItems: [],
   studioTotal: 0,
@@ -258,6 +265,14 @@ export const useStore = create((set, get) => ({
   setIdolSort: (sort) => {
     const normalized = normalizeIdolSort(sort)
     set({ idolSort: normalized, idolPage: 1 })
+  },
+  setIdolFavoriteGroupId: (id) => {
+    const parsed = Number(id)
+    const next = Number.isFinite(parsed) && parsed > 0 ? parsed : null
+    set({ idolFavoriteGroupId: next, idolPage: 1 })
+  },
+  setIdolFavoriteGroups: (groups) => {
+    set({ idolFavoriteGroups: Array.isArray(groups) ? groups : [] })
   },
 
   // data
@@ -833,7 +848,7 @@ export const useStore = create((set, get) => ({
     }
   },
   loadJavIdols: async (options = {}) => {
-    const { idolPage, idolPageSize, javSearchTerm, idolSort } = get()
+    const { idolPage, idolPageSize, javSearchTerm, idolSort, idolFavoriteGroupId } = get()
     const directoryIds = directoryQueryIds(get())
     const search = javSearchTerm || ''
     const key = idolListRequestKey(get(), directoryIds)
@@ -850,6 +865,7 @@ export const useStore = create((set, get) => ({
         search,
         sort: idolSort,
         directoryIds,
+        favoriteGroupId: idolFavoriteGroupId,
       })
       if (reqId !== idolLoadSeq || key !== idolListRequestKey(get())) return
       set({
@@ -886,6 +902,7 @@ export const useStore = create((set, get) => ({
         search,
         sort: state.idolSort,
         directoryIds,
+        favoriteGroupId: state.idolFavoriteGroupId,
       })
       if (
         loadReqId !== idolLoadSeq ||
@@ -912,6 +929,28 @@ export const useStore = create((set, get) => ({
       if (loadMoreReqId === idolLoadMoreSeq) {
         set({ idolLoadingMore: false })
       }
+    }
+  },
+  loadJavIdolFavoriteGroups: async (options = {}) => {
+    const directoryIds = directoryQueryIds(get())
+    const key = `idol-favorite-groups|${directoryIds.join(',')}`
+    if (!options.force && key === lastIdolFavoriteGroupFetchKey) {
+      return get().idolFavoriteGroups || []
+    }
+    lastIdolFavoriteGroupFetchKey = key
+    set({ idolFavoriteGroupsLoading: true, idolFavoriteGroupsError: null })
+    try {
+      const groups = await fetchJavIdolFavoriteGroups({ directoryIds })
+      set({ idolFavoriteGroups: groups || [] })
+      return groups || []
+    } catch (e) {
+      set({
+        idolFavoriteGroupsError:
+          e.message || zh('加载女优收藏夹失败', 'Failed to load idol favorite groups'),
+      })
+      return get().idolFavoriteGroups || []
+    } finally {
+      set({ idolFavoriteGroupsLoading: false })
     }
   },
   loadJavStudios: async (options = {}) => {

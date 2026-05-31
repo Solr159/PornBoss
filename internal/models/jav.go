@@ -68,6 +68,14 @@ type JavIdol struct {
 	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
+type JavIdolFavoriteGroup struct {
+	ID        int64     `json:"id" gorm:"primaryKey"`
+	Name      string    `json:"name" gorm:"uniqueIndex"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	SortOrder int       `json:"sort_order" gorm:"not null;default:0;index"`
+}
+
 // Many-to-many join tables.
 type JavTagMap struct {
 	JavID     int64     `gorm:"primaryKey"`
@@ -84,4 +92,13 @@ type JavIdolMap struct {
 	JavIdolID int64     `gorm:"primaryKey;index:idx_jav_idol_map_jav_idol_id_jav_id,priority:1"`
 	JavIdol   JavIdol   `gorm:"foreignKey:JavIdolID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	CreatedAt time.Time `gorm:"autoCreateTime"`
+}
+
+type JavIdolFavoriteMap struct {
+	JavIdolFavoriteGroupID int64                `gorm:"primaryKey;index:idx_jav_idol_favorite_map_jav_idol_id_group_id,priority:2"`
+	JavIdolFavoriteGroup   JavIdolFavoriteGroup `gorm:"foreignKey:JavIdolFavoriteGroupID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	JavIdolID              int64                `gorm:"primaryKey;index:idx_jav_idol_favorite_map_jav_idol_id_group_id,priority:1"`
+	JavIdol                JavIdol              `gorm:"foreignKey:JavIdolID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	CreatedAt              time.Time            `gorm:"autoCreateTime"`
+	SortOrder              int                  `gorm:"not null;default:0;index"`
 }

@@ -811,19 +811,20 @@ func ListSeriesCoverCodes(ctx context.Context, seriesID int64, directoryIDs []in
 
 // JavIdolSummary represents idol info with aggregated work count and a sample code for cover lookup.
 type JavIdolSummary struct {
-	ID           int64      `json:"id"`
-	Name         string     `json:"name"`
-	RomanName    string     `json:"roman_name"`
-	JapaneseName string     `json:"japanese_name"`
-	ChineseName  string     `json:"chinese_name"`
-	HeightCM     *int       `json:"height_cm"`
-	BirthDate    *time.Time `json:"birth_date"`
-	Bust         *int       `json:"bust"`
-	Waist        *int       `json:"waist"`
-	Hips         *int       `json:"hips"`
-	Cup          *int       `json:"cup"`
-	WorkCount    int64      `json:"work_count"`
-	SampleCode   string     `json:"sample_code"`
+	ID            int64      `json:"id"`
+	Name          string     `json:"name"`
+	RomanName     string     `json:"roman_name"`
+	JapaneseName  string     `json:"japanese_name"`
+	ChineseName   string     `json:"chinese_name"`
+	HeightCM      *int       `json:"height_cm"`
+	BirthDate     *time.Time `json:"birth_date"`
+	Bust          *int       `json:"bust"`
+	Waist         *int       `json:"waist"`
+	Hips          *int       `json:"hips"`
+	Cup           *int       `json:"cup"`
+	WorkCount     int64      `json:"work_count"`
+	SampleCode    string     `json:"sample_code"`
+	FavoriteCount int64      `json:"favorite_count"`
 }
 
 func applyJavIdolSearch(q *gorm.DB, search string) *gorm.DB {
@@ -893,9 +894,10 @@ func GetJavIdolSummary(ctx context.Context, idolID int64, directoryIDs []int64) 
 	isEnglish := jav.CurrentMetadataLanguageIsEnglish()
 	tx := common.DB.WithContext(ctx).
 		Table("jav_idol ji").
-		Select("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, COALESCE(idol_work_counts.work_count, 0) AS work_count, solo_idols.sample_code").
+		Select("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, COALESCE(idol_work_counts.work_count, 0) AS work_count, solo_idols.sample_code, COALESCE(favorite_counts.favorite_count, 0) AS favorite_count").
 		Joins("LEFT JOIN (?) idol_work_counts ON idol_work_counts.jav_idol_id = ji.id", buildVisibleIdolWorkCountQuery(ctx, directoryIDs)).
 		Joins("LEFT JOIN (?) solo_idols ON solo_idols.jav_idol_id = ji.id", buildVisibleSoloIdolSampleQuery(ctx, directoryIDs, isEnglish)).
+		Joins("LEFT JOIN (?) favorite_counts ON favorite_counts.jav_idol_id = ji.id", buildIdolFavoriteCountQuery(ctx)).
 		Where("ji.id = ?", idolID).
 		Where("COALESCE(ji.is_english, 0) = ?", isEnglish).
 		Where("solo_idols.sample_code IS NOT NULL").
@@ -931,7 +933,7 @@ func ResolveJavIdols(ctx context.Context, ids []int64) ([]JavIdolSummary, error)
 }
 
 // ListJavIdols returns idols ordered by selected sort with pagination.
-func ListJavIdols(ctx context.Context, search, sort string, limit, offset int, directoryIDs []int64) ([]JavIdolSummary, int64, error) {
+func ListJavIdols(ctx context.Context, search, sort string, limit, offset int, directoryIDs []int64, favoriteGroupID int64) ([]JavIdolSummary, int64, error) {
 	if limit <= 0 {
 		limit = 100
 	}
@@ -946,6 +948,9 @@ func ListJavIdols(ctx context.Context, search, sort string, limit, offset int, d
 		Table("jav_idol ji").
 		Joins("JOIN (?) solo_idols ON solo_idols.jav_idol_id = ji.id", soloIdols).
 		Where("COALESCE(ji.is_english, 0) = ?", isEnglish)
+	if favoriteGroupID > 0 {
+		countBase = countBase.Joins("JOIN jav_idol_favorite_map jifm_filter ON jifm_filter.jav_idol_id = ji.id AND jifm_filter.jav_idol_favorite_group_id = ?", favoriteGroupID)
+	}
 	countBase = applyJavIdolSearch(countBase, search)
 
 	var total int64
@@ -993,20 +998,27 @@ func ListJavIdols(ctx context.Context, search, sort string, limit, offset int, d
 	default:
 		// ignore unknown values
 	}
+	if favoriteGroupID > 0 {
+		order = "jifm_filter.sort_order ASC, ji.name ASC, ji.id ASC"
+	}
 	base := common.DB.WithContext(ctx).
 		Table("jav_idol ji").
 		Joins("JOIN (?) solo_idols ON solo_idols.jav_idol_id = ji.id", soloIdols).
+		Joins("LEFT JOIN (?) favorite_counts ON favorite_counts.jav_idol_id = ji.id", buildIdolFavoriteCountQuery(ctx)).
 		Joins("JOIN jav_idol_map jim ON jim.jav_idol_id = ji.id").
 		Joins("JOIN jav j ON j.id = jim.jav_id").
 		Joins("JOIN video_location vl ON vl.jav_id = j.id").
 		Joins("JOIN directory d ON d.id = vl.directory_id").
 		Where("COALESCE(ji.is_english, 0) = ?", isEnglish).
 		Where(activeLocationWhereSQL("vl", "d"))
+	if favoriteGroupID > 0 {
+		base = base.Joins("JOIN jav_idol_favorite_map jifm_filter ON jifm_filter.jav_idol_id = ji.id AND jifm_filter.jav_idol_favorite_group_id = ?", favoriteGroupID)
+	}
 	base = applyDirectoryFilter(base, "vl", directoryIDs)
 	base = applyJavIdolSearch(base, search)
 	if err := base.
-		Select("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, COUNT(DISTINCT j.id) AS work_count, solo_idols.sample_code").
-		Group("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, solo_idols.sample_code").
+		Select("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, COUNT(DISTINCT j.id) AS work_count, solo_idols.sample_code, COALESCE(favorite_counts.favorite_count, 0) AS favorite_count").
+		Group("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, solo_idols.sample_code, favorite_counts.favorite_count").
 		Order(order).
 		Limit(limit).
 		Offset(offset).

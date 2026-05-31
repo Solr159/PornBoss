@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import StarBorderRoundedIcon from '@mui/icons-material/StarBorderRounded'
+import StarRoundedIcon from '@mui/icons-material/StarRounded'
 import { fetchJavIdolJavDBURL } from '@/api'
 import { isChineseLocale, zh } from '@/utils/i18n'
 
@@ -14,7 +16,13 @@ export function getIdolCardLayoutProps() {
   return { bgWidthPercent, coverAspectPercent }
 }
 
-export default function JavIdolGrid({ items, onSelectIdol, buildIdolUrl, javMetadataLanguage }) {
+export default function JavIdolGrid({
+  items,
+  onSelectIdol,
+  onOpenFavorites,
+  buildIdolUrl,
+  javMetadataLanguage,
+}) {
   const { bgWidthPercent, coverAspectPercent } = getIdolCardLayoutProps()
 
   const hasItems = Array.isArray(items) && items.length > 0
@@ -33,6 +41,7 @@ export default function JavIdolGrid({ items, onSelectIdol, buildIdolUrl, javMeta
           key={item.id || item.name}
           item={item}
           onSelectIdol={onSelectIdol}
+          onOpenFavorites={onOpenFavorites}
           href={buildIdolUrl?.(item)}
           bgWidthPercent={bgWidthPercent}
           coverAspectPercent={coverAspectPercent}
@@ -46,6 +55,7 @@ export default function JavIdolGrid({ items, onSelectIdol, buildIdolUrl, javMeta
 export function IdolCard({
   item,
   onSelectIdol,
+  onOpenFavorites,
   href,
   bgWidthPercent,
   coverAspectPercent,
@@ -55,6 +65,7 @@ export function IdolCard({
   const chineseLocale = isChineseLocale()
   const cover = item?.sample_code ? `/jav/${encodeURIComponent(item.sample_code)}/cover` : null
   const workCount = item?.work_count || 0
+  const favoriteCount = Number(item?.favorite_count) || 0
   const name = item?.name || zh('未知女优', 'Unknown idol')
   const romanName = item?.roman_name || ''
   const japaneseName = item?.japanese_name || ''
@@ -125,6 +136,12 @@ export function IdolCard({
     }
   }
 
+  const handleOpenFavorites = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    onOpenFavorites?.(item)
+  }
+
   return (
     <a
       href={href || '#'}
@@ -163,6 +180,23 @@ export function IdolCard({
             {zh(`作品 ${workCount}`, `${workCount} javs`)}
           </div>
         )}
+        <button
+          type="button"
+          className={`absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full shadow-lg shadow-black/40 transition ${
+            favoriteCount > 0
+              ? 'bg-amber-400 text-amber-950 hover:bg-amber-300'
+              : 'bg-black/65 text-white opacity-0 hover:bg-black/80 group-focus-within:opacity-100 group-hover:opacity-100'
+          }`}
+          title={zh('加入女优收藏夹', 'Add to idol favorite groups')}
+          aria-label={zh('加入女优收藏夹', 'Add to idol favorite groups')}
+          onClick={handleOpenFavorites}
+        >
+          {favoriteCount > 0 ? (
+            <StarRoundedIcon sx={{ fontSize: 18 }} />
+          ) : (
+            <StarBorderRoundedIcon sx={{ fontSize: 18 }} />
+          )}
+        </button>
         <button
           type="button"
           className={`absolute bottom-2 left-2 flex h-7 w-7 items-center justify-center rounded-full text-white opacity-0 shadow-lg shadow-black/60 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 ${
