@@ -27,10 +27,10 @@ If you do not want to deal with complex tools or configuration and just want to 
 
 Click the link for your system, download the latest release package, and extract it:
 
-- [Windows](https://github.com/Solr159/PornBoss/releases/download/v1.5.5/pornboss-v1.5.5-windows-x86_64.zip)
-- [Linux](https://github.com/Solr159/PornBoss/releases/download/v1.5.5/pornboss-v1.5.5-linux-x86_64.zip)
-- [macOS-x86_64](https://github.com/Solr159/PornBoss/releases/download/v1.5.5/pornboss-v1.5.5-macos-x86_64.zip) for Intel-based macOS
-- [macOS-arm64](https://github.com/Solr159/PornBoss/releases/download/v1.5.5/pornboss-v1.5.5-macos-arm64.zip) for Apple Silicon macOS
+- [Windows](https://github.com/Solr159/PornBoss/releases/download/v1.6.2/pornboss-v1.6.2-windows-x86_64.zip)
+- [Linux](https://github.com/Solr159/PornBoss/releases/download/v1.6.2/pornboss-v1.6.2-linux-x86_64.zip)
+- [macOS-x86_64](https://github.com/Solr159/PornBoss/releases/download/v1.6.2/pornboss-v1.6.2-macos-x86_64.zip) for Intel-based macOS
+- [macOS-arm64](https://github.com/Solr159/PornBoss/releases/download/v1.6.2/pornboss-v1.6.2-macos-arm64.zip) for Apple Silicon macOS
 
 You can also visit the [Releases](https://github.com/Solr159/pornboss/releases) page to view all versions.
 
