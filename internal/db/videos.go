@@ -236,6 +236,28 @@ func GetVideo(ctx context.Context, id int64) (*models.Video, error) {
 	return &video, nil
 }
 
+// GetVideoForLocation returns a video-shaped row for a specific active location.
+func GetVideoForLocation(ctx context.Context, videoID, locationID int64) (*models.Video, error) {
+	loc, err := GetActiveVideoLocation(ctx, videoID, locationID)
+	if err != nil {
+		return nil, err
+	}
+	if loc == nil {
+		return nil, nil
+	}
+	if err := common.DB.WithContext(ctx).
+		Model(&models.VideoLocation{}).
+		Where("id = ?", loc.ID).
+		Preload("DirectoryRef").
+		Preload("Video").
+		Preload("Video.Tags").
+		First(loc).Error; err != nil {
+		return nil, fmt.Errorf("get video for location: %w", err)
+	}
+	video := videoFromLocation(*loc)
+	return &video, nil
+}
+
 // AllVideos returns every video row; used for sync bookkeeping.
 func AllVideos(ctx context.Context) ([]models.Video, error) {
 	var videos []models.Video

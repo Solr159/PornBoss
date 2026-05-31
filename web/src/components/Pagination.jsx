@@ -57,7 +57,7 @@ export default function Pagination({
   return (
     <div className="flex min-h-8 flex-col items-center gap-1 py-1 text-sm">
       {onWaterfallModeChange ? (
-        <label className="absolute left-0 top-1/2 inline-flex h-7 shrink-0 -translate-y-1/2 items-center gap-1 rounded border border-gray-200 bg-white pl-2 pr-1 text-xs text-gray-600 shadow-sm">
+        <label className="absolute left-0 top-1/2 inline-flex h-7 shrink-0 -translate-y-1/2 items-center gap-1 pl-2 pr-1 text-xs text-gray-600">
           <span>{zh('瀑布流', 'Waterfall')}</span>
           <Switch
             size="small"

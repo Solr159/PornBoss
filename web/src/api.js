@@ -215,6 +215,29 @@ export async function deleteVideoScreenshot(videoId, name) {
   }
 }
 
+export async function renameVideoLocation(videoId, locationId, filename) {
+  const res = await fetch(`/videos/${videoId}/locations/${locationId}`, {
+    method: 'PATCH',
+    headers: jsonHeaders,
+    body: JSON.stringify({ filename }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('重命名视频失败', 'Failed to rename video'))
+  }
+  return res.json()
+}
+
+export async function deleteVideoLocation(videoId, locationId) {
+  const res = await fetch(`/videos/${videoId}/locations/${locationId}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('删除视频失败', 'Failed to delete video'))
+  }
+}
+
 // Directories
 export async function fetchDirectories() {
   const res = await fetch('/directories')
