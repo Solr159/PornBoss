@@ -97,7 +97,6 @@ export default function JavIdolView({
 function IdolFavoriteGroupRow({
   groups,
   selectedGroupId,
-  loading,
   error,
   buildGroupUrl,
   onSelect,
@@ -106,9 +105,6 @@ function IdolFavoriteGroupRow({
   const list = Array.isArray(groups) ? groups : []
   const selected = Number(selectedGroupId) || null
 
-  if (loading && list.length === 0) {
-    return <div className="text-xs text-gray-500">{zh('加载收藏夹…', 'Loading favorites...')}</div>
-  }
   if (error && list.length === 0) {
     return <div className="text-xs text-red-600">{String(error)}</div>
   }
