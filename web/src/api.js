@@ -444,6 +444,69 @@ export async function createJavIdolFavoriteGroup(name) {
   return res.json()
 }
 
+export async function renameJavIdolFavoriteGroup(id, name) {
+  const res = await fetch(`/jav/idol-favorite-groups/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: jsonHeaders,
+    body: JSON.stringify({ name }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('重命名女优收藏夹失败', 'Failed to rename idol favorite group'))
+  }
+}
+
+export async function deleteJavIdolFavoriteGroup(id) {
+  const res = await fetch(`/jav/idol-favorite-groups/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('删除女优收藏夹失败', 'Failed to delete idol favorite group'))
+  }
+}
+
+export async function reorderJavIdolFavoriteGroups(groupIds = []) {
+  const res = await fetch('/jav/idol-favorite-groups/order', {
+    method: 'PUT',
+    headers: jsonHeaders,
+    body: JSON.stringify({ group_ids: groupIds }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(
+      err.error || zh('保存女优收藏夹顺序失败', 'Failed to save favorite group order')
+    )
+  }
+}
+
+export async function fetchJavIdolFavoriteGroupIdols(id, { directoryIds = [] } = {}) {
+  const params = new URLSearchParams()
+  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
+  const query = params.toString()
+  const res = await fetch(
+    `/jav/idol-favorite-groups/${encodeURIComponent(id)}/idols${query ? `?${query}` : ''}`
+  )
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('加载收藏夹女优失败', 'Failed to load favorite group idols'))
+  }
+  const data = await res.json()
+  return Array.isArray(data?.items) ? data.items : []
+}
+
+export async function reorderJavIdolFavoriteGroupIdols(id, idolIds = []) {
+  const res = await fetch(`/jav/idol-favorite-groups/${encodeURIComponent(id)}/idol-order`, {
+    method: 'PUT',
+    headers: jsonHeaders,
+    body: JSON.stringify({ idol_ids: idolIds }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('保存收藏夹女优顺序失败', 'Failed to save favorite idol order'))
+  }
+}
+
 export async function fetchJavIdolFavoriteSelection(id) {
   const res = await fetch(`/jav/idols/${encodeURIComponent(id)}/favorite-groups`)
   if (!res.ok) {

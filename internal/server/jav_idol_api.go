@@ -77,10 +77,114 @@ func createJavIdolFavoriteGroup(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, dbpkg.JavIdolFavoriteGroupSummary{
-		ID:    group.ID,
-		Name:  group.Name,
-		Count: 0,
+		ID:        group.ID,
+		Name:      group.Name,
+		SortOrder: group.SortOrder,
+		Count:     0,
 	})
+}
+
+func renameJavIdolFavoriteGroup(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+	if err := dbpkg.RenameJavIdolFavoriteGroup(c.Request.Context(), id, req.Name); err != nil {
+		logging.Error("rename jav idol favorite group id=%d: %v", id, err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func deleteJavIdolFavoriteGroup(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := dbpkg.DeleteJavIdolFavoriteGroup(c.Request.Context(), id); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "favorite group not found"})
+			return
+		}
+		logging.Error("delete jav idol favorite group id=%d: %v", id, err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func reorderJavIdolFavoriteGroups(c *gin.Context) {
+	var req struct {
+		GroupIDs []int64 `json:"group_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+	if err := dbpkg.ReorderJavIdolFavoriteGroups(c.Request.Context(), req.GroupIDs); err != nil {
+		logging.Error("reorder jav idol favorite groups: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func listJavIdolFavoriteGroupIdols(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	items, err := dbpkg.ListJavIdolFavoriteGroupIdols(
+		c.Request.Context(),
+		id,
+		parseDirectoryIDs(c.Query("directory_ids")),
+	)
+	if err != nil {
+		logging.Error("list jav idol favorite group idols id=%d: %v", id, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	enrichJavIdolSummaries(c.Request.Context(), items, parseDirectoryIDs(c.Query("directory_ids")))
+	if items == nil {
+		items = []dbpkg.JavIdolSummary{}
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+func reorderJavIdolFavoriteGroupIdols(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var req struct {
+		IdolIDs []int64 `json:"idol_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+	if err := dbpkg.ReorderJavIdolFavoriteGroupIdols(c.Request.Context(), id, req.IdolIDs); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "favorite group not found"})
+			return
+		}
+		logging.Error("reorder jav idol favorite group idols id=%d: %v", id, err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func listJavIdolFavoriteGroupIDs(c *gin.Context) {

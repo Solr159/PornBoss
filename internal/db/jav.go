@@ -998,6 +998,9 @@ func ListJavIdols(ctx context.Context, search, sort string, limit, offset int, d
 	default:
 		// ignore unknown values
 	}
+	if favoriteGroupID > 0 {
+		order = "jifm_filter.sort_order ASC, ji.name ASC, ji.id ASC"
+	}
 	base := common.DB.WithContext(ctx).
 		Table("jav_idol ji").
 		Joins("JOIN (?) solo_idols ON solo_idols.jav_idol_id = ji.id", soloIdols).

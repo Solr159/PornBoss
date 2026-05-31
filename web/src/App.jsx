@@ -19,10 +19,16 @@ import {
   replaceJavTagsForItems,
   resolveJavIdols,
   createJavIdolFavoriteGroup,
+  deleteJavIdolFavoriteGroup,
+  fetchJavIdolFavoriteGroupIdols,
   fetchJavIdolFavoriteSelection,
+  renameJavIdolFavoriteGroup,
+  reorderJavIdolFavoriteGroupIdols,
+  reorderJavIdolFavoriteGroups,
   replaceJavIdolFavoriteGroups,
 } from '@/api'
 import GlobalSettingsModal from '@/components/GlobalSettingsModal'
+import JavIdolFavoriteManageModal from '@/components/JavIdolFavoriteManageModal'
 import JavIdolView from '@/components/JavIdolView'
 import JavIdolFavoriteModal from '@/components/JavIdolFavoriteModal'
 import JavQueryEditorModal from '@/components/JavQueryEditorModal'
@@ -196,6 +202,7 @@ export default function App() {
   const [idolFavoriteModalLoading, setIdolFavoriteModalLoading] = useState(false)
   const [idolFavoriteModalSaving, setIdolFavoriteModalSaving] = useState(false)
   const [idolFavoriteModalError, setIdolFavoriteModalError] = useState('')
+  const [idolFavoriteManageOpen, setIdolFavoriteManageOpen] = useState(false)
   const [locationPickerOpen, setLocationPickerOpen] = useState(false)
   const [locationPickerVideo, setLocationPickerVideo] = useState(null)
   const [locationPickerChoices, setLocationPickerChoices] = useState([])
@@ -2034,7 +2041,12 @@ export default function App() {
       const current = Array.isArray(state.idolFavoriteGroups) ? state.idolFavoriteGroups : []
       const exists = current.some((item) => Number(item?.id) === Number(group?.id))
       const next = exists ? current : [...current, { ...group, count: group?.count || 0 }]
-      next.sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || '')))
+      next.sort((a, b) => {
+        const orderA = Number(a?.sort_order) || 0
+        const orderB = Number(b?.sort_order) || 0
+        if (orderA !== orderB) return orderA - orderB
+        return String(a?.name || '').localeCompare(String(b?.name || ''))
+      })
       return { idolFavoriteGroups: next }
     })
     return group
@@ -2064,6 +2076,63 @@ export default function App() {
       }
     },
     [idolFavoriteModalItem, isJavMode, javTab, loadJavIdolFavoriteGroups, loadJavIdols]
+  )
+
+  const handleReorderIdolFavoriteGroups = useCallback(
+    async (groupIds) => {
+      await reorderJavIdolFavoriteGroups(groupIds)
+      await loadJavIdolFavoriteGroups({ force: true })
+    },
+    [loadJavIdolFavoriteGroups]
+  )
+
+  const handleRenameIdolFavoriteGroup = useCallback(
+    async (groupId, name) => {
+      await renameJavIdolFavoriteGroup(groupId, name)
+      useStore.setState((state) => ({
+        idolFavoriteGroups: (state.idolFavoriteGroups || []).map((group) =>
+          Number(group.id) === Number(groupId) ? { ...group, name } : group
+        ),
+      }))
+      await loadJavIdolFavoriteGroups({ force: true })
+    },
+    [loadJavIdolFavoriteGroups]
+  )
+
+  const handleDeleteIdolFavoriteGroup = useCallback(
+    async (groupId) => {
+      await deleteJavIdolFavoriteGroup(groupId)
+      if (Number(idolFavoriteGroupId) === Number(groupId)) {
+        setIdolFavoriteGroupId(null)
+      }
+      await Promise.all([
+        loadJavIdolFavoriteGroups({ force: true }),
+        isJavMode && javTab === 'idol' ? loadJavIdols({ force: true }) : Promise.resolve(),
+      ])
+    },
+    [
+      idolFavoriteGroupId,
+      isJavMode,
+      javTab,
+      loadJavIdolFavoriteGroups,
+      loadJavIdols,
+      setIdolFavoriteGroupId,
+    ]
+  )
+
+  const handleLoadIdolFavoriteGroupIdols = useCallback(
+    (groupId) => fetchJavIdolFavoriteGroupIdols(groupId, { directoryIds: javQueryDirectoryIds }),
+    [javQueryDirectoryIds]
+  )
+
+  const handleReorderIdolFavoriteGroupIdols = useCallback(
+    async (groupId, idolIds) => {
+      await reorderJavIdolFavoriteGroupIdols(groupId, idolIds)
+      if (Number(idolFavoriteGroupId) === Number(groupId) && isJavMode && javTab === 'idol') {
+        await loadJavIdols({ force: true })
+      }
+    },
+    [idolFavoriteGroupId, isJavMode, javTab, loadJavIdols]
   )
 
   const handleJavIdolClick = useCallback((idol) => {
@@ -2367,6 +2436,7 @@ export default function App() {
               onSelectIdol={handleSelectIdol}
               onFavoriteGroupSelect={(groupId) => setIdolFavoriteGroupId(groupId)}
               onOpenFavorites={handleOpenIdolFavoriteModal}
+              onOpenFavoriteManager={() => setIdolFavoriteManageOpen(true)}
               waterfallMode={waterfallModes.idol}
               onWaterfallModeChange={(enabled) => setWaterfallMode('idol', enabled)}
               onLoadMore={loadMoreJavIdols}
@@ -2599,6 +2669,19 @@ export default function App() {
         onClose={handleCloseIdolFavoriteModal}
         onCreateGroup={handleCreateIdolFavoriteGroup}
         onSave={handleSaveIdolFavoriteGroups}
+      />
+
+      <JavIdolFavoriteManageModal
+        open={idolFavoriteManageOpen}
+        groups={idolFavoriteGroups}
+        selectedGroupId={idolFavoriteGroupId}
+        loading={idolFavoriteGroupsLoading}
+        onClose={() => setIdolFavoriteManageOpen(false)}
+        onReorderGroups={handleReorderIdolFavoriteGroups}
+        onRenameGroup={handleRenameIdolFavoriteGroup}
+        onDeleteGroup={handleDeleteIdolFavoriteGroup}
+        onLoadGroupIdols={handleLoadIdolFavoriteGroupIdols}
+        onReorderGroupIdols={handleReorderIdolFavoriteGroupIdols}
       />
 
       <JavVideoPickerModal

@@ -73,6 +73,7 @@ type JavIdolFavoriteGroup struct {
 	Name      string    `json:"name" gorm:"uniqueIndex"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	SortOrder int       `json:"sort_order" gorm:"not null;default:0;index"`
 }
 
 // Many-to-many join tables.
@@ -99,4 +100,5 @@ type JavIdolFavoriteMap struct {
 	JavIdolID              int64                `gorm:"primaryKey;index:idx_jav_idol_favorite_map_jav_idol_id_group_id,priority:1"`
 	JavIdol                JavIdol              `gorm:"foreignKey:JavIdolID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	CreatedAt              time.Time            `gorm:"autoCreateTime"`
+	SortOrder              int                  `gorm:"not null;default:0;index"`
 }

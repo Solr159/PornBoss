@@ -1,3 +1,5 @@
+import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'
+import { IconButton } from '@mui/material'
 import JavIdolGrid from '@/components/JavIdolGrid'
 import Pagination from '@/components/Pagination'
 import WaterfallLoader from '@/components/WaterfallLoader'
@@ -26,6 +28,7 @@ export default function JavIdolView({
   onSelectIdol,
   onFavoriteGroupSelect,
   onOpenFavorites,
+  onOpenFavoriteManager,
   waterfallMode,
   onWaterfallModeChange,
   onLoadMore,
@@ -64,6 +67,7 @@ export default function JavIdolView({
             error={favoriteGroupsError}
             buildGroupUrl={buildGroupUrl}
             onSelect={onFavoriteGroupSelect}
+            onOpenManager={onOpenFavoriteManager}
           />
         </div>
       </div>
@@ -97,6 +101,7 @@ function IdolFavoriteGroupRow({
   error,
   buildGroupUrl,
   onSelect,
+  onOpenManager,
 }) {
   const list = Array.isArray(groups) ? groups : []
   const selected = Number(selectedGroupId) || null
@@ -109,28 +114,46 @@ function IdolFavoriteGroupRow({
   }
 
   return (
-    <div className="flex max-w-full flex-nowrap justify-start gap-1.5 overflow-x-auto overflow-y-hidden whitespace-nowrap pb-1">
-      <FavoriteGroupLink
-        active={!selected}
-        href={buildGroupUrl?.(null)}
-        onClick={() => onSelect?.(null)}
-        label={zh('全部', 'All')}
-      />
-      {list.map((group) => {
-        const id = Number(group?.id)
-        if (!Number.isFinite(id) || id <= 0) return null
-        const count = Number.isFinite(group?.count) ? group.count : 0
-        return (
-          <FavoriteGroupLink
-            key={id}
-            active={selected === id}
-            href={buildGroupUrl?.(id)}
-            onClick={() => onSelect?.(id)}
-            label={group?.name || zh('未命名收藏夹', 'Untitled favorite group')}
-            count={count}
-          />
-        )
-      })}
+    <div className="flex max-w-full items-center gap-1.5">
+      <div className="flex min-w-0 flex-1 flex-nowrap justify-start gap-1.5 overflow-x-auto overflow-y-hidden whitespace-nowrap pb-1">
+        <FavoriteGroupLink
+          active={!selected}
+          href={buildGroupUrl?.(null)}
+          onClick={() => onSelect?.(null)}
+          label={zh('全部', 'All')}
+        />
+        {list.map((group) => {
+          const id = Number(group?.id)
+          if (!Number.isFinite(id) || id <= 0) return null
+          const count = Number.isFinite(group?.count) ? group.count : 0
+          return (
+            <FavoriteGroupLink
+              key={id}
+              active={selected === id}
+              href={buildGroupUrl?.(id)}
+              onClick={() => onSelect?.(id)}
+              label={group?.name || zh('未命名收藏夹', 'Untitled favorite group')}
+              count={count}
+            />
+          )
+        })}
+      </div>
+      <IconButton
+        type="button"
+        size="small"
+        onClick={onOpenManager}
+        aria-label={zh('管理女优分组', 'Manage idol groups')}
+        title={zh('管理女优分组', 'Manage idol groups')}
+        sx={{
+          width: 24,
+          height: 24,
+          border: '1px solid rgb(229 231 235)',
+          bgcolor: 'white',
+          '&:hover': { bgcolor: 'rgb(249 250 251)' },
+        }}
+      >
+        <SettingsRoundedIcon sx={{ fontSize: 15 }} />
+      </IconButton>
     </div>
   )
 }
