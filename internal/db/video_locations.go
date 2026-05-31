@@ -145,6 +145,79 @@ func GetPrimaryVideoLocation(ctx context.Context, videoID int64) (*models.VideoL
 	return &loc, nil
 }
 
+// GetActiveVideoLocation returns a specific active location for a video.
+func GetActiveVideoLocation(ctx context.Context, videoID, locationID int64) (*models.VideoLocation, error) {
+	if videoID <= 0 || locationID <= 0 {
+		return nil, errors.New("video id and location id are required")
+	}
+	var loc models.VideoLocation
+	err := common.DB.WithContext(ctx).
+		Model(&models.VideoLocation{}).
+		Joins("JOIN directory ON directory.id = video_location.directory_id").
+		Where("video_location.id = ?", locationID).
+		Where("video_location.video_id = ?", videoID).
+		Where("COALESCE(video_location.is_delete, 0) = 0").
+		Where("COALESCE(directory.is_delete, 0) = 0").
+		Where("COALESCE(directory.missing, 0) = 0").
+		Preload("DirectoryRef").
+		First(&loc).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get active video location: %w", err)
+	}
+	return &loc, nil
+}
+
+// VideoLocationPathExists reports whether any location row already uses the directory/path pair.
+func VideoLocationPathExists(ctx context.Context, directoryID int64, relativePath string) (bool, error) {
+	relativePath = cleanRelativePathForDB(relativePath)
+	if directoryID <= 0 || relativePath == "" {
+		return false, errors.New("directory id and relative path are required")
+	}
+	var count int64
+	if err := common.DB.WithContext(ctx).
+		Model(&models.VideoLocation{}).
+		Where("directory_id = ? AND relative_path = ?", directoryID, relativePath).
+		Count(&count).Error; err != nil {
+		return false, fmt.Errorf("check video location path: %w", err)
+	}
+	return count > 0, nil
+}
+
+// UpdateVideoLocationPath updates the stored path metadata for a location after a filesystem rename.
+func UpdateVideoLocationPath(ctx context.Context, locationID int64, relativePath string, modifiedAt time.Time) (*models.VideoLocation, error) {
+	relativePath = cleanRelativePathForDB(relativePath)
+	if locationID <= 0 || relativePath == "" {
+		return nil, errors.New("location id and relative path are required")
+	}
+	updates := map[string]any{
+		"relative_path": relativePath,
+		"filename":      filepath.Base(filepath.FromSlash(relativePath)),
+		"modified_at":   modifiedAt,
+		"updated_at":    gorm.Expr("CURRENT_TIMESTAMP"),
+	}
+	if err := common.DB.WithContext(ctx).
+		Model(&models.VideoLocation{}).
+		Where("id = ?", locationID).
+		Updates(updates).Error; err != nil {
+		return nil, fmt.Errorf("update video location path: %w", err)
+	}
+
+	var loc models.VideoLocation
+	if err := common.DB.WithContext(ctx).
+		Model(&models.VideoLocation{}).
+		Where("id = ?", locationID).
+		Preload("DirectoryRef").
+		Preload("Video").
+		Preload("Video.Tags").
+		First(&loc).Error; err != nil {
+		return nil, fmt.Errorf("load updated video location: %w", err)
+	}
+	return &loc, nil
+}
+
 func activeVideoLocationSubquery(ctx context.Context) *gorm.DB {
 	return common.DB.WithContext(ctx).
 		Table("video_location vl").

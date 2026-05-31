@@ -9,6 +9,8 @@ import {
   addTagToVideos,
   removeTagFromVideos,
   replaceTagsForVideos,
+  renameVideoLocation,
+  deleteVideoLocation,
   updateConfig,
   playVideoFile,
   openVideoFile,
@@ -494,6 +496,93 @@ export default function App() {
       )
     },
     [getVideoLocationChoices, openLocationPicker, revealVideoFile]
+  )
+
+  const handleRenameVideo = useCallback(
+    async (video) => {
+      const locationId = Number(video?.location_id)
+      if (!video?.id || !Number.isFinite(locationId) || locationId <= 0) {
+        showToast(zh('无法重命名：缺少文件位置', 'Cannot rename: missing file location'))
+        return
+      }
+      const currentName =
+        String(video?.filename || '')
+          .trim()
+          .split(/[\\/]/)
+          .pop() ||
+        String(video?.path || '')
+          .split(/[\\/]/)
+          .pop()
+      const nextName = window.prompt(zh('重命名视频文件', 'Rename video file'), currentName)
+      if (nextName == null) return
+      const filename = nextName.trim()
+      if (!filename || filename === currentName) return
+      try {
+        const updated = await renameVideoLocation(video.id, locationId, filename)
+        useStore.setState((state) => {
+          const targetKey = videoSelectionKey(video)
+          const nextVideos = Array.isArray(state.videos)
+            ? state.videos.map((item) =>
+                videoSelectionKey(item) === targetKey ? { ...item, ...updated } : item
+              )
+            : state.videos
+          const nextMeta = { ...(state.selectedVideoMeta || {}) }
+          if (targetKey && nextMeta[targetKey]) {
+            nextMeta[targetKey] = {
+              ...nextMeta[targetKey],
+              label: updated.filename || updated.path || nextMeta[targetKey].label,
+            }
+          }
+          return { videos: nextVideos, selectedVideoMeta: nextMeta }
+        })
+        showToast(zh('视频已重命名', 'Video renamed'))
+      } catch (err) {
+        console.error(zh('重命名视频失败', 'Failed to rename video'), err)
+        showToast(err?.message || zh('重命名视频失败', 'Failed to rename video'))
+      }
+    },
+    [showToast]
+  )
+
+  const handleDeleteVideo = useCallback(
+    async (video) => {
+      const locationId = Number(video?.location_id)
+      if (!video?.id || !Number.isFinite(locationId) || locationId <= 0) {
+        showToast(zh('无法删除：缺少文件位置', 'Cannot delete: missing file location'))
+        return
+      }
+      const label = String(video?.filename || video?.path || `#${video.id}`)
+      if (!window.confirm(zh(`确定删除视频文件“${label}”吗？`, `Delete video file "${label}"?`))) {
+        return
+      }
+      try {
+        await deleteVideoLocation(video.id, locationId)
+        const targetKey = videoSelectionKey(video)
+        useStore.setState((state) => {
+          const nextIds = new Set(state.selectedVideoIds || [])
+          const nextMeta = { ...(state.selectedVideoMeta || {}) }
+          if (targetKey) {
+            nextIds.delete(targetKey)
+            delete nextMeta[targetKey]
+          }
+          const nextVideos = Array.isArray(state.videos)
+            ? state.videos.filter((item) => videoSelectionKey(item) !== targetKey)
+            : state.videos
+          return {
+            videos: nextVideos,
+            selectedVideoIds: nextIds,
+            selectedVideoMeta: nextMeta,
+            total: Math.max(0, Number(state.total || 0) - 1),
+          }
+        })
+        await loadVideos({ force: true })
+        showToast(zh('视频已删除', 'Video deleted'))
+      } catch (err) {
+        console.error(zh('删除视频失败', 'Failed to delete video'), err)
+        showToast(err?.message || zh('删除视频失败', 'Failed to delete video'))
+      }
+    },
+    [loadVideos, showToast]
   )
 
   const closeJavVideoPicker = useCallback(() => {
@@ -2590,6 +2679,8 @@ export default function App() {
             alternatePlayerLabel={alternatePlayerLabel}
             setTagPickerFor={openTagEditor}
             onOpenScreenshots={setScreenshotsVideo}
+            onRenameVideo={handleRenameVideo}
+            onDeleteVideo={handleDeleteVideo}
             onTagClick={handleVideoTagClick}
             waterfallMode={waterfallModes.video}
             onWaterfallModeChange={(enabled) => setWaterfallMode('video', enabled)}

@@ -1,4 +1,8 @@
-import { IconButton, Tooltip } from '@mui/material'
+import { useState } from 'react'
+import { IconButton, Popover, Tooltip } from '@mui/material'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import DriveFileRenameOutlineIcon from '@mui/icons-material/DriveFileRenameOutline'
+import MoreVertIcon from '@mui/icons-material/MoreVert'
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
@@ -6,6 +10,7 @@ import { revealVideoLocation } from '@/api'
 import { formatBytes, getVideoDisplayName, parseVideoFingerprint } from '@/utils/display'
 import { zh } from '@/utils/i18n'
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined'
+import { MovieEdit } from '@mui/icons-material'
 
 export default function VideoCard({
   video,
@@ -17,8 +22,11 @@ export default function VideoCard({
   openFileLabel,
   onOpenTagPicker,
   onOpenScreenshots,
+  onRenameVideo,
+  onDeleteVideo,
   onTagClick,
 }) {
+  const [editAnchorEl, setEditAnchorEl] = useState(null)
   const displayName = getVideoDisplayName(video)
   const durationSec = Number(video?.duration_sec)
   const durationMinutes =
@@ -63,6 +71,27 @@ export default function VideoCard({
   const handleOpenScreenshots = (event) => {
     event.stopPropagation()
     onOpenScreenshots?.(video)
+  }
+
+  const openEditMenu = (event) => {
+    event.stopPropagation()
+    setEditAnchorEl(event.currentTarget)
+  }
+
+  const closeEditMenu = () => {
+    setEditAnchorEl(null)
+  }
+
+  const handleRename = (event) => {
+    event.stopPropagation()
+    closeEditMenu()
+    onRenameVideo?.(video)
+  }
+
+  const handleDelete = (event) => {
+    event.stopPropagation()
+    closeEditMenu()
+    onDeleteVideo?.(video)
   }
 
   return (
@@ -185,6 +214,43 @@ export default function VideoCard({
               <FolderOpenIcon fontSize="inherit" />
             </IconButton>
           </Tooltip>
+          <Tooltip title={zh('编辑视频', 'Edit video')}>
+            <IconButton
+              size="small"
+              onClick={openEditMenu}
+              aria-label={zh('编辑视频', 'Edit video')}
+              className="h-6 w-6"
+            >
+              <MovieEdit fontSize="inherit" />
+            </IconButton>
+          </Tooltip>
+          <Popover
+            open={Boolean(editAnchorEl)}
+            anchorEl={editAnchorEl}
+            onClose={closeEditMenu}
+            disableScrollLock
+            anchorOrigin={{ vertical: 'center', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'center', horizontal: 'left' }}
+          >
+            <div className="flex min-w-[112px] flex-col p-1">
+              <button
+                type="button"
+                onClick={handleRename}
+                className="inline-flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-50"
+              >
+                <DriveFileRenameOutlineIcon className="h-4 w-4" fontSize="inherit" />
+                <span>{zh('重命名', 'Rename')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="inline-flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-red-600 hover:bg-red-50"
+              >
+                <DeleteOutlineIcon className="h-4 w-4" fontSize="inherit" />
+                <span>{zh('删除', 'Delete')}</span>
+              </button>
+            </div>
+          </Popover>
         </div>
       </div>
 

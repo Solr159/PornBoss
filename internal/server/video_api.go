@@ -116,6 +116,10 @@ type videoScreenshotInfo struct {
 	ModifiedAt time.Time `json:"modified_at"`
 }
 
+type renameVideoLocationRequest struct {
+	Filename string `json:"filename"`
+}
+
 func getVideoStreams(c *gin.Context) {
 	video, fullPath, err := resolveVideoStreamTarget(c)
 	if err != nil {
@@ -328,6 +332,205 @@ func revealVideoLocation(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+func renameVideoLocation(c *gin.Context) {
+	videoID, locationID, ok := parseVideoLocationParams(c)
+	if !ok {
+		return
+	}
+
+	var req renameVideoLocationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+	filename := strings.TrimSpace(req.Filename)
+	if !isSafeVideoFilename(filename) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filename"})
+		return
+	}
+
+	loc, err := dbpkg.GetActiveVideoLocation(c.Request.Context(), videoID, locationID)
+	if err != nil {
+		logging.Error("get video location for rename error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	if loc == nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	currentRel := filepath.ToSlash(filepath.Clean(filepath.FromSlash(loc.RelativePath)))
+	parentRel := filepath.ToSlash(filepath.Dir(filepath.FromSlash(currentRel)))
+	nextRel := filename
+	if parentRel != "." && parentRel != "" {
+		nextRel = filepath.ToSlash(filepath.Join(parentRel, filename))
+	}
+	nextRel = filepath.ToSlash(filepath.Clean(filepath.FromSlash(nextRel)))
+	if nextRel == "." || strings.HasPrefix(nextRel, "../") || nextRel == ".." {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filename"})
+		return
+	}
+	if nextRel == currentRel {
+		video, err := dbpkg.GetVideoForLocation(c.Request.Context(), videoID, locationID)
+		if err != nil {
+			logging.Error("load unchanged video location error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+			return
+		}
+		if video == nil {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		c.JSON(http.StatusOK, video)
+		return
+	}
+
+	exists, err := dbpkg.VideoLocationPathExists(c.Request.Context(), loc.DirectoryID, nextRel)
+	if err != nil {
+		logging.Error("check video location path error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	if exists {
+		c.JSON(http.StatusConflict, gin.H{"error": "target path already exists"})
+		return
+	}
+
+	oldFullPath, dirPath, err := resolveVideoPath(currentRel, loc.DirectoryRef.Path)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	newFullPath, _, err := resolveVideoPath(nextRel, dirPath)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	info, err := os.Stat(oldFullPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		logging.Error("stat video before rename error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	if info.IsDir() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "path is not a file"})
+		return
+	}
+	if _, err := os.Stat(newFullPath); err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "target file already exists"})
+		return
+	} else if !errors.Is(err, os.ErrNotExist) {
+		logging.Error("stat video rename target error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+
+	if err := os.Rename(oldFullPath, newFullPath); err != nil {
+		logging.Error("rename video file error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "rename file failed"})
+		return
+	}
+	modifiedAt := info.ModTime()
+	if renamedInfo, err := os.Stat(newFullPath); err == nil {
+		modifiedAt = renamedInfo.ModTime()
+	}
+	if _, err := dbpkg.UpdateVideoLocationPath(c.Request.Context(), locationID, nextRel, modifiedAt); err != nil {
+		if rollbackErr := os.Rename(newFullPath, oldFullPath); rollbackErr != nil {
+			logging.Error("rollback video file rename failed: %v", rollbackErr)
+		}
+		logging.Error("update video location after rename error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+
+	video, err := dbpkg.GetVideoForLocation(c.Request.Context(), videoID, locationID)
+	if err != nil {
+		logging.Error("load renamed video location error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	if video == nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	c.JSON(http.StatusOK, video)
+}
+
+func deleteVideoLocation(c *gin.Context) {
+	videoID, locationID, ok := parseVideoLocationParams(c)
+	if !ok {
+		return
+	}
+
+	loc, err := dbpkg.GetActiveVideoLocation(c.Request.Context(), videoID, locationID)
+	if err != nil {
+		logging.Error("get video location for delete error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	if loc == nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	fullPath, _, err := resolveVideoPath(loc.RelativePath, loc.DirectoryRef.Path)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			logging.Error("stat video before delete error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+			return
+		}
+	} else if info.IsDir() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "path is not a file"})
+		return
+	} else if err := os.Remove(fullPath); err != nil {
+		logging.Error("delete video file error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "delete file failed"})
+		return
+	}
+
+	if err := dbpkg.HideVideoLocationsByIDs(c.Request.Context(), []int64{locationID}); err != nil {
+		logging.Error("hide deleted video location error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+func parseVideoLocationParams(c *gin.Context) (int64, int64, bool) {
+	videoID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || videoID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return 0, 0, false
+	}
+	locationID, err := strconv.ParseInt(c.Param("location_id"), 10, 64)
+	if err != nil || locationID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid location_id"})
+		return 0, 0, false
+	}
+	return videoID, locationID, true
+}
+
+func isSafeVideoFilename(name string) bool {
+	if name == "" || name == "." || name == ".." {
+		return false
+	}
+	if strings.ContainsAny(name, `/\`) {
+		return false
+	}
+	return filepath.Base(name) == name
 }
 
 type videoPathRequest struct {

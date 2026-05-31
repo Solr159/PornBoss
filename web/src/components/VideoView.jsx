@@ -51,6 +51,8 @@ export default function VideoView({
   alternatePlayerLabel,
   setTagPickerFor,
   onOpenScreenshots,
+  onRenameVideo,
+  onDeleteVideo,
   onTagClick,
   waterfallMode,
   onWaterfallModeChange,
@@ -233,6 +235,8 @@ export default function VideoView({
           openFileLabel={alternatePlayerLabel}
           onOpenTagPicker={(vid) => setTagPickerFor(vid)}
           onOpenScreenshots={onOpenScreenshots}
+          onRenameVideo={onRenameVideo}
+          onDeleteVideo={onDeleteVideo}
           onTagClick={onTagClick}
         />
       )}
