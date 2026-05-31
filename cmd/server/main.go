@@ -179,15 +179,16 @@ func main() {
 			logger.Fatalf("listen on %s: %v", listenAddr, err)
 		}
 		actualPort := listener.Addr().(*net.TCPAddr).Port
-		url := fmt.Sprintf("http://localhost:%d", actualPort)
+		displayURL := fmt.Sprintf("http://localhost:%d", actualPort)
+		openURL := displayURL
 		if apiToken != "" {
-			url = fmt.Sprintf("%s/?token=%s", url, apiToken)
+			openURL = fmt.Sprintf("%s/?token=%s", displayURL, apiToken)
 		}
-		printReleaseStartupHint(url)
-		if err := util.OpenFile(url); err != nil {
+		printReleaseStartupHint(displayURL)
+		if err := util.OpenFile(openURL); err != nil {
 			logger.Printf("open browser failed: %v", err)
 		}
-		startReleaseKeyboardControls(ctx, stop, url, logger)
+		startReleaseKeyboardControls(ctx, stop, openURL, logger)
 		logger.Printf("server listening on %s", listener.Addr().String())
 		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
 			logger.Fatalf("server error: %v", err)
