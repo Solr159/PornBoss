@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
 import DragIndicatorRoundedIcon from '@mui/icons-material/DragIndicatorRounded'
@@ -133,30 +133,24 @@ function GroupOrderList({ groups, selectedGroupId, emptyText, onReorder, onEdit 
   }
 
   return (
-    <div className="rounded border border-gray-200 p-1">
-      {groups.map((group) => (
-        <ReorderRow
-          key={group.id}
-          item={group}
-          items={groups}
-          active={Number(group.id) === Number(selectedGroupId)}
-          label={group.name}
-          meta={zh(`${group.count || 0} 位`, `${group.count || 0} idols`)}
-          onReorder={onReorder}
-          leading={
-            <IconButton
-              type="button"
-              size="small"
-              onClick={() => onEdit(group)}
-              aria-label={zh('编辑分组', 'Edit group')}
-              sx={{ width: 28, height: 28 }}
-            >
-              <EditRoundedIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-          }
-        />
-      ))}
-    </div>
+    <SortableList
+      items={groups}
+      onReorder={onReorder}
+      getLabel={(group) => group.name}
+      getMeta={(group) => zh(`${group.count || 0} 位`, `${group.count || 0} idols`)}
+      isActive={(group) => Number(group.id) === Number(selectedGroupId)}
+      renderLeading={(group) => (
+        <IconButton
+          type="button"
+          size="small"
+          onClick={() => onEdit(group)}
+          aria-label={zh('编辑分组', 'Edit group')}
+          sx={{ width: 28, height: 28 }}
+        >
+          <EditRoundedIcon sx={{ fontSize: 16 }} />
+        </IconButton>
+      )}
+    />
   )
 }
 
@@ -305,7 +299,7 @@ function FavoriteGroupEditModal({
           </div>
 
           <div className="mb-2 text-xs text-gray-500">
-            {zh('点击拖动按钮后上下拖动，调整组内女优顺序', 'Drag the handle to reorder idols')}
+            {zh('按住拖动按钮，整行会跟随鼠标移动并挤压其它项', 'Drag the handle to reorder idols')}
           </div>
           <IdolOrderList idols={idols} loading={loading} onReorder={setIdols} />
         </div>
@@ -336,60 +330,169 @@ function IdolOrderList({ idols, loading, onReorder }) {
     )
   }
   return (
-    <div className="rounded border border-gray-200 p-1">
-      {idols.map((idol) => (
-        <ReorderRow
-          key={idol.id}
-          item={idol}
-          items={idols}
-          label={idol.name || zh('未知女优', 'Unknown idol')}
-          meta={zh(`${Number(idol?.work_count) || 0} 部`, `${Number(idol?.work_count) || 0} works`)}
-          onReorder={onReorder}
-        />
-      ))}
-    </div>
+    <SortableList
+      items={idols}
+      onReorder={onReorder}
+      getLabel={(idol) => idol.name || zh('未知女优', 'Unknown idol')}
+      getMeta={(idol) =>
+        zh(`${Number(idol?.work_count) || 0} 部`, `${Number(idol?.work_count) || 0} works`)
+      }
+    />
   )
 }
 
-function ReorderRow({ item, items, active = false, label, meta, leading = null, onReorder }) {
-  const [dragId, setDragId] = useState(null)
-  const id = String(item.id)
+function SortableList({
+  items,
+  onReorder,
+  getLabel,
+  getMeta,
+  isActive = () => false,
+  renderLeading = null,
+}) {
+  const containerRef = useRef(null)
+  const rowRefs = useRef(new Map())
+  const [drag, setDrag] = useState(null)
 
-  const moveTo = (sourceId, targetId) => {
-    if (!sourceId || !targetId || sourceId === targetId) return
-    onReorder?.(moveItem(items, sourceId, targetId))
+  useEffect(() => {
+    if (!drag) return undefined
+
+    const handlePointerMove = (event) => {
+      event.preventDefault()
+      setDrag((current) =>
+        current
+          ? {
+              ...current,
+              pointerX: event.clientX,
+              pointerY: event.clientY,
+            }
+          : current
+      )
+
+      const nextIndex = calculateDropIndex(items, rowRefs.current, drag.id, event.clientY)
+      const currentIndex = items.findIndex((item) => String(item.id) === drag.id)
+      if (nextIndex >= 0 && currentIndex >= 0 && nextIndex !== currentIndex) {
+        onReorder?.(moveItemToIndex(items, drag.id, nextIndex))
+      }
+    }
+
+    const handlePointerUp = () => {
+      setDrag(null)
+    }
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false })
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerUp)
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerUp)
+    }
+  }, [drag, items, onReorder])
+
+  const startDrag = (event, item) => {
+    if (event.button !== 0) return
+    const id = String(item.id)
+    const row = rowRefs.current.get(id)
+    if (!row) return
+    const rect = row.getBoundingClientRect()
+    event.preventDefault()
+    setDrag({
+      id,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    })
   }
 
   return (
     <div
-      onDragOver={(event) => {
-        event.preventDefault()
-        event.dataTransfer.dropEffect = 'move'
-      }}
-      onDrop={(event) => {
-        event.preventDefault()
-        moveTo(event.dataTransfer.getData('text/plain') || dragId, id)
-        setDragId(null)
-      }}
+      ref={containerRef}
+      className={`rounded border border-gray-200 p-1 ${drag ? 'select-none' : ''}`}
+    >
+      {items.map((item) => {
+        const id = String(item.id)
+        const isDragging = drag?.id === id
+        return (
+          <SortableRow
+            key={id}
+            refCallback={(node) => {
+              if (node) rowRefs.current.set(id, node)
+              else rowRefs.current.delete(id)
+            }}
+            item={item}
+            label={getLabel(item)}
+            meta={getMeta?.(item)}
+            leading={renderLeading?.(item)}
+            active={isActive(item)}
+            dragging={isDragging}
+            onHandlePointerDown={(event) => startDrag(event, item)}
+          />
+        )
+      })}
+      {drag ? (
+        <div
+          className="pointer-events-none fixed z-[80]"
+          style={{
+            left: drag.pointerX - drag.offsetX,
+            top: drag.pointerY - drag.offsetY,
+            width: drag.width,
+            height: drag.height,
+          }}
+        >
+          {(() => {
+            const item = items.find((candidate) => String(candidate.id) === drag.id)
+            if (!item) return null
+            return (
+              <SortableRow
+                item={item}
+                label={getLabel(item)}
+                meta={getMeta?.(item)}
+                leading={renderLeading?.(item)}
+                active={isActive(item)}
+                dragging={false}
+                floating
+              />
+            )
+          })()}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function SortableRow({
+  item,
+  label,
+  meta,
+  leading = null,
+  active = false,
+  dragging = false,
+  floating = false,
+  refCallback,
+  onHandlePointerDown,
+}) {
+  return (
+    <div
+      ref={refCallback}
       className={`mb-1 flex items-center gap-2 rounded border px-2 py-1.5 last:mb-0 ${
+        floating ? 'shadow-lg ring-1 ring-blue-200' : 'transition-[background-color,opacity]'
+      } ${dragging ? 'opacity-0' : 'opacity-100'} ${
         active ? 'border-blue-200 bg-blue-50' : 'border-transparent bg-gray-50'
       }`}
+      data-sortable-id={item.id}
     >
       {leading}
       <span className="min-w-0 flex-1 truncate text-sm text-gray-900">{label}</span>
       <span className="shrink-0 text-xs text-gray-500">{meta}</span>
       <button
         type="button"
-        draggable
-        onDragStart={(event) => {
-          setDragId(id)
-          event.dataTransfer.effectAllowed = 'move'
-          event.dataTransfer.setData('text/plain', id)
-        }}
-        onDragEnd={() => setDragId(null)}
-        className={`inline-flex h-7 w-7 shrink-0 cursor-move items-center justify-center rounded border ${
-          dragId === id ? 'border-blue-300 bg-blue-100' : 'border-gray-200 bg-white text-gray-500'
-        }`}
+        onPointerDown={onHandlePointerDown}
+        className="inline-flex h-7 w-7 shrink-0 cursor-grab touch-none items-center justify-center rounded border border-gray-200 bg-white text-gray-500 active:cursor-grabbing"
         aria-label={zh('拖动排序', 'Drag to reorder')}
         title={zh('拖动排序', 'Drag to reorder')}
       >
@@ -399,13 +502,28 @@ function ReorderRow({ item, items, active = false, label, meta, leading = null, 
   )
 }
 
-function moveItem(items, sourceId, targetId) {
+function calculateDropIndex(items, refs, draggingId, pointerY) {
+  let nextIndex = 0
+  for (const item of items) {
+    const id = String(item.id)
+    if (id === draggingId) continue
+    const row = refs.get(id)
+    if (!row) continue
+    const rect = row.getBoundingClientRect()
+    if (pointerY > rect.top + rect.height / 2) {
+      nextIndex += 1
+    }
+  }
+  return Math.min(nextIndex, items.length - 1)
+}
+
+function moveItemToIndex(items, sourceId, targetIndex) {
   const next = [...items]
   const from = next.findIndex((item) => String(item.id) === String(sourceId))
-  const to = next.findIndex((item) => String(item.id) === String(targetId))
-  if (from < 0 || to < 0 || from === to) return next
+  if (from < 0) return next
   const [item] = next.splice(from, 1)
-  next.splice(to, 0, item)
+  const safeIndex = Math.max(0, Math.min(targetIndex, next.length))
+  next.splice(safeIndex, 0, item)
   return next
 }
 
