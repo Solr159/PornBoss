@@ -141,8 +141,8 @@ function IdolFavoriteGroupRow({
           type="button"
           size="small"
           onClick={onOpenManager}
-          aria-label={zh('管理女优分组', 'Manage idol groups')}
-          title={zh('管理女优分组', 'Manage idol groups')}
+          aria-label={zh('管理女优收藏夹', 'Manage idol favorites')}
+          title={zh('管理女优收藏夹', 'Manage idol favorites')}
           sx={{
             width: 24,
             height: 24,

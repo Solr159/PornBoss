@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
-import DragIndicatorRoundedIcon from '@mui/icons-material/DragIndicatorRounded'
 import EditRoundedIcon from '@mui/icons-material/EditRounded'
+import MenuRoundedIcon from '@mui/icons-material/MenuRounded'
 import { Button, IconButton } from '@mui/material'
 import { zh } from '@/utils/i18n'
 
@@ -51,7 +51,7 @@ export default function JavIdolFavoriteManageModal({
     try {
       await onReorderGroups?.(nextGroups.map((group) => Number(group.id)))
     } catch (err) {
-      setError(err.message || zh('保存分组顺序失败', 'Failed to save group order'))
+      setError(err.message || zh('保存收藏夹顺序失败', 'Failed to save favorite order'))
     } finally {
       setSaving(false)
     }
@@ -87,7 +87,7 @@ export default function JavIdolFavoriteManageModal({
       setNewGroupName('')
       setCreatingOpen(false)
     } catch (err) {
-      setError(err.message || zh('创建分组失败', 'Failed to create group'))
+      setError(err.message || zh('创建收藏夹失败', 'Failed to create favorite'))
     } finally {
       setCreating(false)
     }
@@ -99,14 +99,14 @@ export default function JavIdolFavoriteManageModal({
         <div className="flex max-h-[82vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl">
           <div className="flex items-center justify-between border-b px-4 py-3">
             <h2 className="text-base font-semibold text-gray-950">
-              {zh('管理女优分组', 'Manage idol groups')}
+              {zh('管理女优收藏夹', 'Manage idol favorites')}
             </h2>
             <IconButton
               type="button"
               size="small"
               onClick={onClose}
               disabled={saving}
-              aria-label={zh('关闭分组管理', 'Close group manager')}
+              aria-label={zh('关闭收藏夹管理', 'Close favorite manager')}
             >
               <CloseRoundedIcon fontSize="small" />
             </IconButton>
@@ -122,7 +122,7 @@ export default function JavIdolFavoriteManageModal({
             <GroupOrderList
               groups={localGroups}
               selectedGroupId={selectedGroupId}
-              emptyText={loading ? zh('加载中…', 'Loading...') : zh('暂无分组', 'No groups')}
+              emptyText={loading ? zh('加载中…', 'Loading...') : zh('暂无收藏夹', 'No favorites')}
               onReorder={setLocalGroups}
               onReorderCommit={commitGroupOrder}
               onEdit={(group) => setEditingGroup(group)}
@@ -131,7 +131,7 @@ export default function JavIdolFavoriteManageModal({
 
           <div className="flex justify-end gap-2 border-t px-4 py-3">
             <Button variant="outlined" onClick={() => setCreatingOpen(true)} disabled={saving}>
-              {zh('新增分组', 'Add group')}
+              {zh('新增收藏夹', 'Add favorite')}
             </Button>
             <Button variant="outlined" onClick={onClose} disabled={saving}>
               {zh('关闭', 'Close')}
@@ -173,13 +173,15 @@ function CreateGroupModal({ open, name, creating, onNameChange, onClose, onSubmi
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
       <form onSubmit={onSubmit} className="w-full max-w-sm rounded-lg bg-white shadow-xl">
         <div className="flex items-center justify-between border-b px-4 py-3">
-          <h2 className="text-base font-semibold text-gray-950">{zh('新增分组', 'Add group')}</h2>
+          <h2 className="text-base font-semibold text-gray-950">
+            {zh('新增收藏夹', 'Add favorite')}
+          </h2>
           <IconButton
             type="button"
             size="small"
             onClick={onClose}
             disabled={creating}
-            aria-label={zh('关闭新增分组', 'Close add group')}
+            aria-label={zh('关闭新增收藏夹', 'Close add favorite')}
           >
             <CloseRoundedIcon fontSize="small" />
           </IconButton>
@@ -188,7 +190,7 @@ function CreateGroupModal({ open, name, creating, onNameChange, onClose, onSubmi
           <input
             value={name}
             onChange={(event) => onNameChange(event.target.value)}
-            placeholder={zh('分组名称', 'Group name')}
+            placeholder={zh('收藏夹名称', 'Favorite name')}
             className="h-9 w-full rounded border border-gray-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             disabled={creating}
           />
@@ -235,7 +237,7 @@ function GroupOrderList({
           type="button"
           size="small"
           onClick={() => onEdit(group)}
-          aria-label={zh('编辑分组', 'Edit group')}
+          aria-label={zh('编辑收藏夹', 'Edit favorite')}
           sx={{ width: 28, height: 28 }}
         >
           <EditRoundedIcon sx={{ fontSize: 16 }} />
@@ -306,14 +308,14 @@ function FavoriteGroupEditModal({
     try {
       await onRename?.(groupId, name)
     } catch (err) {
-      setError(err.message || zh('重命名分组失败', 'Failed to rename group'))
+      setError(err.message || zh('重命名收藏夹失败', 'Failed to rename favorite'))
     } finally {
       setSaving(false)
     }
   }
 
   const deleteGroup = async () => {
-    if (!window.confirm(zh(`删除分组“${group.name}”？`, `Delete group "${group.name}"?`))) {
+    if (!window.confirm(zh(`删除收藏夹“${group.name}”？`, `Delete favorite "${group.name}"?`))) {
       return
     }
     setSaving(true)
@@ -321,7 +323,7 @@ function FavoriteGroupEditModal({
     try {
       await onDelete?.(groupId)
     } catch (err) {
-      setError(err.message || zh('删除分组失败', 'Failed to delete group'))
+      setError(err.message || zh('删除收藏夹失败', 'Failed to delete favorite'))
     } finally {
       setSaving(false)
     }
@@ -359,8 +361,8 @@ function FavoriteGroupEditModal({
     if (
       !window.confirm(
         zh(
-          `将选中的 ${selectedIds.length} 位女优移出分组？`,
-          `Remove ${selectedIds.length} selected idols from group?`
+          `将选中的 ${selectedIds.length} 位女优移出收藏夹？`,
+          `Remove ${selectedIds.length} selected idols from favorite?`
         )
       )
     ) {
@@ -385,14 +387,14 @@ function FavoriteGroupEditModal({
       <div className="flex max-h-[86vh] w-full max-w-xl flex-col rounded-lg bg-white shadow-xl">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h2 className="min-w-0 truncate text-base font-semibold text-gray-950">
-            {zh('编辑分组', 'Edit group')}
+            {zh('编辑收藏夹', 'Edit favorite')}
           </h2>
           <IconButton
             type="button"
             size="small"
             onClick={onClose}
             disabled={saving}
-            aria-label={zh('关闭编辑分组', 'Close group editor')}
+            aria-label={zh('关闭编辑收藏夹', 'Close favorite editor')}
           >
             <CloseRoundedIcon fontSize="small" />
           </IconButton>
@@ -425,7 +427,7 @@ function FavoriteGroupEditModal({
               size="small"
               onClick={deleteGroup}
               disabled={saving}
-              aria-label={zh('删除分组', 'Delete group')}
+              aria-label={zh('删除收藏夹', 'Delete favorite')}
             >
               <DeleteOutlineRoundedIcon fontSize="small" />
             </IconButton>
@@ -470,7 +472,9 @@ function IdolOrderList({
   if (!idols.length) {
     return (
       <div className="rounded border border-dashed border-gray-200 px-3 py-8 text-center text-sm text-gray-500">
-        {loading ? zh('加载中…', 'Loading...') : zh('该分组暂无女优', 'No idols in this group')}
+        {loading
+          ? zh('加载中…', 'Loading...')
+          : zh('该收藏夹暂无女优', 'No idols in this favorite')}
       </div>
     )
   }
@@ -658,7 +662,7 @@ function SortableRow({
         aria-label={zh('拖动排序', 'Drag to reorder')}
         title={zh('拖动排序', 'Drag to reorder')}
       >
-        <DragIndicatorRoundedIcon sx={{ fontSize: 17 }} />
+        <MenuRoundedIcon sx={{ fontSize: 17 }} />
       </button>
     </div>
   )
