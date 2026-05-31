@@ -18,9 +18,13 @@ import {
   deleteJavTag,
   replaceJavTagsForItems,
   resolveJavIdols,
+  createJavIdolFavoriteGroup,
+  fetchJavIdolFavoriteSelection,
+  replaceJavIdolFavoriteGroups,
 } from '@/api'
 import GlobalSettingsModal from '@/components/GlobalSettingsModal'
 import JavIdolView from '@/components/JavIdolView'
+import JavIdolFavoriteModal from '@/components/JavIdolFavoriteModal'
 import JavQueryEditorModal from '@/components/JavQueryEditorModal'
 import JavSettingsModal from '@/components/JavSettingsModal'
 import JavSeriesView from '@/components/JavSeriesView'
@@ -136,13 +140,19 @@ export default function App() {
     idolPage,
     setIdolPage,
     idolPageSize,
+    idolFavoriteGroupId,
+    setIdolFavoriteGroupId,
     idolItems,
     idolTotal,
     idolLoading,
     idolLoadingMore,
     idolError,
+    idolFavoriteGroups,
+    idolFavoriteGroupsLoading,
+    idolFavoriteGroupsError,
     loadJavIdols,
     loadMoreJavIdols,
+    loadJavIdolFavoriteGroups,
     studioPage,
     setStudioPage,
     studioItems,
@@ -180,6 +190,12 @@ export default function App() {
   const [javVideoPickerOpen, setJavVideoPickerOpen] = useState(false)
   const [javVideoPickerItem, setJavVideoPickerItem] = useState(null)
   const [javVideoPickerAction, setJavVideoPickerAction] = useState('play')
+  const [idolFavoriteModalOpen, setIdolFavoriteModalOpen] = useState(false)
+  const [idolFavoriteModalItem, setIdolFavoriteModalItem] = useState(null)
+  const [idolFavoriteSelectedIds, setIdolFavoriteSelectedIds] = useState([])
+  const [idolFavoriteModalLoading, setIdolFavoriteModalLoading] = useState(false)
+  const [idolFavoriteModalSaving, setIdolFavoriteModalSaving] = useState(false)
+  const [idolFavoriteModalError, setIdolFavoriteModalError] = useState('')
   const [locationPickerOpen, setLocationPickerOpen] = useState(false)
   const [locationPickerVideo, setLocationPickerVideo] = useState(null)
   const [locationPickerChoices, setLocationPickerChoices] = useState([])
@@ -695,6 +711,7 @@ export default function App() {
         studioName: studioNameOverride,
         seriesId: seriesIdOverride,
         seriesName: seriesNameOverride,
+        favoriteGroupId: favoriteGroupIdOverride,
         tagIds: tagIdsOverride,
         random: randomOverride,
         seed: seedOverride,
@@ -738,6 +755,16 @@ export default function App() {
           sp.set('series_name', seriesName)
         }
       }
+      const hasFavoriteGroupIdOverride = Object.prototype.hasOwnProperty.call(
+        options,
+        'favoriteGroupId'
+      )
+      const favoriteGroupId = hasFavoriteGroupIdOverride
+        ? favoriteGroupIdOverride
+        : idolFavoriteGroupId
+      if (tab === 'idol' && favoriteGroupId) {
+        sp.set('favorite_group_id', String(favoriteGroupId))
+      }
       const hasTempSortOverride = Object.prototype.hasOwnProperty.call(options, 'tempSort')
       const tempSortVal = hasTempSortOverride ? normalizeJavSort(tempSortOverride, '') : javTempSort
       const randomFlag = randomOverride ?? javRandomMode
@@ -769,6 +796,7 @@ export default function App() {
     },
     [
       idolPage,
+      idolFavoriteGroupId,
       studioPage,
       seriesPage,
       javIdolIds,
@@ -806,6 +834,7 @@ export default function App() {
       javStudioName: '',
       javSeriesId: null,
       javSeriesName: '',
+      idolFavoriteGroupId: null,
       javTags: clean,
       javSearchTerm: '',
       javPage: 1,
@@ -843,6 +872,7 @@ export default function App() {
           javSeriesName: jav.tab === 'list' && jav.seriesId ? jav.seriesName : '',
           javPage: jav.random ? 1 : jav.page,
           idolPage: jav.tab === 'idol' ? jav.page : 1,
+          idolFavoriteGroupId: jav.tab === 'idol' ? jav.idolFavoriteGroupId : null,
           studioPage: jav.tab === 'studio' ? jav.page : 1,
           seriesPage: jav.tab === 'series' ? jav.page : 1,
           javTempSort: jav.tab !== 'list' || jav.random ? '' : jav.tempSort,
@@ -960,6 +990,7 @@ export default function App() {
     if (!hydrated || !configLoaded || !isJavMode) return
     if (javTab === 'idol') {
       loadJavIdols()
+      loadJavIdolFavoriteGroups()
     } else if (javTab === 'studio') {
       loadJavStudios()
     } else if (javTab === 'series') {
@@ -985,12 +1016,14 @@ export default function App() {
     idolSort,
     idolPage,
     idolPageSize,
+    idolFavoriteGroupId,
     studioPage,
     seriesPage,
     enabledDirectoryIds,
     directoryFilterMode,
     loadJavs,
     loadJavIdols,
+    loadJavIdolFavoriteGroups,
     loadJavStudios,
     loadJavSeries,
     configLoaded,
@@ -1006,6 +1039,7 @@ export default function App() {
       if (!hydrated || !configLoaded) return
       if (tab === 'idol') {
         loadJavIdols({ force: true })
+        loadJavIdolFavoriteGroups({ force: true })
       } else if (tab === 'studio') {
         loadJavStudios({ force: true })
       } else if (tab === 'series') {
@@ -1014,7 +1048,15 @@ export default function App() {
         loadJavs({ force: true })
       }
     },
-    [configLoaded, hydrated, loadJavIdols, loadJavSeries, loadJavStudios, loadJavs]
+    [
+      configLoaded,
+      hydrated,
+      loadJavIdolFavoriteGroups,
+      loadJavIdols,
+      loadJavSeries,
+      loadJavStudios,
+      loadJavs,
+    ]
   )
 
   const setWaterfallMode = useCallback(
@@ -1060,6 +1102,7 @@ export default function App() {
           javRandomMode,
           javRandomSeed,
           idolPage,
+          idolFavoriteGroupId,
           studioPage,
           seriesPage,
           directories,
@@ -1072,6 +1115,7 @@ export default function App() {
       directories,
       directoryFilterMode,
       enabledDirectoryIds,
+      idolFavoriteGroupId,
       idolPage,
       studioPage,
       seriesPage,
@@ -1279,6 +1323,7 @@ export default function App() {
       javStudioName: '',
       javSeriesId: null,
       javSeriesName: '',
+      idolFavoriteGroupId: null,
       javSearchTerm: '',
       javPage: 1,
       idolPage: 1,
@@ -1295,6 +1340,7 @@ export default function App() {
       viewMode: 'jav',
       videoTempSort: '',
       javTab: 'list',
+      idolFavoriteGroupId: null,
       idolPage: 1,
       studioPage: 1,
       seriesPage: 1,
@@ -1845,6 +1891,7 @@ export default function App() {
         javStudioName: '',
         javSeriesId: null,
         javSeriesName: '',
+        idolFavoriteGroupId: null,
         javSearchTerm: '',
         javPage: 1,
         idolPage: 1,
@@ -1894,6 +1941,7 @@ export default function App() {
       javStudioName: '',
       javSeriesId: null,
       javSeriesName: '',
+      idolFavoriteGroupId: null,
       javRandomMode: nextRandomMode,
       javRandomSeed: nextRandomSeed,
       javPage: 1,
@@ -1934,6 +1982,7 @@ export default function App() {
       javStudioName: '',
       javSeriesId: null,
       javSeriesName: '',
+      idolFavoriteGroupId: null,
       javSearchTerm: '',
       javPage: 1,
       idolPage: 1,
@@ -1941,6 +1990,81 @@ export default function App() {
       seriesPage: 1,
     })
   }
+
+  const handleOpenIdolFavoriteModal = useCallback(
+    async (idol) => {
+      const id = Number(idol?.id)
+      if (!Number.isFinite(id) || id <= 0) return
+      setIdolFavoriteModalItem(idol)
+      setIdolFavoriteSelectedIds([])
+      setIdolFavoriteModalError('')
+      setIdolFavoriteModalOpen(true)
+      setIdolFavoriteModalLoading(true)
+      try {
+        const [selectedIds] = await Promise.all([
+          fetchJavIdolFavoriteSelection(id),
+          loadJavIdolFavoriteGroups({ force: true }),
+        ])
+        setIdolFavoriteSelectedIds(
+          (selectedIds || []).map((value) => Number(value)).filter((value) => value > 0)
+        )
+      } catch (err) {
+        setIdolFavoriteModalError(
+          err.message || zh('加载女优收藏夹失败', 'Failed to load idol favorites')
+        )
+      } finally {
+        setIdolFavoriteModalLoading(false)
+      }
+    },
+    [loadJavIdolFavoriteGroups]
+  )
+
+  const handleCloseIdolFavoriteModal = useCallback(() => {
+    if (idolFavoriteModalSaving) return
+    setIdolFavoriteModalOpen(false)
+    setIdolFavoriteModalItem(null)
+    setIdolFavoriteSelectedIds([])
+    setIdolFavoriteModalError('')
+    setIdolFavoriteModalLoading(false)
+  }, [idolFavoriteModalSaving])
+
+  const handleCreateIdolFavoriteGroup = useCallback(async (name) => {
+    const group = await createJavIdolFavoriteGroup(name)
+    useStore.setState((state) => {
+      const current = Array.isArray(state.idolFavoriteGroups) ? state.idolFavoriteGroups : []
+      const exists = current.some((item) => Number(item?.id) === Number(group?.id))
+      const next = exists ? current : [...current, { ...group, count: group?.count || 0 }]
+      next.sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || '')))
+      return { idolFavoriteGroups: next }
+    })
+    return group
+  }, [])
+
+  const handleSaveIdolFavoriteGroups = useCallback(
+    async (groupIds) => {
+      const idolID = Number(idolFavoriteModalItem?.id)
+      if (!Number.isFinite(idolID) || idolID <= 0) return
+      setIdolFavoriteModalSaving(true)
+      setIdolFavoriteModalError('')
+      try {
+        await replaceJavIdolFavoriteGroups(idolID, groupIds)
+        setIdolFavoriteModalOpen(false)
+        setIdolFavoriteModalItem(null)
+        setIdolFavoriteSelectedIds([])
+        await Promise.all([
+          loadJavIdolFavoriteGroups({ force: true }),
+          isJavMode && javTab === 'idol' ? loadJavIdols({ force: true }) : Promise.resolve(),
+        ])
+      } catch (err) {
+        setIdolFavoriteModalError(
+          err.message || zh('保存女优收藏夹失败', 'Failed to save idol favorites')
+        )
+      } finally {
+        setIdolFavoriteModalSaving(false)
+      }
+    },
+    [idolFavoriteModalItem, isJavMode, javTab, loadJavIdolFavoriteGroups, loadJavIdols]
+  )
 
   const handleJavIdolClick = useCallback((idol) => {
     const id = Number(idol?.id ?? idol)
@@ -1958,6 +2082,7 @@ export default function App() {
       javStudioName: '',
       javSeriesId: null,
       javSeriesName: '',
+      idolFavoriteGroupId: null,
       javSearchTerm: '',
       javPage: 1,
       idolPage: 1,
@@ -1982,6 +2107,7 @@ export default function App() {
       javStudioName: String(studio?.name || '').trim(),
       javSeriesId: null,
       javSeriesName: '',
+      idolFavoriteGroupId: null,
       javSearchTerm: '',
       javPage: 1,
       idolPage: 1,
@@ -2006,6 +2132,7 @@ export default function App() {
       javStudioName: '',
       javSeriesId: id,
       javSeriesName: String(series?.name || '').trim(),
+      idolFavoriteGroupId: null,
       javSearchTerm: '',
       javPage: 1,
       idolPage: 1,
@@ -2061,6 +2188,7 @@ export default function App() {
       javStudioName: nextStudioName,
       javSeriesId: hasSeries ? nextSeriesId : null,
       javSeriesName: nextSeriesName,
+      idolFavoriteGroupId: null,
       javPage: 1,
       idolPage: 1,
       studioPage: 1,
@@ -2212,6 +2340,9 @@ export default function App() {
               buildPageUrl={({ page: targetPage }) =>
                 buildJavUrl({ page: targetPage, tab: 'idol' })
               }
+              buildGroupUrl={(groupId) =>
+                buildJavUrl({ page: 1, tab: 'idol', favoriteGroupId: groupId || null })
+              }
               buildIdolUrl={(idol) =>
                 buildJavUrl({
                   page: 1,
@@ -2228,8 +2359,14 @@ export default function App() {
               onNext={() => idolHasNext && setIdolPage(idolPage + 1)}
               onLast={() => setIdolPage(idolLastPage)}
               items={idolItems}
+              favoriteGroups={idolFavoriteGroups}
+              selectedFavoriteGroupId={idolFavoriteGroupId}
+              favoriteGroupsLoading={idolFavoriteGroupsLoading}
+              favoriteGroupsError={idolFavoriteGroupsError}
               javMetadataLanguage={config?.jav_metadata_language === 'en' ? 'en' : 'zh'}
               onSelectIdol={handleSelectIdol}
+              onFavoriteGroupSelect={(groupId) => setIdolFavoriteGroupId(groupId)}
+              onOpenFavorites={handleOpenIdolFavoriteModal}
               waterfallMode={waterfallModes.idol}
               onWaterfallModeChange={(enabled) => setWaterfallMode('idol', enabled)}
               onLoadMore={loadMoreJavIdols}
@@ -2449,6 +2586,19 @@ export default function App() {
         isVideoOpenable={isVideoOpenable}
         onSelectVideo={handleSelectJavVideo}
         javMetadataLanguage={config?.jav_metadata_language === 'en' ? 'en' : 'zh'}
+      />
+
+      <JavIdolFavoriteModal
+        open={idolFavoriteModalOpen}
+        idol={idolFavoriteModalItem}
+        groups={idolFavoriteGroups}
+        selectedIds={idolFavoriteSelectedIds}
+        loading={idolFavoriteModalLoading || idolFavoriteGroupsLoading}
+        saving={idolFavoriteModalSaving}
+        error={idolFavoriteModalError || idolFavoriteGroupsError || ''}
+        onClose={handleCloseIdolFavoriteModal}
+        onCreateGroup={handleCreateIdolFavoriteGroup}
+        onSave={handleSaveIdolFavoriteGroups}
       />
 
       <JavVideoPickerModal

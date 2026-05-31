@@ -92,7 +92,7 @@ func TestListJavIdolsOnlyIncludesIdolsWithVisibleSoloWorks(t *testing.T) {
 		t.Fatalf("mark unavailable video location deleted: %v", err)
 	}
 
-	items, total, err := ListJavIdols(ctx, "", "", 20, 0, nil)
+	items, total, err := ListJavIdols(ctx, "", "", 20, 0, nil, 0)
 	if err != nil {
 		t.Fatalf("ListJavIdols: %v", err)
 	}
@@ -1358,7 +1358,7 @@ func TestJavIdolAPIFiltersCurrentLanguageIdols(t *testing.T) {
 	}
 
 	jav.SetMetadataLanguage("zh")
-	idols, total, err := ListJavIdols(ctx, "", "work", 20, 0, nil)
+	idols, total, err := ListJavIdols(ctx, "", "work", 20, 0, nil, 0)
 	if err != nil {
 		t.Fatalf("ListJavIdols zh: %v", err)
 	}
@@ -1368,7 +1368,7 @@ func TestJavIdolAPIFiltersCurrentLanguageIdols(t *testing.T) {
 	}
 
 	jav.SetMetadataLanguage("en")
-	idols, total, err = ListJavIdols(ctx, "", "work", 20, 0, nil)
+	idols, total, err = ListJavIdols(ctx, "", "work", 20, 0, nil, 0)
 	if err != nil {
 		t.Fatalf("ListJavIdols en: %v", err)
 	}
@@ -1542,7 +1542,7 @@ func TestJavBindingUsesVideoLocationsAndCountsTagWorks(t *testing.T) {
 		t.Fatalf("tag count = %d, want 1", tagCounts[tag.Name])
 	}
 
-	idols, _, err := ListJavIdols(ctx, "", "work", 20, 0, nil)
+	idols, _, err := ListJavIdols(ctx, "", "work", 20, 0, nil, 0)
 	if err != nil {
 		t.Fatalf("ListJavIdols: %v", err)
 	}
@@ -1785,7 +1785,7 @@ func TestListJavIdolsSortByAgeDirections(t *testing.T) {
 	}
 	createVideoLocationsForVideos(t, db, videos...)
 
-	items, total, err := ListJavIdols(ctx, "", "birth", 20, 0, nil)
+	items, total, err := ListJavIdols(ctx, "", "birth", 20, 0, nil, 0)
 	if err != nil {
 		t.Fatalf("ListJavIdols birth: %v", err)
 	}
@@ -1796,7 +1796,7 @@ func TestListJavIdolsSortByAgeDirections(t *testing.T) {
 		t.Fatalf("unexpected birth first idol: got %d want %d", items[0].ID, youngIdol.ID)
 	}
 
-	items, total, err = ListJavIdols(ctx, "", "birth_asc", 20, 0, nil)
+	items, total, err = ListJavIdols(ctx, "", "birth_asc", 20, 0, nil, 0)
 	if err != nil {
 		t.Fatalf("ListJavIdols birth_asc: %v", err)
 	}
@@ -1866,7 +1866,7 @@ func TestListJavIdolsSortByRecentDirections(t *testing.T) {
 	}
 	createVideoLocationsForVideos(t, db, videos...)
 
-	items, total, err := ListJavIdols(ctx, "", "recent", 20, 0, nil)
+	items, total, err := ListJavIdols(ctx, "", "recent", 20, 0, nil, 0)
 	if err != nil {
 		t.Fatalf("ListJavIdols recent: %v", err)
 	}
@@ -1877,7 +1877,7 @@ func TestListJavIdolsSortByRecentDirections(t *testing.T) {
 		t.Fatalf("unexpected recent first idol: got %d want %d", items[0].ID, newIdol.ID)
 	}
 
-	items, total, err = ListJavIdols(ctx, "", "recent_asc", 20, 0, nil)
+	items, total, err = ListJavIdols(ctx, "", "recent_asc", 20, 0, nil, 0)
 	if err != nil {
 		t.Fatalf("ListJavIdols recent_asc: %v", err)
 	}
