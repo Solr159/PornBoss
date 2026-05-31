@@ -12,6 +12,7 @@ export default function JavIdolFavoriteManageModal({
   selectedGroupId,
   loading,
   onClose,
+  onCreateGroup,
   onReorderGroups,
   onRenameGroup,
   onDeleteGroup,
@@ -20,6 +21,9 @@ export default function JavIdolFavoriteManageModal({
 }) {
   const [localGroups, setLocalGroups] = useState([])
   const [editingGroup, setEditingGroup] = useState(null)
+  const [creatingOpen, setCreatingOpen] = useState(false)
+  const [newGroupName, setNewGroupName] = useState('')
+  const [creating, setCreating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -27,6 +31,9 @@ export default function JavIdolFavoriteManageModal({
     if (!open) {
       setLocalGroups([])
       setEditingGroup(null)
+      setCreatingOpen(false)
+      setNewGroupName('')
+      setCreating(false)
       setSaving(false)
       setError('')
       return
@@ -59,6 +66,29 @@ export default function JavIdolFavoriteManageModal({
     await onDeleteGroup?.(groupId)
     setLocalGroups((current) => current.filter((group) => Number(group.id) !== Number(groupId)))
     setEditingGroup(null)
+  }
+
+  const handleCreate = async (event) => {
+    event.preventDefault()
+    const name = newGroupName.trim()
+    if (!name || creating) return
+    setCreating(true)
+    setError('')
+    try {
+      const group = await onCreateGroup?.(name)
+      if (group?.id) {
+        setLocalGroups((current) => {
+          const exists = current.some((item) => Number(item.id) === Number(group.id))
+          return exists ? current : [...current, { ...group, count: group.count || 0 }]
+        })
+      }
+      setNewGroupName('')
+      setCreatingOpen(false)
+    } catch (err) {
+      setError(err.message || zh('创建分组失败', 'Failed to create group'))
+    } finally {
+      setCreating(false)
+    }
   }
 
   return (
@@ -97,6 +127,9 @@ export default function JavIdolFavoriteManageModal({
           </div>
 
           <div className="flex justify-end gap-2 border-t px-4 py-3">
+            <Button variant="outlined" onClick={() => setCreatingOpen(true)} disabled={saving}>
+              {zh('新增分组', 'Add group')}
+            </Button>
             <Button variant="outlined" onClick={onClose} disabled={saving}>
               {zh('关闭', 'Close')}
             </Button>
@@ -119,7 +152,60 @@ export default function JavIdolFavoriteManageModal({
         onLoadGroupIdols={onLoadGroupIdols}
         onReorderGroupIdols={onReorderGroupIdols}
       />
+
+      <CreateGroupModal
+        open={creatingOpen}
+        name={newGroupName}
+        creating={creating}
+        onNameChange={setNewGroupName}
+        onClose={() => {
+          if (creating) return
+          setCreatingOpen(false)
+          setNewGroupName('')
+        }}
+        onSubmit={handleCreate}
+      />
     </>
+  )
+}
+
+function CreateGroupModal({ open, name, creating, onNameChange, onClose, onSubmit }) {
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
+      <form onSubmit={onSubmit} className="w-full max-w-sm rounded-lg bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <h2 className="text-base font-semibold text-gray-950">{zh('新增分组', 'Add group')}</h2>
+          <IconButton
+            type="button"
+            size="small"
+            onClick={onClose}
+            disabled={creating}
+            aria-label={zh('关闭新增分组', 'Close add group')}
+          >
+            <CloseRoundedIcon fontSize="small" />
+          </IconButton>
+        </div>
+        <div className="p-4">
+          <input
+            value={name}
+            onChange={(event) => onNameChange(event.target.value)}
+            placeholder={zh('分组名称', 'Group name')}
+            className="h-9 w-full rounded border border-gray-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            disabled={creating}
+          />
+        </div>
+        <div className="flex justify-end gap-2 border-t px-4 py-3">
+          <Button variant="outlined" onClick={onClose} disabled={creating}>
+            {zh('取消', 'Cancel')}
+          </Button>
+          <Button type="submit" variant="contained" disabled={!name.trim() || creating}>
+            {creating ? zh('添加中…', 'Adding...') : zh('添加', 'Add')}
+          </Button>
+        </div>
+      </form>
+    </div>
   )
 }
 

@@ -2677,6 +2677,7 @@ export default function App() {
         selectedGroupId={idolFavoriteGroupId}
         loading={idolFavoriteGroupsLoading}
         onClose={() => setIdolFavoriteManageOpen(false)}
+        onCreateGroup={handleCreateIdolFavoriteGroup}
         onReorderGroups={handleReorderIdolFavoriteGroups}
         onRenameGroup={handleRenameIdolFavoriteGroup}
         onDeleteGroup={handleDeleteIdolFavoriteGroup}
