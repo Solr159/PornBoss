@@ -23,6 +23,7 @@ import {
   fetchJavIdolFavoriteGroupIdols,
   fetchJavIdolFavoriteSelection,
   renameJavIdolFavoriteGroup,
+  removeJavIdolFavoriteGroupIdols,
   reorderJavIdolFavoriteGroupIdols,
   reorderJavIdolFavoriteGroups,
   replaceJavIdolFavoriteGroups,
@@ -2135,6 +2136,17 @@ export default function App() {
     [idolFavoriteGroupId, isJavMode, javTab, loadJavIdols]
   )
 
+  const handleRemoveIdolFavoriteGroupIdols = useCallback(
+    async (groupId, idolIds) => {
+      await removeJavIdolFavoriteGroupIdols(groupId, idolIds)
+      await loadJavIdolFavoriteGroups({ force: true })
+      if (Number(idolFavoriteGroupId) === Number(groupId) && isJavMode && javTab === 'idol') {
+        await loadJavIdols({ force: true })
+      }
+    },
+    [idolFavoriteGroupId, isJavMode, javTab, loadJavIdolFavoriteGroups, loadJavIdols]
+  )
+
   const handleJavIdolClick = useCallback((idol) => {
     const id = Number(idol?.id ?? idol)
     if (!Number.isFinite(id) || id <= 0) return
@@ -2683,6 +2695,7 @@ export default function App() {
         onDeleteGroup={handleDeleteIdolFavoriteGroup}
         onLoadGroupIdols={handleLoadIdolFavoriteGroupIdols}
         onReorderGroupIdols={handleReorderIdolFavoriteGroupIdols}
+        onRemoveGroupIdols={handleRemoveIdolFavoriteGroupIdols}
       />
 
       <JavVideoPickerModal

@@ -18,6 +18,7 @@ export default function JavIdolFavoriteManageModal({
   onDeleteGroup,
   onLoadGroupIdols,
   onReorderGroupIdols,
+  onRemoveGroupIdols,
 }) {
   const [localGroups, setLocalGroups] = useState([])
   const [editingGroup, setEditingGroup] = useState(null)
@@ -43,11 +44,12 @@ export default function JavIdolFavoriteManageModal({
 
   if (!open) return null
 
-  const saveGroupOrder = async () => {
+  const commitGroupOrder = async (nextGroups) => {
+    if (!Array.isArray(nextGroups) || nextGroups.length === 0) return
     setSaving(true)
     setError('')
     try {
-      await onReorderGroups?.(localGroups.map((group) => Number(group.id)))
+      await onReorderGroups?.(nextGroups.map((group) => Number(group.id)))
     } catch (err) {
       setError(err.message || zh('保存分组顺序失败', 'Failed to save group order'))
     } finally {
@@ -122,6 +124,7 @@ export default function JavIdolFavoriteManageModal({
               selectedGroupId={selectedGroupId}
               emptyText={loading ? zh('加载中…', 'Loading...') : zh('暂无分组', 'No groups')}
               onReorder={setLocalGroups}
+              onReorderCommit={commitGroupOrder}
               onEdit={(group) => setEditingGroup(group)}
             />
           </div>
@@ -132,13 +135,6 @@ export default function JavIdolFavoriteManageModal({
             </Button>
             <Button variant="outlined" onClick={onClose} disabled={saving}>
               {zh('关闭', 'Close')}
-            </Button>
-            <Button
-              variant="contained"
-              onClick={saveGroupOrder}
-              disabled={saving || localGroups.length === 0}
-            >
-              {saving ? zh('保存中…', 'Saving...') : zh('保存顺序', 'Save order')}
             </Button>
           </div>
         </div>
@@ -151,6 +147,7 @@ export default function JavIdolFavoriteManageModal({
         onDelete={handleDelete}
         onLoadGroupIdols={onLoadGroupIdols}
         onReorderGroupIdols={onReorderGroupIdols}
+        onRemoveGroupIdols={onRemoveGroupIdols}
       />
 
       <CreateGroupModal
@@ -209,7 +206,14 @@ function CreateGroupModal({ open, name, creating, onNameChange, onClose, onSubmi
   )
 }
 
-function GroupOrderList({ groups, selectedGroupId, emptyText, onReorder, onEdit }) {
+function GroupOrderList({
+  groups,
+  selectedGroupId,
+  emptyText,
+  onReorder,
+  onReorderCommit,
+  onEdit,
+}) {
   if (!groups.length) {
     return (
       <div className="rounded border border-dashed border-gray-200 px-3 py-8 text-center text-sm text-gray-500">
@@ -222,6 +226,7 @@ function GroupOrderList({ groups, selectedGroupId, emptyText, onReorder, onEdit 
     <SortableList
       items={groups}
       onReorder={onReorder}
+      onReorderCommit={onReorderCommit}
       getLabel={(group) => group.name}
       getMeta={(group) => zh(`${group.count || 0} 位`, `${group.count || 0} idols`)}
       isActive={(group) => Number(group.id) === Number(selectedGroupId)}
@@ -247,9 +252,11 @@ function FavoriteGroupEditModal({
   onDelete,
   onLoadGroupIdols,
   onReorderGroupIdols,
+  onRemoveGroupIdols,
 }) {
   const [groupName, setGroupName] = useState('')
   const [idols, setIdols] = useState([])
+  const [selectedIds, setSelectedIds] = useState([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -260,6 +267,7 @@ function FavoriteGroupEditModal({
     if (!groupId) {
       setGroupName('')
       setIdols([])
+      setSelectedIds([])
       setLoading(false)
       setSaving(false)
       setError('')
@@ -267,6 +275,7 @@ function FavoriteGroupEditModal({
     }
     setGroupName(String(group?.name || ''))
     setIdols([])
+    setSelectedIds([])
     setLoading(true)
     setError('')
     let cancelled = false
@@ -318,16 +327,54 @@ function FavoriteGroupEditModal({
     }
   }
 
-  const saveIdolOrder = async () => {
+  const commitIdolOrder = async (nextIdols) => {
+    if (!Array.isArray(nextIdols) || nextIdols.length === 0) return
     setSaving(true)
     setError('')
     try {
       await onReorderGroupIdols?.(
         groupId,
-        idols.map((idol) => Number(idol.id))
+        nextIdols.map((idol) => Number(idol.id))
       )
     } catch (err) {
       setError(err.message || zh('保存女优顺序失败', 'Failed to save idol order'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const toggleSelected = (idolId, checked) => {
+    const id = Number(idolId)
+    if (!Number.isFinite(id) || id <= 0) return
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return Array.from(next)
+    })
+  }
+
+  const removeSelected = async () => {
+    if (selectedIds.length === 0) return
+    if (
+      !window.confirm(
+        zh(
+          `将选中的 ${selectedIds.length} 位女优移出分组？`,
+          `Remove ${selectedIds.length} selected idols from group?`
+        )
+      )
+    ) {
+      return
+    }
+    setSaving(true)
+    setError('')
+    try {
+      await onRemoveGroupIdols?.(groupId, selectedIds)
+      const removed = new Set(selectedIds)
+      setIdols((current) => current.filter((idol) => !removed.has(Number(idol.id))))
+      setSelectedIds([])
+    } catch (err) {
+      setError(err.message || zh('批量移除女优失败', 'Failed to remove selected idols'))
     } finally {
       setSaving(false)
     }
@@ -384,22 +431,27 @@ function FavoriteGroupEditModal({
             </IconButton>
           </div>
 
-          <div className="mb-2 text-xs text-gray-500">
-            {zh('按住拖动按钮，整行会跟随鼠标移动并挤压其它项', 'Drag the handle to reorder idols')}
-          </div>
-          <IdolOrderList idols={idols} loading={loading} onReorder={setIdols} />
+          <IdolOrderList
+            idols={idols}
+            loading={loading}
+            selectedIds={selectedIds}
+            onToggleSelected={toggleSelected}
+            onReorder={setIdols}
+            onReorderCommit={commitIdolOrder}
+          />
         </div>
 
         <div className="flex justify-end gap-2 border-t px-4 py-3">
+          <Button
+            variant="outlined"
+            color="error"
+            onClick={removeSelected}
+            disabled={saving || loading || selectedIds.length === 0}
+          >
+            {zh('移除', 'Remove')}
+          </Button>
           <Button variant="outlined" onClick={onClose} disabled={saving}>
             {zh('关闭', 'Close')}
-          </Button>
-          <Button
-            variant="contained"
-            onClick={saveIdolOrder}
-            disabled={saving || loading || idols.length === 0}
-          >
-            {saving ? zh('保存中…', 'Saving...') : zh('保存女优顺序', 'Save idol order')}
           </Button>
         </div>
       </div>
@@ -407,7 +459,14 @@ function FavoriteGroupEditModal({
   )
 }
 
-function IdolOrderList({ idols, loading, onReorder }) {
+function IdolOrderList({
+  idols,
+  loading,
+  selectedIds = [],
+  onToggleSelected,
+  onReorder,
+  onReorderCommit,
+}) {
   if (!idols.length) {
     return (
       <div className="rounded border border-dashed border-gray-200 px-3 py-8 text-center text-sm text-gray-500">
@@ -419,10 +478,20 @@ function IdolOrderList({ idols, loading, onReorder }) {
     <SortableList
       items={idols}
       onReorder={onReorder}
+      onReorderCommit={onReorderCommit}
       getLabel={(idol) => idol.name || zh('未知女优', 'Unknown idol')}
       getMeta={(idol) =>
         zh(`${Number(idol?.work_count) || 0} 部`, `${Number(idol?.work_count) || 0} works`)
       }
+      renderLeading={(idol) => (
+        <input
+          type="checkbox"
+          checked={selectedIds.includes(Number(idol.id))}
+          onChange={(event) => onToggleSelected?.(idol.id, event.target.checked)}
+          className="h-4 w-4 shrink-0 accent-blue-600"
+          aria-label={zh('选择女优', 'Select idol')}
+        />
+      )}
     />
   )
 }
@@ -430,6 +499,7 @@ function IdolOrderList({ idols, loading, onReorder }) {
 function SortableList({
   items,
   onReorder,
+  onReorderCommit,
   getLabel,
   getMeta,
   isActive = () => false,
@@ -437,6 +507,7 @@ function SortableList({
 }) {
   const containerRef = useRef(null)
   const rowRefs = useRef(new Map())
+  const draftItemsRef = useRef(null)
   const [drag, setDrag] = useState(null)
 
   useEffect(() => {
@@ -457,12 +528,17 @@ function SortableList({
       const nextIndex = calculateDropIndex(items, rowRefs.current, drag.id, event.clientY)
       const currentIndex = items.findIndex((item) => String(item.id) === drag.id)
       if (nextIndex >= 0 && currentIndex >= 0 && nextIndex !== currentIndex) {
-        onReorder?.(moveItemToIndex(items, drag.id, nextIndex))
+        const nextItems = moveItemToIndex(items, drag.id, nextIndex)
+        draftItemsRef.current = nextItems
+        onReorder?.(nextItems)
       }
     }
 
     const handlePointerUp = () => {
+      const nextItems = draftItemsRef.current
+      draftItemsRef.current = null
       setDrag(null)
+      if (nextItems) onReorderCommit?.(nextItems)
     }
 
     window.addEventListener('pointermove', handlePointerMove, { passive: false })
@@ -473,7 +549,7 @@ function SortableList({
       window.removeEventListener('pointerup', handlePointerUp)
       window.removeEventListener('pointercancel', handlePointerUp)
     }
-  }, [drag, items, onReorder])
+  }, [drag, items, onReorder, onReorderCommit])
 
   const startDrag = (event, item) => {
     if (event.button !== 0) return

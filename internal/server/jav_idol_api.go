@@ -187,6 +187,27 @@ func reorderJavIdolFavoriteGroupIdols(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func removeJavIdolFavoriteGroupIdols(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var req struct {
+		IdolIDs []int64 `json:"idol_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+	if err := dbpkg.RemoveJavIdolFavoriteGroupIdols(c.Request.Context(), id, req.IdolIDs); err != nil {
+		logging.Error("remove jav idol favorite group idols id=%d: %v", id, err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func listJavIdolFavoriteGroupIDs(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || id <= 0 {

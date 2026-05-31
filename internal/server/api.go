@@ -63,6 +63,7 @@ func RegisterRoutes(router *gin.Engine) {
 	router.DELETE("/jav/idol-favorite-groups/:id", deleteJavIdolFavoriteGroup)
 	router.GET("/jav/idol-favorite-groups/:id/idols", listJavIdolFavoriteGroupIdols)
 	router.PUT("/jav/idol-favorite-groups/:id/idol-order", reorderJavIdolFavoriteGroupIdols)
+	router.POST("/jav/idol-favorite-groups/:id/idols/remove", removeJavIdolFavoriteGroupIdols)
 	router.GET("/jav/idols", listJavIdols)
 	router.GET("/jav/idols/resolve", resolveJavIdols)
 	router.GET("/jav/idols/javdb-url", getJavIdolJavDBURL)

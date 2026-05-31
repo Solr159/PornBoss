@@ -507,6 +507,18 @@ export async function reorderJavIdolFavoriteGroupIdols(id, idolIds = []) {
   }
 }
 
+export async function removeJavIdolFavoriteGroupIdols(id, idolIds = []) {
+  const res = await fetch(`/jav/idol-favorite-groups/${encodeURIComponent(id)}/idols/remove`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ idol_ids: idolIds }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('移除收藏夹女优失败', 'Failed to remove favorite idols'))
+  }
+}
+
 export async function fetchJavIdolFavoriteSelection(id) {
   const res = await fetch(`/jav/idols/${encodeURIComponent(id)}/favorite-groups`)
   if (!res.ok) {

@@ -190,6 +190,23 @@ func ReorderJavIdolFavoriteGroupIdols(ctx context.Context, groupID int64, idolID
 	})
 }
 
+// RemoveJavIdolFavoriteGroupIdols removes idols from a favorite group.
+func RemoveJavIdolFavoriteGroupIdols(ctx context.Context, groupID int64, idolIDs []int64) error {
+	if groupID <= 0 {
+		return errors.New("favorite group id must be positive")
+	}
+	cleanIDs := uniqueInt64s(idolIDs)
+	if len(cleanIDs) == 0 {
+		return errors.New("idol_ids required")
+	}
+	if err := common.DB.WithContext(ctx).
+		Where("jav_idol_favorite_group_id = ? AND jav_idol_id IN ?", groupID, cleanIDs).
+		Delete(&models.JavIdolFavoriteMap{}).Error; err != nil {
+		return fmt.Errorf("remove jav idol favorite maps: %w", err)
+	}
+	return nil
+}
+
 func nextJavIdolFavoriteMapSortOrderTx(tx *gorm.DB, groupID int64) (int, error) {
 	var maxOrder int
 	if err := tx.Model(&models.JavIdolFavoriteMap{}).
