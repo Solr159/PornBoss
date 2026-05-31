@@ -137,23 +137,24 @@ function IdolFavoriteGroupRow({
             />
           )
         })}
+        <IconButton
+          type="button"
+          size="small"
+          onClick={onOpenManager}
+          aria-label={zh('管理女优分组', 'Manage idol groups')}
+          title={zh('管理女优分组', 'Manage idol groups')}
+          sx={{
+            width: 24,
+            height: 24,
+            flex: '0 0 auto',
+            border: '1px solid rgb(229 231 235)',
+            bgcolor: 'white',
+            '&:hover': { bgcolor: 'rgb(249 250 251)' },
+          }}
+        >
+          <SettingsRoundedIcon sx={{ fontSize: 15 }} />
+        </IconButton>
       </div>
-      <IconButton
-        type="button"
-        size="small"
-        onClick={onOpenManager}
-        aria-label={zh('管理女优分组', 'Manage idol groups')}
-        title={zh('管理女优分组', 'Manage idol groups')}
-        sx={{
-          width: 24,
-          height: 24,
-          border: '1px solid rgb(229 231 235)',
-          bgcolor: 'white',
-          '&:hover': { bgcolor: 'rgb(249 250 251)' },
-        }}
-      >
-        <SettingsRoundedIcon sx={{ fontSize: 15 }} />
-      </IconButton>
     </div>
   )
 }
