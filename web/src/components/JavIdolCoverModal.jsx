@@ -298,7 +298,7 @@ export default function JavIdolCoverModal({
                 )}
                 {previewCode && !imageFailed ? (
                   <div
-                    className="absolute inset-y-0 border-2 border-white bg-white/10 shadow-[0_0_0_999px_rgba(15,23,42,0.45)]"
+                    className="absolute inset-y-0 border-2 border-white bg-white/10 shadow-[0_0_0_999px_rgba(15,23,42,0.75)]"
                     style={{
                       left: `${displayCropLeft * 100}%`,
                       width: `${visibleRatio * 100}%`,
