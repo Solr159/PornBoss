@@ -24,6 +24,7 @@ import {
   analyzeCollection,
 } from '@/api'
 import CollectionPickerModal from '@/components/CollectionPickerModal'
+import CreateCollectionModal from '@/components/CreateCollectionModal'
 import GlobalSettingsModal from '@/components/GlobalSettingsModal'
 import JavCollectionListView from '@/components/JavCollectionListView'
 import JavNlSearchBar from '@/components/JavNlSearchBar'
@@ -43,6 +44,7 @@ import Toast from '@/components/Toast'
 import TopBar from '@/components/TopBar'
 import VideoSettingsModal from '@/components/VideoSettingsModal'
 import VideoScreenshotsModal from '@/components/VideoScreenshotsModal'
+import VideoMarkersModal from '@/components/VideoMarkersModal'
 import VideoTagModal from '@/components/VideoTagModal'
 import VideoView from '@/components/VideoView'
 import { isUserJavTag, normalizeIdolSort, normalizeJavSort } from '@/constants/jav'
@@ -182,6 +184,7 @@ export default function App() {
     javSelectedIds,
     toggleJavSelected,
     clearJavItemSelection,
+    patchJavCollectionMembership,
     directories,
     loadDirectories,
     createDirectory,
@@ -206,6 +209,7 @@ export default function App() {
   const [locationPickerChoices, setLocationPickerChoices] = useState([])
   const [locationPickerAction, setLocationPickerAction] = useState('play')
   const [screenshotsVideo, setScreenshotsVideo] = useState(null)
+  const [markersVideo, setMarkersVideo] = useState(null)
   const [searchInput, setSearchInput] = useState('')
   const [javSearchInput, setJavSearchInput] = useState('')
   const [waterfallModes, setWaterfallModes] = useState({
@@ -310,6 +314,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState('')
   const [collectionPickerOpen, setCollectionPickerOpen] = useState(false)
   const [collectionPickerIds, setCollectionPickerIds] = useState([])
+  const [createCollectionOpen, setCreateCollectionOpen] = useState(false)
   const [collectionAnalyzeOpen, setCollectionAnalyzeOpen] = useState(false)
   const [collectionAnalyzeText, setCollectionAnalyzeText] = useState('')
   const [collectionAnalyzeBusy, setCollectionAnalyzeBusy] = useState(false)
@@ -579,6 +584,22 @@ export default function App() {
     [isVideoOpenable]
   )
 
+  const handleJavOpenMarkers = useCallback(
+    (video, item) => {
+      const videos = item?.videos || (video ? [video] : [])
+      if (videos.length > 1) {
+        setJavVideoPickerAction('markers')
+        setJavVideoPickerItem(item)
+        setJavVideoPickerOpen(true)
+        return
+      }
+      const target = video && isVideoOpenable(video) ? video : videos.find(isVideoOpenable)
+      if (!target) return
+      setMarkersVideo(target)
+    },
+    [isVideoOpenable]
+  )
+
   const handleSelectJavVideo = useCallback(
     async (video) => {
       if (!video) return
@@ -595,6 +616,13 @@ export default function App() {
       if (javVideoPickerAction === 'screenshots') {
         if (isVideoOpenable(video)) {
           setScreenshotsVideo(video)
+          closeJavVideoPicker()
+        }
+        return
+      }
+      if (javVideoPickerAction === 'markers') {
+        if (isVideoOpenable(video)) {
+          setMarkersVideo(video)
           closeJavVideoPicker()
         }
         return
@@ -1907,17 +1935,18 @@ export default function App() {
     })
   }, [setJavCollectionId])
 
-  const handleCreateCollection = useCallback(async () => {
-    const name = window.prompt(zh('合集名称', 'Collection name'))
-    if (!name?.trim()) return
-    try {
-      await createCollection({ name: name.trim() })
-      await loadCollections()
+  const handleOpenCreateCollection = useCallback(() => {
+    setCreateCollectionOpen(true)
+  }, [])
+
+  const handleSubmitCreateCollection = useCallback(
+    async ({ name, description }) => {
+      await createCollection({ name, description })
+      await loadCollections({ silent: true })
       showToast(zh('合集已创建', 'Collection created'))
-    } catch (e) {
-      showToast(e.message || zh('创建失败', 'Create failed'))
-    }
-  }, [loadCollections, showToast])
+    },
+    [loadCollections, showToast]
+  )
 
   const handlePickCollection = useCallback(
     async (collection) => {
@@ -1939,15 +1968,24 @@ export default function App() {
       try {
         if (allIn) {
           await removeJavsFromCollection(collectionId, collectionPickerIds)
+          patchJavCollectionMembership({
+            javIds: collectionPickerIds,
+            collection,
+            add: false,
+          })
           showToast(zh('已从合集移除', 'Removed from collection'))
         } else {
           await addJavsToCollection(collectionId, collectionPickerIds)
+          patchJavCollectionMembership({
+            javIds: collectionPickerIds,
+            collection,
+            add: true,
+          })
           showToast(zh('已加入合集', 'Added to collection'))
         }
         setCollectionPickerOpen(false)
         clearJavItemSelection()
-        await loadJavs({ force: true })
-        await loadCollections()
+        loadCollections({ silent: true })
       } catch (e) {
         showToast(e.message || zh('操作失败', 'Operation failed'))
       }
@@ -1957,7 +1995,7 @@ export default function App() {
       collectionPickerIds,
       javItems,
       loadCollections,
-      loadJavs,
+      patchJavCollectionMembership,
       showToast,
     ]
   )
@@ -1970,9 +2008,13 @@ export default function App() {
     if (!ids.length) return
     try {
       await removeJavsFromCollection(javCollectionId, ids)
+      patchJavCollectionMembership({
+        javIds: ids,
+        collection: { id: javCollectionId, name: javCollectionName },
+        add: false,
+      })
       clearJavItemSelection()
-      await loadJavs({ force: true })
-      await loadCollections()
+      loadCollections({ silent: true })
       showToast(zh('已从合集移除', 'Removed from collection'))
     } catch (e) {
       showToast(e.message || zh('移除失败', 'Failed to remove'))
@@ -1980,9 +2022,10 @@ export default function App() {
   }, [
     clearJavItemSelection,
     javCollectionId,
+    javCollectionName,
     javSelectedIds,
     loadCollections,
-    loadJavs,
+    patchJavCollectionMembership,
     showToast,
   ])
 
@@ -2492,7 +2535,7 @@ export default function App() {
               loading={javCollectionsLoading}
               error={javCollectionsError}
               onOpenCollection={handleOpenCollection}
-              onCreateClick={handleCreateCollection}
+              onCreateClick={handleOpenCreateCollection}
               onRefresh={() => loadCollections()}
               buildCollectionUrl={(row) =>
                 buildJavUrl({
@@ -2563,6 +2606,7 @@ export default function App() {
                 openFileLabel={alternatePlayerLabel}
                 onRevealFile={handleJavRevealFile}
                 onOpenScreenshots={handleJavOpenScreenshots}
+                onOpenMarkers={handleJavOpenMarkers}
                 onIdolClick={handleJavIdolClick}
                 onStudioClick={handleSelectStudio}
                 onSeriesClick={handleSelectSeries}
@@ -2638,6 +2682,7 @@ export default function App() {
               openFileLabel={alternatePlayerLabel}
               onRevealFile={handleJavRevealFile}
               onOpenScreenshots={handleJavOpenScreenshots}
+              onOpenMarkers={handleJavOpenMarkers}
               onIdolClick={handleJavIdolClick}
               onStudioClick={handleSelectStudio}
               onSeriesClick={handleSelectSeries}
@@ -2683,6 +2728,7 @@ export default function App() {
             alternatePlayerLabel={alternatePlayerLabel}
             setTagPickerFor={openTagEditor}
             onOpenScreenshots={setScreenshotsVideo}
+            onOpenMarkers={setMarkersVideo}
             onTagClick={handleVideoTagClick}
             waterfallMode={waterfallModes.video}
             onWaterfallModeChange={(enabled) => setWaterfallMode('video', enabled)}
@@ -2725,6 +2771,12 @@ export default function App() {
         video={screenshotsVideo}
         playerHotkeys={config?.player_hotkeys}
         onClose={() => setScreenshotsVideo(null)}
+        onPlayAtTime={playVideoFromTime}
+      />
+
+      <VideoMarkersModal
+        video={markersVideo}
+        onClose={() => setMarkersVideo(null)}
         onPlayAtTime={playVideoFromTime}
       />
 
@@ -3046,12 +3098,14 @@ export default function App() {
         collections={javCollections}
         loading={javCollectionsLoading}
         onPick={handlePickCollection}
-        onCreateNew={async () => {
-          setCollectionPickerOpen(false)
-          await handleCreateCollection()
-        }}
+        onCreateNew={() => setCreateCollectionOpen(true)}
         javTargetIds={collectionPickerIds}
         javItems={javItems}
+      />
+      <CreateCollectionModal
+        open={createCollectionOpen}
+        onClose={() => setCreateCollectionOpen(false)}
+        onCreate={handleSubmitCreateCollection}
       />
       {collectionAnalyzeOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">

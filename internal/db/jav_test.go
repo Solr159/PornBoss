@@ -615,6 +615,54 @@ func TestSaveJavInfoRespectsMetadataLocks(t *testing.T) {
 	assertJavTagMaps(t, gdb, "LOCK-001", map[string]int{})
 }
 
+func TestPatchJavMetadataTagsUseUserProvider(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+
+	prevLang := jav.CurrentMetadataLanguage()
+	t.Cleanup(func() { jav.SetMetadataLanguage(string(prevLang)) })
+	jav.SetMetadataLanguage("zh")
+
+	scrapedTag := models.JavTag{Name: "Drama"}
+	userTag := models.JavTag{Name: "My Tag", IsUser: true}
+	if err := gdb.Create(&scrapedTag).Error; err != nil {
+		t.Fatalf("create scraped tag: %v", err)
+	}
+	if err := gdb.Create(&userTag).Error; err != nil {
+		t.Fatalf("create user tag: %v", err)
+	}
+	javRec := models.Jav{Code: "TAGPATCH-001", Title: "Tag Patch", FetchedAt: now}
+	if err := gdb.Create(&javRec).Error; err != nil {
+		t.Fatalf("create jav: %v", err)
+	}
+
+	updated, err := PatchJavMetadata(ctx, javRec.ID, JavMetadataPatch{
+		TagIDs: []int64{scrapedTag.ID, userTag.ID},
+	}, false)
+	if err != nil {
+		t.Fatalf("patch jav metadata: %v", err)
+	}
+
+	assertJavTagMaps(t, gdb, "TAGPATCH-001", map[string]int{
+		"Drama":  int(jav.ProviderJavBus),
+		"My Tag": int(jav.ProviderUser),
+	})
+	if len(updated.Tags) != 2 {
+		t.Fatalf("expected 2 visible tags in response, got %d: %#v", len(updated.Tags), updated.Tags)
+	}
+	providersByName := make(map[string]int, len(updated.Tags))
+	for _, tag := range updated.Tags {
+		providersByName[tag.Name] = tag.Provider
+	}
+	if providersByName["Drama"] != int(jav.ProviderJavBus) {
+		t.Fatalf("scraped tag provider: got %d want %d", providersByName["Drama"], jav.ProviderJavBus)
+	}
+	if providersByName["My Tag"] != int(jav.ProviderUser) {
+		t.Fatalf("user tag provider: got %d want %d", providersByName["My Tag"], jav.ProviderUser)
+	}
+}
+
 func TestUserJavTagNameDoesNotModifyScrapedTag(t *testing.T) {
 	gdb := openTestDB(t)
 	ctx := context.Background()
@@ -781,8 +829,6 @@ func TestJavTagsFilterProvidersByCurrentLanguage(t *testing.T) {
 		t.Fatalf("unexpected zh-provider tag match in en mode: total=%d items=%#v", total, items)
 	}
 }
-
-
 
 func TestSaveAndUpdateJavStudioAndSeries(t *testing.T) {
 	gdb := openTestDB(t)

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"pornboss/internal/common"
+	"pornboss/internal/jav"
 	"pornboss/internal/models"
 
 	"gorm.io/gorm"
@@ -209,18 +210,29 @@ func loadJavForResponse(ctx context.Context, javID int64, isEnglish bool) (*mode
 	return &items[0], nil
 }
 
+func javTagMapProviderForTag(tag models.JavTag) int {
+	if tag.IsUser {
+		return int(jav.ProviderUser)
+	}
+	return int(normalizeJavTagProvider(jav.PreferredProvider()))
+}
+
 func replaceJavAllTagsTx(tx *gorm.DB, javID int64, tagIDs []int64) error {
 	if javID == 0 {
 		return errors.New("jav id cannot be zero")
 	}
 	cleanIDs := uniqueInt64s(tagIDs)
+	tagByID := make(map[int64]models.JavTag, len(cleanIDs))
 	if len(cleanIDs) > 0 {
-		var count int64
-		if err := tx.Model(&models.JavTag{}).Where("id IN ?", cleanIDs).Count(&count).Error; err != nil {
+		var tagRecords []models.JavTag
+		if err := tx.Where("id IN ?", cleanIDs).Find(&tagRecords).Error; err != nil {
 			return fmt.Errorf("find jav tags: %w", err)
 		}
-		if count != int64(len(cleanIDs)) {
+		if len(tagRecords) != len(cleanIDs) {
 			return errors.New("invalid tag_id")
+		}
+		for _, tag := range tagRecords {
+			tagByID[tag.ID] = tag
 		}
 	}
 	if err := tx.Where("jav_id = ?", javID).Delete(&models.JavTagMap{}).Error; err != nil {
@@ -232,7 +244,13 @@ func replaceJavAllTagsTx(tx *gorm.DB, javID int64, tagIDs []int64) error {
 	now := time.Now()
 	rows := make([]models.JavTagMap, 0, len(cleanIDs))
 	for _, tagID := range cleanIDs {
-		rows = append(rows, models.JavTagMap{JavID: javID, JavTagID: tagID, CreatedAt: now})
+		tag := tagByID[tagID]
+		rows = append(rows, models.JavTagMap{
+			JavID:     javID,
+			JavTagID:  tagID,
+			Provider:  javTagMapProviderForTag(tag),
+			CreatedAt: now,
+		})
 	}
 	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&rows).Error; err != nil {
 		return fmt.Errorf("insert jav tag maps: %w", err)

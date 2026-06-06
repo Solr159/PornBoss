@@ -11,6 +11,7 @@ export default function VideoGrid({
   openFileLabel,
   onOpenTagPicker,
   onOpenScreenshots,
+  onOpenMarkers,
   onTagClick,
 }) {
   return (
@@ -27,6 +28,7 @@ export default function VideoGrid({
           openFileLabel={openFileLabel}
           onOpenTagPicker={() => onOpenTagPicker(v.id)}
           onOpenScreenshots={onOpenScreenshots}
+          onOpenMarkers={onOpenMarkers}
           onTagClick={onTagClick}
         />
       ))}

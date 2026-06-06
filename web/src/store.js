@@ -400,6 +400,71 @@ export const useStore = create((set, get) => ({
     })
   },
   clearJavItemSelection: () => set({ javSelectedIds: [], javSelectMode: false }),
+  patchJavCollectionMembership: ({ javIds, collection, add }) => {
+    const collectionId = Number(collection?.id)
+    const collectionName = String(collection?.name || '').trim()
+    if (!Number.isFinite(collectionId) || collectionId <= 0 || !Array.isArray(javIds) || javIds.length === 0) {
+      return
+    }
+    const idSet = new Set(
+      javIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+    )
+    if (!idSet.size) return
+
+    set((state) => {
+      const currentCollectionId = Number(state.javCollectionId)
+      let changedCount = 0
+      let nextItems = Array.isArray(state.javItems) ? state.javItems : []
+
+      if (add) {
+        nextItems = nextItems.map((row) => {
+          const javId = Number(row?.id)
+          if (!idSet.has(javId)) return row
+          const cols = Array.isArray(row.collections) ? row.collections : []
+          if (cols.some((col) => Number(col?.id) === collectionId)) return row
+          changedCount += 1
+          return {
+            ...row,
+            collections: [...cols, { id: collectionId, name: collectionName }],
+          }
+        })
+      } else {
+        nextItems = nextItems
+          .map((row) => {
+            const javId = Number(row?.id)
+            if (!idSet.has(javId)) return row
+            const cols = Array.isArray(row.collections) ? row.collections : []
+            if (!cols.some((col) => Number(col?.id) === collectionId)) return row
+            changedCount += 1
+            return {
+              ...row,
+              collections: cols.filter((col) => Number(col?.id) !== collectionId),
+            }
+          })
+          .filter((row) => {
+            if (currentCollectionId !== collectionId) return true
+            return !idSet.has(Number(row?.id))
+          })
+      }
+
+      const countDelta = add ? changedCount : -changedCount
+      const nextCollections = (state.javCollections || []).map((row) => {
+        if (Number(row?.id) !== collectionId || !countDelta) return row
+        return { ...row, count: Math.max(0, (row.count || 0) + countDelta) }
+      })
+
+      const nextTotal =
+        !add && currentCollectionId === collectionId
+          ? Math.max(0, (state.javTotal || 0) - changedCount)
+          : state.javTotal
+
+      return {
+        javItems: nextItems,
+        javCollections: nextCollections,
+        javTotal: nextTotal,
+      }
+    })
+  },
   setJavIdolIds: (idolIds) => {
     const clean = Array.from(
       new Set(
@@ -1033,18 +1098,23 @@ export const useStore = create((set, get) => ({
       }
     }
   },
-  loadCollections: async () => {
-    set({ javCollectionsLoading: true, javCollectionsError: null })
+  loadCollections: async (options = {}) => {
+    const silent = Boolean(options.silent)
+    if (!silent) {
+      set({ javCollectionsLoading: true, javCollectionsError: null })
+    }
     try {
       const items = await fetchCollections()
       set({ javCollections: Array.isArray(items) ? items : [] })
     } catch (e) {
       set({
         javCollectionsError: e.message || zh('加载合集失败', 'Failed to load collections'),
-        javCollections: [],
+        javCollections: silent ? get().javCollections : [],
       })
     } finally {
-      set({ javCollectionsLoading: false })
+      if (!silent) {
+        set({ javCollectionsLoading: false })
+      }
     }
   },
   loadJavSeries: async (options = {}) => {

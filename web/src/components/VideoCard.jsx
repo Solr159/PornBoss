@@ -6,6 +6,7 @@ import { revealVideoLocation } from '@/api'
 import { formatBytes, getVideoDisplayName, parseVideoFingerprint } from '@/utils/display'
 import { zh } from '@/utils/i18n'
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined'
+import FlagOutlinedIcon from '@mui/icons-material/FlagOutlined'
 
 export default function VideoCard({
   video,
@@ -17,6 +18,7 @@ export default function VideoCard({
   openFileLabel,
   onOpenTagPicker,
   onOpenScreenshots,
+  onOpenMarkers,
   onTagClick,
 }) {
   const displayName = getVideoDisplayName(video)
@@ -65,6 +67,11 @@ export default function VideoCard({
     onOpenScreenshots?.(video)
   }
 
+  const handleOpenMarkers = (event) => {
+    event.stopPropagation()
+    onOpenMarkers?.(video)
+  }
+
   return (
     <div
       className={`video-card group relative overflow-hidden rounded-xl border bg-white shadow transition-all ${
@@ -95,7 +102,16 @@ export default function VideoCard({
             e.currentTarget.style.display = 'none'
           }}
         />
-        <div className="absolute bottom-2 left-2 z-10 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="absolute bottom-2 left-2 z-10 flex gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={handleOpenMarkers}
+            title={zh('时间点标记', 'Timeline markers')}
+            aria-label={zh('时间点标记', 'Timeline markers')}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-600/90 text-white shadow-lg shadow-black/60 hover:bg-amber-500"
+          >
+            <FlagOutlinedIcon className="h-5 w-5 text-white" fontSize="inherit" />
+          </button>
           <button
             type="button"
             onClick={handleOpenScreenshots}

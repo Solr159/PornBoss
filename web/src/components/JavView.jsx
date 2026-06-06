@@ -46,6 +46,7 @@ export default function JavView({
   openFileLabel,
   onRevealFile,
   onOpenScreenshots,
+  onOpenMarkers,
   javSelectMode = false,
   onJavSelectModeChange,
   selectedJavIds = [],
@@ -222,6 +223,7 @@ export default function JavView({
             openFileLabel={openFileLabel}
             onRevealFile={onRevealFile}
             onOpenScreenshots={onOpenScreenshots}
+            onOpenMarkers={onOpenMarkers}
             selectionEnabled={selectionEnabled}
             selectedJavIds={selectedArr}
             onToggleJavSelect={onToggleJavSelect}

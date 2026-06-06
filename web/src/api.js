@@ -215,6 +215,53 @@ export async function deleteVideoScreenshot(videoId, name) {
   }
 }
 
+export async function fetchVideoMarkers(videoId) {
+  const res = await fetch(`/videos/${videoId}/markers`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('加载时间点标记失败', 'Failed to load video markers'))
+  }
+  const data = await res.json()
+  return Array.isArray(data?.items) ? data.items : []
+}
+
+export async function createVideoMarker(videoId, { timeSec, note }) {
+  const res = await fetch(`/videos/${videoId}/markers`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ time_sec: timeSec, note }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('添加时间点标记失败', 'Failed to create video marker'))
+  }
+  return res.json()
+}
+
+export async function updateVideoMarker(videoId, markerId, payload) {
+  const body = {}
+  if (payload.timeSec != null) body.time_sec = payload.timeSec
+  if (payload.note != null) body.note = payload.note
+  const res = await fetch(`/videos/${videoId}/markers/${markerId}`, {
+    method: 'PATCH',
+    headers: jsonHeaders,
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('更新时间点标记失败', 'Failed to update video marker'))
+  }
+  return res.json()
+}
+
+export async function deleteVideoMarker(videoId, markerId) {
+  const res = await fetch(`/videos/${videoId}/markers/${markerId}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('删除时间点标记失败', 'Failed to delete video marker'))
+  }
+}
+
 // Directories
 export async function fetchDirectories() {
   const res = await fetch('/directories')

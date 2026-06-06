@@ -11,6 +11,7 @@ import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined'
 import LibraryBooksOutlinedIcon from '@mui/icons-material/LibraryBooksOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined'
+import FlagOutlinedIcon from '@mui/icons-material/FlagOutlined'
 import SearchIcon from '@mui/icons-material/Search'
 import VideocamOutlinedIcon from '@mui/icons-material/VideocamOutlined'
 
@@ -88,6 +89,7 @@ export default function JavGrid({
   openFileLabel,
   onRevealFile,
   onOpenScreenshots,
+  onOpenMarkers,
   selectionEnabled = false,
   selectedJavIds = [],
   onToggleJavSelect,
@@ -173,6 +175,7 @@ export default function JavGrid({
             openFileLabel={openFileLabel}
             onRevealFile={onRevealFile}
             onOpenScreenshots={onOpenScreenshots}
+            onOpenMarkers={onOpenMarkers}
             loadIdolPreview={loadIdolPreview}
             onOpenCoverPreview={setCoverPreview}
             javMetadataLanguage={javMetadataLanguage}
@@ -644,6 +647,7 @@ function JavCard({
   openFileLabel,
   onRevealFile,
   onOpenScreenshots,
+  onOpenMarkers,
   loadIdolPreview,
   onOpenCoverPreview,
   javMetadataLanguage,
@@ -754,6 +758,12 @@ function JavCard({
     event.stopPropagation()
     if (!canOpen) return
     onOpenScreenshots?.(openableVideos[0] || primaryVideo, item)
+  }
+
+  const handleOpenMarkers = (event) => {
+    event.stopPropagation()
+    if (!canOpen) return
+    onOpenMarkers?.(openableVideos[0] || primaryVideo, item)
   }
 
   const handleOpenCoverPreview = (event) => {
@@ -970,6 +980,17 @@ function JavCard({
                 <SearchIcon className="h-5 w-5 text-white" fontSize="inherit" />
               </button>
             ) : null}
+            {/*{canOpen ? (*/}
+            {/*  <button*/}
+            {/*    type="button"*/}
+            {/*    onClick={handleOpenMarkers}*/}
+            {/*    title={zh('时间点标记', 'Timeline markers')}*/}
+            {/*    aria-label={zh('时间点标记', 'Timeline markers')}*/}
+            {/*    className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-600/90 text-white shadow-lg shadow-black/60 hover:bg-amber-500"*/}
+            {/*  >*/}
+            {/*    <FlagOutlinedIcon className="h-5 w-5 text-white" fontSize="inherit" />*/}
+            {/*  </button>*/}
+            {/*) : null}*/}
             <button
               type="button"
               onClick={handleOpenScreenshots}
