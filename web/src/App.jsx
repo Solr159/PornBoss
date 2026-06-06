@@ -1,11 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate, useNavigationType } from 'react-router-dom'
-import {
-  buildUrlFromState,
-  generateRandomSeed,
-  normalizeUrlStateFromStore,
-  parseUrlState,
-} from '@/utils/urlState'
+import { generateRandomSeed, normalizeUrlStateFromStore } from '@/utils/urlState'
 import {
   addTagToVideos,
   removeTagFromVideos,
@@ -33,15 +27,11 @@ import {
 } from '@/api'
 import GlobalSettingsModal from '@/components/GlobalSettingsModal'
 import JavIdolFavoriteManageModal from '@/components/JavIdolFavoriteManageModal'
-import JavIdolView from '@/components/JavIdolView'
 import JavIdolFavoriteModal from '@/components/JavIdolFavoriteModal'
 import JavQueryEditorModal from '@/components/JavQueryEditorModal'
 import JavSettingsModal from '@/components/JavSettingsModal'
-import JavSeriesView from '@/components/JavSeriesView'
-import JavStudioView from '@/components/JavStudioView'
 import JavTagModal from '@/components/JavTagModal'
 import JavVideoPickerModal from '@/components/JavVideoPickerModal'
-import JavView from '@/components/JavView'
 import SelectionOpsModal from '@/components/SelectionOpsModal'
 import SelectionTagsModal from '@/components/SelectionTagsModal'
 import TagPickerModal from '@/components/TagPickerModal'
@@ -50,16 +40,16 @@ import TopBar from '@/components/TopBar'
 import VideoSettingsModal from '@/components/VideoSettingsModal'
 import VideoScreenshotsModal from '@/components/VideoScreenshotsModal'
 import VideoTagModal from '@/components/VideoTagModal'
-import VideoView from '@/components/VideoView'
 import { isUserJavTag, normalizeIdolSort, normalizeJavSort } from '@/constants/jav'
 import { normalizeVideoSort } from '@/constants/video'
+import useScrollRestoration from '@/hooks/useScrollRestoration'
+import useUrlStateSync from '@/hooks/useUrlStateSync'
+import JavRoute from '@/routes/JavRoute'
+import VideoRoute from '@/routes/VideoRoute'
 import { isChineseLocale, zh } from '@/utils/i18n'
 import { directoryQueryIds, useStore, videoSelectionKey } from '@/store'
 
 const JAV_STUDIO_PAGE_SIZE = 24
-const HISTORY_INDEX_KEY = '__pornbossHistoryIndex'
-const HISTORY_SCROLL_KEY = '__pornbossScroll'
-const SCROLL_RESTORE_MAX_ATTEMPTS = 30
 
 const normalizeDefaultPlayer = (value) =>
   String(value || '')
@@ -75,42 +65,7 @@ const normalizeInitialViewMode = (value) =>
     ? 'jav'
     : 'video'
 
-const getHistoryUserState = (state) =>
-  state?.usr && typeof state.usr === 'object' ? state.usr : {}
-
-const getHistoryAppStateValue = (state, key) => {
-  const userState = getHistoryUserState(state)
-  return state?.[key] ?? userState?.[key]
-}
-
-const withHistoryAppState = (state, entries) => ({
-  ...(state || {}),
-  ...entries,
-  usr: {
-    ...getHistoryUserState(state),
-    ...entries,
-  },
-})
-
 export default function App() {
-  const location = useLocation()
-  const navigate = useNavigate()
-  const navigationType = useNavigationType()
-  const currentRoute = useMemo(
-    () => `${location.pathname}${location.search}`,
-    [location.pathname, location.search]
-  )
-  const isPoppingRef = useRef(false)
-  const lastUrlRef = useRef(currentRoute)
-  const routeInitializedRef = useRef(false)
-  const browserInitialCanGoBackRef = useRef(window.history.length > 1)
-  const browserHistoryIndexRef = useRef(0)
-  const browserHistoryMaxRef = useRef(0)
-  const pendingScrollRestoreRef = useRef(null)
-  const scrollSaveFrameRef = useRef(null)
-  const scrollRestoreFrameRef = useRef(null)
-  const scrollRestoreTimerRef = useRef(null)
-  const preNavigationScrollSaveUrlRef = useRef(null)
   const pendingVideoTagIdsRef = useRef(null)
   const {
     page,
@@ -255,197 +210,9 @@ export default function App() {
   })
   const [hydrated, setHydrated] = useState(false)
   const [configLoaded, setConfigLoaded] = useState(false)
-  const [browserNavigation, setBrowserNavigation] = useState({
-    canGoBack: window.history.length > 1,
-    canGoForward: false,
-  })
   const isJavMode = viewMode === 'jav'
   const isModifiedClick = (e) =>
     e && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0)
-
-  const setBrowserNavigationFromIndex = useCallback((index, max) => {
-    browserHistoryIndexRef.current = index
-    browserHistoryMaxRef.current = max
-    setBrowserNavigation({
-      canGoBack: index > 0 || (index === 0 && browserInitialCanGoBackRef.current),
-      canGoForward: index < max,
-    })
-  }, [])
-
-  const readBrowserHistoryIndex = useCallback((state = window.history.state) => {
-    const rawIndex = Number(getHistoryAppStateValue(state, HISTORY_INDEX_KEY))
-    return Number.isFinite(rawIndex) && rawIndex >= 0 ? Math.floor(rawIndex) : 0
-  }, [])
-
-  const readWindowScrollPosition = useCallback(
-    () => ({
-      x: Math.max(0, Math.round(window.scrollX || window.pageXOffset || 0)),
-      y: Math.max(0, Math.round(window.scrollY || window.pageYOffset || 0)),
-    }),
-    []
-  )
-
-  const normalizeHistoryScrollPosition = useCallback((value) => {
-    const x = Number(value?.x)
-    const y = Number(value?.y)
-    return {
-      x: Number.isFinite(x) && x > 0 ? Math.round(x) : 0,
-      y: Number.isFinite(y) && y > 0 ? Math.round(y) : 0,
-    }
-  }, [])
-
-  const saveCurrentScrollPosition = useCallback(() => {
-    const currentState = window.history.state || {}
-    const currentScroll = readWindowScrollPosition()
-    const previousScroll = normalizeHistoryScrollPosition(
-      getHistoryAppStateValue(currentState, HISTORY_SCROLL_KEY)
-    )
-    if (previousScroll.x === currentScroll.x && previousScroll.y === currentScroll.y) return
-    window.history.replaceState(
-      withHistoryAppState(currentState, { [HISTORY_SCROLL_KEY]: currentScroll }),
-      '',
-      currentRoute
-    )
-  }, [currentRoute, normalizeHistoryScrollPosition, readWindowScrollPosition])
-
-  const saveScrollBeforeUrlStateChange = useCallback(() => {
-    if (scrollSaveFrameRef.current) {
-      window.cancelAnimationFrame(scrollSaveFrameRef.current)
-      scrollSaveFrameRef.current = null
-    }
-    saveCurrentScrollPosition()
-    preNavigationScrollSaveUrlRef.current = currentRoute
-  }, [currentRoute, saveCurrentScrollPosition])
-
-  const ensureBrowserHistoryState = useCallback(() => {
-    const currentState = window.history.state || {}
-    const stateIndex = getHistoryAppStateValue(currentState, HISTORY_INDEX_KEY)
-    const stateScroll = getHistoryAppStateValue(currentState, HISTORY_SCROLL_KEY)
-    const hasIndex = Number.isFinite(Number(stateIndex))
-    const hasScroll = stateScroll && typeof stateScroll === 'object'
-    const index = hasIndex ? readBrowserHistoryIndex(currentState) : browserHistoryIndexRef.current
-    if (!hasIndex || !hasScroll) {
-      window.history.replaceState(
-        withHistoryAppState(currentState, {
-          [HISTORY_INDEX_KEY]: index,
-          [HISTORY_SCROLL_KEY]: hasScroll
-            ? normalizeHistoryScrollPosition(stateScroll)
-            : readWindowScrollPosition(),
-        }),
-        '',
-        currentRoute
-      )
-    }
-    setBrowserNavigationFromIndex(index, Math.max(browserHistoryMaxRef.current, index))
-  }, [
-    currentRoute,
-    normalizeHistoryScrollPosition,
-    readBrowserHistoryIndex,
-    readWindowScrollPosition,
-    setBrowserNavigationFromIndex,
-  ])
-
-  const handleBrowserBack = useCallback(() => {
-    saveCurrentScrollPosition()
-    window.history.back()
-  }, [saveCurrentScrollPosition])
-
-  const handleBrowserForward = useCallback(() => {
-    saveCurrentScrollPosition()
-    window.history.forward()
-  }, [saveCurrentScrollPosition])
-
-  useEffect(() => {
-    if (!('scrollRestoration' in window.history)) return undefined
-    const previousScrollRestoration = window.history.scrollRestoration
-    window.history.scrollRestoration = 'manual'
-    return () => {
-      window.history.scrollRestoration = previousScrollRestoration
-    }
-  }, [])
-
-  useEffect(() => {
-    const flushScrollPosition = () => {
-      if (scrollSaveFrameRef.current) {
-        window.cancelAnimationFrame(scrollSaveFrameRef.current)
-        scrollSaveFrameRef.current = null
-      }
-      saveCurrentScrollPosition()
-    }
-    const handleScroll = () => {
-      if (scrollSaveFrameRef.current) return
-      scrollSaveFrameRef.current = window.requestAnimationFrame(() => {
-        scrollSaveFrameRef.current = null
-        saveCurrentScrollPosition()
-      })
-    }
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        flushScrollPosition()
-      }
-    }
-
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    window.addEventListener('pagehide', flushScrollPosition)
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => {
-      window.removeEventListener('scroll', handleScroll)
-      window.removeEventListener('pagehide', flushScrollPosition)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      if (scrollSaveFrameRef.current) {
-        window.cancelAnimationFrame(scrollSaveFrameRef.current)
-        scrollSaveFrameRef.current = null
-      }
-    }
-  }, [saveCurrentScrollPosition])
-
-  const cancelScheduledScrollRestore = useCallback(() => {
-    if (scrollRestoreFrameRef.current) {
-      window.cancelAnimationFrame(scrollRestoreFrameRef.current)
-      scrollRestoreFrameRef.current = null
-    }
-    if (scrollRestoreTimerRef.current) {
-      window.clearTimeout(scrollRestoreTimerRef.current)
-      scrollRestoreTimerRef.current = null
-    }
-  }, [])
-
-  const schedulePendingScrollRestore = useCallback(() => {
-    if (!pendingScrollRestoreRef.current) return
-    cancelScheduledScrollRestore()
-
-    const restore = () => {
-      const pending = pendingScrollRestoreRef.current
-      if (!pending) return
-
-      const maxY = Math.max(
-        0,
-        Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) -
-          window.innerHeight
-      )
-      const targetX = Math.max(0, pending.x || 0)
-      const targetY = Math.max(0, pending.y || 0)
-      const nextY = Math.min(targetY, maxY)
-      window.scrollTo({ left: targetX, top: nextY, behavior: 'auto' })
-
-      const reached = Math.abs((window.scrollY || window.pageYOffset || 0) - targetY) <= 2
-      const canReach = targetY <= maxY + 2
-      if ((canReach && reached) || pending.attempts >= SCROLL_RESTORE_MAX_ATTEMPTS) {
-        pendingScrollRestoreRef.current = null
-        return
-      }
-
-      pending.attempts += 1
-      scrollRestoreTimerRef.current = window.setTimeout(() => {
-        scrollRestoreTimerRef.current = null
-        scrollRestoreFrameRef.current = window.requestAnimationFrame(restore)
-      }, 50)
-    }
-
-    scrollRestoreFrameRef.current = window.requestAnimationFrame(restore)
-  }, [cancelScheduledScrollRestore])
-
-  useEffect(() => cancelScheduledScrollRestore, [cancelScheduledScrollRestore])
   const selectedTagIds = useMemo(
     () =>
       tags
@@ -774,16 +541,6 @@ export default function App() {
     setJavVideoPickerAction('play')
   }, [])
 
-  const handleVideoTagClick = useCallback(
-    (name) => {
-      if (!name) return
-      saveScrollBeforeUrlStateChange()
-      setSearchTerm('', { resetPage: false, triggerLoad: false })
-      setSelectedTags([name])
-    },
-    [saveScrollBeforeUrlStateChange, setSearchTerm, setSelectedTags]
-  )
-
   const handleJavPlay = useCallback(
     (video, item) => {
       const videos = item?.videos || []
@@ -935,6 +692,166 @@ export default function App() {
       mounted = false
     }
   }, [loadConfig])
+
+  const applyUrlState = useCallback(
+    (parsed) => {
+      useStore.getState().setDirectoryFilterFromUrl(parsed.directoryIds)
+      const mapTagIdsToNamesFromStore = (ids) => {
+        if (!Array.isArray(ids) || ids.length === 0) return []
+        const { tags: storeTags } = useStore.getState()
+        const idSet = new Set(ids)
+        return (storeTags || []).filter((t) => idSet.has(t.id)).map((t) => t.name)
+      }
+      if (parsed.view === 'jav') {
+        const { jav } = parsed
+        useStore.setState({
+          viewMode: 'jav',
+          videoTempSort: '',
+          javTab: jav.tab,
+          javRandomMode: jav.tab === 'list' ? jav.random : false,
+          javRandomSeed: jav.tab === 'list' && jav.random ? jav.seed : null,
+          javSearchTerm: jav.search,
+          javIdolIds: jav.tab === 'list' ? jav.idolIds : [],
+          javTags: jav.tab === 'list' ? jav.tagIds : [],
+          javStudioId: jav.tab === 'list' ? jav.studioId : null,
+          javStudioName: jav.tab === 'list' && jav.studioId ? jav.studioName : '',
+          javSeriesId: jav.tab === 'list' ? jav.seriesId : null,
+          javSeriesName: jav.tab === 'list' && jav.seriesId ? jav.seriesName : '',
+          javPage: jav.random ? 1 : jav.page,
+          idolPage: jav.tab === 'idol' ? jav.page : 1,
+          idolFavoriteGroupId: jav.tab === 'idol' ? jav.idolFavoriteGroupId : null,
+          studioPage: jav.tab === 'studio' ? jav.page : 1,
+          seriesPage: jav.tab === 'series' ? jav.page : 1,
+          javTempSort: jav.tab !== 'list' || jav.random ? '' : jav.tempSort,
+        })
+        setJavSearchInput(jav.search)
+        if (jav.tab === 'list' && jav.random) {
+          useStore.getState().loadJavRandom(jav.seed ?? undefined)
+        }
+        setHydrated(true)
+        return
+      }
+
+      const { video } = parsed
+      useStore.setState({
+        viewMode: 'video',
+        javTempSort: '',
+        videoTempSort: video.random ? '' : video.tempSort,
+        randomMode: video.random,
+        randomSeed: video.random ? video.seed : null,
+        searchTerm: video.random ? '' : video.search,
+        page: video.random ? 1 : video.page,
+      })
+      setSearchInput(video.search)
+      const names = mapTagIdsToNamesFromStore(video.tagIds)
+      if (names.length || video.tagIds.length === 0) {
+        useStore.getState().setSelectedTags(names, { resetPage: false, preserveTempSort: true })
+      } else {
+        pendingVideoTagIdsRef.current = video.tagIds
+      }
+      if (video.random) {
+        useStore.getState().loadRandom(video.seed ?? undefined)
+      }
+      setHydrated(true)
+    },
+    [setJavSearchInput, setSearchInput]
+  )
+
+  const currentUrlState = useMemo(
+    () =>
+      normalizeUrlStateFromStore(
+        {
+          viewMode,
+          page,
+          searchTerm,
+          videoTempSort,
+          selectedTags,
+          randomMode,
+          randomSeed,
+          javTab,
+          javPage,
+          javSearchTerm,
+          javIdolIds,
+          javTags,
+          javStudioId,
+          javStudioName,
+          javSeriesId,
+          javSeriesName,
+          javTempSort,
+          javRandomMode,
+          javRandomSeed,
+          idolPage,
+          idolFavoriteGroupId,
+          studioPage,
+          seriesPage,
+          directories,
+          enabledDirectoryIds,
+          directoryFilterMode,
+        },
+        tagsByName
+      ),
+    [
+      directories,
+      directoryFilterMode,
+      enabledDirectoryIds,
+      idolFavoriteGroupId,
+      idolPage,
+      studioPage,
+      seriesPage,
+      javIdolIds,
+      javStudioId,
+      javSeriesId,
+      javPage,
+      javRandomMode,
+      javRandomSeed,
+      javSearchTerm,
+      javTempSort,
+      javTab,
+      javTags,
+      page,
+      randomMode,
+      randomSeed,
+      searchTerm,
+      selectedTags,
+      videoTempSort,
+      tagsByName,
+      viewMode,
+      javStudioName,
+      javSeriesName,
+    ]
+  )
+
+  const handleParsedUrlView = useCallback((parsedView) => {
+    useStore.setState({ viewMode: parsedView === 'jav' ? 'jav' : 'video' })
+  }, [])
+
+  const {
+    browserNavigation,
+    handleBrowserBack,
+    handleBrowserForward,
+    pathname,
+    pendingScrollRestoreRef,
+    saveScrollBeforeUrlStateChange,
+    schedulePendingScrollRestore,
+  } = useUrlStateSync({
+    applyUrlState,
+    configLoaded,
+    currentUrlState,
+    hydrated,
+    initialViewMode,
+    onParsedView: handleParsedUrlView,
+  })
+
+  const handleVideoTagClick = useCallback(
+    (name) => {
+      if (!name) return
+      saveScrollBeforeUrlStateChange()
+      setSearchTerm('', { resetPage: false, triggerLoad: false })
+      setSelectedTags([name])
+    },
+    [saveScrollBeforeUrlStateChange, setSearchTerm, setSelectedTags]
+  )
+
   const buildVideoUrl = useCallback(
     (options = {}) => {
       const {
@@ -976,9 +893,9 @@ export default function App() {
         sp.set('page', String(targetPage))
       }
       const query = sp.toString()
-      return `${location.pathname}${query ? `?${query}` : ''}`
+      return `${pathname}${query ? `?${query}` : ''}`
     },
-    [location.pathname, page, randomMode, randomSeed, searchTerm, selectedTagIds, videoTempSort]
+    [page, pathname, randomMode, randomSeed, searchTerm, selectedTagIds, videoTempSort]
   )
 
   const buildJavUrl = useCallback(
@@ -1073,12 +990,12 @@ export default function App() {
         sp.set('page', String(targetPage))
       }
       const query = sp.toString()
-      return `${location.pathname}${query ? `?${query}` : ''}`
+      return `${pathname}${query ? `?${query}` : ''}`
     },
     [
       idolPage,
       idolFavoriteGroupId,
-      location.pathname,
+      pathname,
       studioPage,
       seriesPage,
       javIdolIds,
@@ -1129,111 +1046,6 @@ export default function App() {
     },
     [saveScrollBeforeUrlStateChange]
   )
-
-  const applyUrlState = useCallback(
-    (parsed, { fromPopstate = false, route = currentRoute } = {}) => {
-      isPoppingRef.current = fromPopstate
-      lastUrlRef.current = route
-      useStore.getState().setDirectoryFilterFromUrl(parsed.directoryIds)
-      const mapTagIdsToNamesFromStore = (ids) => {
-        if (!Array.isArray(ids) || ids.length === 0) return []
-        const { tags: storeTags } = useStore.getState()
-        const idSet = new Set(ids)
-        return (storeTags || []).filter((t) => idSet.has(t.id)).map((t) => t.name)
-      }
-      if (parsed.view === 'jav') {
-        const { jav } = parsed
-        useStore.setState({
-          viewMode: 'jav',
-          videoTempSort: '',
-          javTab: jav.tab,
-          javRandomMode: jav.tab === 'list' ? jav.random : false,
-          javRandomSeed: jav.tab === 'list' && jav.random ? jav.seed : null,
-          javSearchTerm: jav.search,
-          javIdolIds: jav.tab === 'list' ? jav.idolIds : [],
-          javTags: jav.tab === 'list' ? jav.tagIds : [],
-          javStudioId: jav.tab === 'list' ? jav.studioId : null,
-          javStudioName: jav.tab === 'list' && jav.studioId ? jav.studioName : '',
-          javSeriesId: jav.tab === 'list' ? jav.seriesId : null,
-          javSeriesName: jav.tab === 'list' && jav.seriesId ? jav.seriesName : '',
-          javPage: jav.random ? 1 : jav.page,
-          idolPage: jav.tab === 'idol' ? jav.page : 1,
-          idolFavoriteGroupId: jav.tab === 'idol' ? jav.idolFavoriteGroupId : null,
-          studioPage: jav.tab === 'studio' ? jav.page : 1,
-          seriesPage: jav.tab === 'series' ? jav.page : 1,
-          javTempSort: jav.tab !== 'list' || jav.random ? '' : jav.tempSort,
-        })
-        setJavSearchInput(jav.search)
-        if (jav.tab === 'list' && jav.random) {
-          useStore.getState().loadJavRandom(jav.seed ?? undefined)
-        }
-        setHydrated(true)
-        return
-      }
-
-      const { video } = parsed
-      useStore.setState({
-        viewMode: 'video',
-        javTempSort: '',
-        videoTempSort: video.random ? '' : video.tempSort,
-        randomMode: video.random,
-        randomSeed: video.random ? video.seed : null,
-        searchTerm: video.random ? '' : video.search,
-        page: video.random ? 1 : video.page,
-      })
-      setSearchInput(video.search)
-      const names = mapTagIdsToNamesFromStore(video.tagIds)
-      if (names.length || video.tagIds.length === 0) {
-        useStore.getState().setSelectedTags(names, { resetPage: false, preserveTempSort: true })
-      } else {
-        pendingVideoTagIdsRef.current = video.tagIds
-      }
-      if (video.random) {
-        useStore.getState().loadRandom(video.seed ?? undefined)
-      }
-      setHydrated(true)
-    },
-    [currentRoute, setJavSearchInput, setSearchInput]
-  )
-
-  useEffect(() => {
-    if (!configLoaded) return
-    ensureBrowserHistoryState()
-    const fromRouterPop = routeInitializedRef.current && navigationType === 'POP'
-    if (fromRouterPop) {
-      const index = readBrowserHistoryIndex(location.state)
-      const max = Math.max(browserHistoryMaxRef.current, index)
-      pendingScrollRestoreRef.current = {
-        ...normalizeHistoryScrollPosition(
-          getHistoryAppStateValue(location.state, HISTORY_SCROLL_KEY)
-        ),
-        attempts: 0,
-      }
-      cancelScheduledScrollRestore()
-      setBrowserNavigationFromIndex(index, max)
-    }
-    const parsed = parseUrlState(location.search, { defaultView: initialViewMode })
-    if (parsed.view === 'jav') {
-      useStore.setState({ viewMode: 'jav' })
-    } else {
-      useStore.setState({ viewMode: 'video' })
-    }
-    applyUrlState(parsed, { fromPopstate: fromRouterPop, route: currentRoute })
-    routeInitializedRef.current = true
-  }, [
-    applyUrlState,
-    cancelScheduledScrollRestore,
-    currentRoute,
-    ensureBrowserHistoryState,
-    location.search,
-    location.state,
-    normalizeHistoryScrollPosition,
-    navigationType,
-    readBrowserHistoryIndex,
-    setBrowserNavigationFromIndex,
-    configLoaded,
-    initialViewMode,
-  ])
 
   useEffect(() => {
     setSearchInput(searchTerm)
@@ -1372,115 +1184,6 @@ export default function App() {
     },
     [configLoaded, hydrated, loadJavIdols, loadJavSeries, loadJavStudios, loadJavs, loadVideos]
   )
-
-  const currentUrlState = useMemo(
-    () =>
-      normalizeUrlStateFromStore(
-        {
-          viewMode,
-          page,
-          searchTerm,
-          videoTempSort,
-          selectedTags,
-          randomMode,
-          randomSeed,
-          javTab,
-          javPage,
-          javSearchTerm,
-          javIdolIds,
-          javTags,
-          javStudioId,
-          javStudioName,
-          javSeriesId,
-          javSeriesName,
-          javTempSort,
-          javRandomMode,
-          javRandomSeed,
-          idolPage,
-          idolFavoriteGroupId,
-          studioPage,
-          seriesPage,
-          directories,
-          enabledDirectoryIds,
-          directoryFilterMode,
-        },
-        tagsByName
-      ),
-    [
-      directories,
-      directoryFilterMode,
-      enabledDirectoryIds,
-      idolFavoriteGroupId,
-      idolPage,
-      studioPage,
-      seriesPage,
-      javIdolIds,
-      javStudioId,
-      javSeriesId,
-      javPage,
-      javRandomMode,
-      javRandomSeed,
-      javSearchTerm,
-      javTempSort,
-      javTab,
-      javTags,
-      page,
-      randomMode,
-      randomSeed,
-      searchTerm,
-      selectedTags,
-      videoTempSort,
-      tagsByName,
-      viewMode,
-      javStudioName,
-      javSeriesName,
-    ]
-  )
-
-  useEffect(() => {
-    if (!hydrated) return
-    const nextUrl = buildUrlFromState(currentUrlState, location.pathname)
-    const currentUrl = currentRoute
-    if (nextUrl === currentUrl) {
-      preNavigationScrollSaveUrlRef.current = null
-      lastUrlRef.current = nextUrl
-      isPoppingRef.current = false
-      return
-    }
-    if (isPoppingRef.current) {
-      preNavigationScrollSaveUrlRef.current = null
-      lastUrlRef.current = nextUrl
-      isPoppingRef.current = false
-      return
-    }
-    pendingScrollRestoreRef.current = null
-    cancelScheduledScrollRestore()
-    if (preNavigationScrollSaveUrlRef.current === currentUrl) {
-      preNavigationScrollSaveUrlRef.current = null
-    } else {
-      saveCurrentScrollPosition()
-    }
-    const nextIndex = browserHistoryIndexRef.current + 1
-    const nextScroll = readWindowScrollPosition()
-    navigate(nextUrl, {
-      state: {
-        [HISTORY_INDEX_KEY]: nextIndex,
-        [HISTORY_SCROLL_KEY]: nextScroll,
-      },
-    })
-    setBrowserNavigationFromIndex(nextIndex, nextIndex)
-    lastUrlRef.current = nextUrl
-  }, [
-    cancelScheduledScrollRestore,
-    currentRoute,
-    currentUrlState,
-    hydrated,
-    location.pathname,
-    navigate,
-    readWindowScrollPosition,
-    saveCurrentScrollPosition,
-    setBrowserNavigationFromIndex,
-  ])
 
   const canPrev = page > 1
   const canNext = hasNext
@@ -2671,50 +2374,15 @@ export default function App() {
           ? seriesLoadingMore
           : javLoadingMore
     : videoLoadingMore
-  useEffect(() => {
-    if (!hydrated || !configLoaded || !pendingScrollRestoreRef.current) return
-    if ((isJavMode ? activeJavLoading : loading) || activeLoadingMore) return
-
-    const pending = pendingScrollRestoreRef.current
-    const maxY = Math.max(
-      0,
-      Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) -
-        window.innerHeight
-    )
-    const needsMoreContent = (pending.y || 0) > maxY + 24
-    if (needsMoreContent) {
-      if (!isJavMode && waterfallModes.video && videoWaterfallHasMore) {
-        loadMoreVideos()
-        return
-      }
-      if (isJavMode && javTab === 'list' && waterfallModes.jav && javWaterfallHasMore) {
-        loadMoreJavs()
-        return
-      }
-      if (isJavMode && javTab === 'idol' && waterfallModes.idol && idolWaterfallHasMore) {
-        loadMoreJavIdols()
-        return
-      }
-      if (isJavMode && javTab === 'studio' && waterfallModes.studio && studioWaterfallHasMore) {
-        loadMoreJavStudios()
-        return
-      }
-      if (isJavMode && javTab === 'series' && waterfallModes.series && seriesWaterfallHasMore) {
-        loadMoreJavSeries()
-        return
-      }
-    }
-
-    schedulePendingScrollRestore()
-  }, [
+  useScrollRestoration({
     activeJavLoading,
     activeLoadingMore,
     configLoaded,
     hydrated,
-    idolItems.length,
+    idolItems,
     idolWaterfallHasMore,
     isJavMode,
-    javItems.length,
+    javItems,
     javTab,
     javWaterfallHasMore,
     loadMoreJavIdols,
@@ -2723,19 +2391,16 @@ export default function App() {
     loadMoreJavs,
     loadMoreVideos,
     loading,
+    pendingScrollRestoreRef,
     schedulePendingScrollRestore,
-    seriesItems.length,
+    seriesItems,
     seriesWaterfallHasMore,
-    studioItems.length,
+    studioItems,
     studioWaterfallHasMore,
     videoWaterfallHasMore,
-    videos.length,
-    waterfallModes.idol,
-    waterfallModes.jav,
-    waterfallModes.series,
-    waterfallModes.studio,
-    waterfallModes.video,
-  ])
+    videos,
+    waterfallModes,
+  })
   const javVideoPickerTitle =
     javVideoPickerAction === 'open'
       ? alternatePlayer === 'mpv'
@@ -2812,160 +2477,111 @@ export default function App() {
         )}
 
         {isJavMode ? (
-          javTab === 'idol' ? (
-            <JavIdolView
-              page={idolPage}
-              lastPage={idolLastPage}
-              hasPrev={idolHasPrev}
-              hasNext={idolHasNext}
-              loading={idolLoading}
-              buildPageUrl={({ page: targetPage }) =>
-                buildJavUrl({ page: targetPage, tab: 'idol' })
-              }
-              buildGroupUrl={(groupId) =>
-                buildJavUrl({ page: 1, tab: 'idol', favoriteGroupId: groupId || null })
-              }
-              buildIdolUrl={(idol) =>
-                buildJavUrl({
-                  page: 1,
-                  search: '',
-                  tab: 'list',
-                  idolIds: [idol.id],
-                  tagIds: [],
-                  tempSort: '',
-                })
-              }
-              onFirst={() => setIdolPage(1)}
-              onPrev={() => idolHasPrev && setIdolPage(idolPage - 1)}
-              onGoToPage={(p) => setIdolPage(p)}
-              onNext={() => idolHasNext && setIdolPage(idolPage + 1)}
-              onLast={() => setIdolPage(idolLastPage)}
-              items={idolItems}
-              favoriteGroups={idolFavoriteGroups}
-              selectedFavoriteGroupId={idolFavoriteGroupId}
-              favoriteGroupsLoading={idolFavoriteGroupsLoading}
-              favoriteGroupsError={idolFavoriteGroupsError}
-              javMetadataLanguage={config?.jav_metadata_language === 'en' ? 'en' : 'zh'}
-              onSelectIdol={handleSelectIdol}
-              onFavoriteGroupSelect={(groupId) => setIdolFavoriteGroupId(groupId)}
-              onOpenFavorites={handleOpenIdolFavoriteModal}
-              onOpenFavoriteManager={() => setIdolFavoriteManageOpen(true)}
-              waterfallMode={waterfallModes.idol}
-              onWaterfallModeChange={(enabled) => setWaterfallMode('idol', enabled)}
-              onLoadMore={loadMoreJavIdols}
-              loadingMore={idolLoadingMore}
-              hasMore={idolWaterfallHasMore}
-            />
-          ) : javTab === 'studio' ? (
-            <JavStudioView
-              page={studioPage}
-              lastPage={studioLastPage}
-              hasPrev={studioHasPrev}
-              hasNext={studioHasNext}
-              loading={studioLoading}
-              buildPageUrl={({ page: targetPage }) =>
-                buildJavUrl({ page: targetPage, tab: 'studio' })
-              }
-              buildStudioUrl={(studio) =>
-                buildJavUrl({
-                  page: 1,
-                  search: '',
-                  tab: 'list',
-                  idolIds: [],
-                  tagIds: [],
-                  studioId: studio.id,
-                  studioName: studio.name,
-                  tempSort: '',
-                })
-              }
-              onFirst={() => setStudioPage(1)}
-              onPrev={() => studioHasPrev && setStudioPage(studioPage - 1)}
-              onGoToPage={(p) => setStudioPage(p)}
-              onNext={() => studioHasNext && setStudioPage(studioPage + 1)}
-              onLast={() => setStudioPage(studioLastPage)}
-              items={studioItems}
-              onSelectStudio={handleSelectStudio}
-              waterfallMode={waterfallModes.studio}
-              onWaterfallModeChange={(enabled) => setWaterfallMode('studio', enabled)}
-              onLoadMore={loadMoreJavStudios}
-              loadingMore={studioLoadingMore}
-              hasMore={studioWaterfallHasMore}
-            />
-          ) : javTab === 'series' ? (
-            <JavSeriesView
-              page={seriesPage}
-              lastPage={seriesLastPage}
-              hasPrev={seriesHasPrev}
-              hasNext={seriesHasNext}
-              loading={seriesLoading}
-              buildPageUrl={({ page: targetPage }) =>
-                buildJavUrl({ page: targetPage, tab: 'series' })
-              }
-              buildSeriesUrl={(series) =>
-                buildJavUrl({
-                  page: 1,
-                  search: '',
-                  tab: 'list',
-                  idolIds: [],
-                  tagIds: [],
-                  studioId: null,
-                  seriesId: series.id,
-                  seriesName: series.name,
-                  tempSort: '',
-                })
-              }
-              onFirst={() => setSeriesPage(1)}
-              onPrev={() => seriesHasPrev && setSeriesPage(seriesPage - 1)}
-              onGoToPage={(p) => setSeriesPage(p)}
-              onNext={() => seriesHasNext && setSeriesPage(seriesPage + 1)}
-              onLast={() => setSeriesPage(seriesLastPage)}
-              items={seriesItems}
-              onSelectSeries={handleSelectSeries}
-              onSelectStudio={handleSelectStudio}
-              waterfallMode={waterfallModes.series}
-              onWaterfallModeChange={(enabled) => setWaterfallMode('series', enabled)}
-              onLoadMore={loadMoreJavSeries}
-              loadingMore={seriesLoadingMore}
-              hasMore={seriesWaterfallHasMore}
-            />
-          ) : (
-            <JavView
-              javPage={javPage}
-              javLastPage={javLastPage}
-              javHasPrev={javHasPrev}
-              javHasNext={javHasNext}
-              javLoading={activeJavLoading}
-              javRandomMode={javRandomMode}
-              javTempSort={javTempSort}
-              javGlobalSort={javSort}
-              buildJavUrl={buildJavUrl}
-              setJavPage={setJavPage}
-              setJavTempSort={setJavTempSort}
-              javItems={javItems}
-              javGridColumns={javGridColumns}
-              javTitleMaxRows={javTitleMaxRows}
-              javIdolTagMaxRows={javIdolTagMaxRows}
-              javTagMaxRows={javTagMaxRows}
-              onPlay={handleJavPlay}
-              onOpenFile={handleJavOpenFile}
-              openFileLabel={alternatePlayerLabel}
-              onRevealFile={handleJavRevealFile}
-              onOpenScreenshots={handleJavOpenScreenshots}
-              onIdolClick={handleJavIdolClick}
-              onOpenFavorites={handleOpenIdolFavoriteModal}
-              onStudioClick={handleSelectStudio}
-              onSeriesClick={handleSelectSeries}
-              onTagClick={handleJavTagClick}
-              onEditTags={openJavTagEditor}
-              waterfallMode={waterfallModes.jav}
-              onWaterfallModeChange={(enabled) => setWaterfallMode('jav', enabled)}
-              onLoadMore={loadMoreJavs}
-              loadingMore={javLoadingMore}
-              hasMore={javWaterfallHasMore}
-            />
-          )
+          <JavRoute
+            tab={javTab}
+            buildJavUrl={buildJavUrl}
+            onSelectStudio={handleSelectStudio}
+            idol={{
+              page: idolPage,
+              lastPage: idolLastPage,
+              hasPrev: idolHasPrev,
+              hasNext: idolHasNext,
+              loading: idolLoading,
+              onFirst: () => setIdolPage(1),
+              onPrev: () => idolHasPrev && setIdolPage(idolPage - 1),
+              onGoToPage: (p) => setIdolPage(p),
+              onNext: () => idolHasNext && setIdolPage(idolPage + 1),
+              onLast: () => setIdolPage(idolLastPage),
+              items: idolItems,
+              favoriteGroups: idolFavoriteGroups,
+              selectedFavoriteGroupId: idolFavoriteGroupId,
+              favoriteGroupsLoading: idolFavoriteGroupsLoading,
+              favoriteGroupsError: idolFavoriteGroupsError,
+              config,
+              onSelectIdol: handleSelectIdol,
+              onFavoriteGroupSelect: (groupId) => setIdolFavoriteGroupId(groupId),
+              onOpenFavorites: handleOpenIdolFavoriteModal,
+              onOpenFavoriteManager: () => setIdolFavoriteManageOpen(true),
+              waterfallMode: waterfallModes.idol,
+              onWaterfallModeChange: (enabled) => setWaterfallMode('idol', enabled),
+              onLoadMore: loadMoreJavIdols,
+              loadingMore: idolLoadingMore,
+              hasMore: idolWaterfallHasMore,
+            }}
+            studio={{
+              page: studioPage,
+              lastPage: studioLastPage,
+              hasPrev: studioHasPrev,
+              hasNext: studioHasNext,
+              loading: studioLoading,
+              onFirst: () => setStudioPage(1),
+              onPrev: () => studioHasPrev && setStudioPage(studioPage - 1),
+              onGoToPage: (p) => setStudioPage(p),
+              onNext: () => studioHasNext && setStudioPage(studioPage + 1),
+              onLast: () => setStudioPage(studioLastPage),
+              items: studioItems,
+              onSelectStudio: handleSelectStudio,
+              waterfallMode: waterfallModes.studio,
+              onWaterfallModeChange: (enabled) => setWaterfallMode('studio', enabled),
+              onLoadMore: loadMoreJavStudios,
+              loadingMore: studioLoadingMore,
+              hasMore: studioWaterfallHasMore,
+            }}
+            series={{
+              page: seriesPage,
+              lastPage: seriesLastPage,
+              hasPrev: seriesHasPrev,
+              hasNext: seriesHasNext,
+              loading: seriesLoading,
+              onFirst: () => setSeriesPage(1),
+              onPrev: () => seriesHasPrev && setSeriesPage(seriesPage - 1),
+              onGoToPage: (p) => setSeriesPage(p),
+              onNext: () => seriesHasNext && setSeriesPage(seriesPage + 1),
+              onLast: () => setSeriesPage(seriesLastPage),
+              items: seriesItems,
+              onSelectSeries: handleSelectSeries,
+              waterfallMode: waterfallModes.series,
+              onWaterfallModeChange: (enabled) => setWaterfallMode('series', enabled),
+              onLoadMore: loadMoreJavSeries,
+              loadingMore: seriesLoadingMore,
+              hasMore: seriesWaterfallHasMore,
+            }}
+            list={{
+              javPage,
+              javLastPage,
+              javHasPrev,
+              javHasNext,
+              activeJavLoading,
+              javRandomMode,
+              javTempSort,
+              javGlobalSort: javSort,
+              setJavPage,
+              setJavTempSort,
+              javItems,
+              javGridColumns,
+              javTitleMaxRows,
+              javIdolTagMaxRows,
+              javTagMaxRows,
+              onPlay: handleJavPlay,
+              onOpenFile: handleJavOpenFile,
+              alternatePlayerLabel,
+              onRevealFile: handleJavRevealFile,
+              onOpenScreenshots: handleJavOpenScreenshots,
+              onIdolClick: handleJavIdolClick,
+              onOpenFavorites: handleOpenIdolFavoriteModal,
+              onStudioClick: handleSelectStudio,
+              onSeriesClick: handleSelectSeries,
+              onTagClick: handleJavTagClick,
+              onEditTags: openJavTagEditor,
+              waterfallMode: waterfallModes.jav,
+              onWaterfallModeChange: (enabled) => setWaterfallMode('jav', enabled),
+              onLoadMore: loadMoreJavs,
+              loadingMore: javLoadingMore,
+              hasMore: javWaterfallHasMore,
+            }}
+          />
         ) : (
-          <VideoView
+          <VideoRoute
             selectedCount={selectedCount}
             clearSelection={clearSelection}
             setSelectionOpsOpen={setSelectionOpsOpen}
