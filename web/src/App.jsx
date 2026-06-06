@@ -13,7 +13,6 @@ import {
   createJavTag,
   renameJavTag,
   deleteJavTag,
-  replaceJavTagsForItems,
   resolveJavIdols,
   createJavIdolFavoriteGroup,
   deleteJavIdolFavoriteGroup,
@@ -40,7 +39,7 @@ import TopBar from '@/components/TopBar'
 import VideoSettingsModal from '@/components/VideoSettingsModal'
 import VideoScreenshotsModal from '@/components/VideoScreenshotsModal'
 import VideoTagModal from '@/components/VideoTagModal'
-import { isUserJavTag, normalizeIdolSort, normalizeJavSort } from '@/constants/jav'
+import { normalizeIdolSort, normalizeJavSort } from '@/constants/jav'
 import { normalizeVideoSort } from '@/constants/video'
 import useScrollRestoration from '@/hooks/useScrollRestoration'
 import useUrlStateSync from '@/hooks/useUrlStateSync'
@@ -242,8 +241,6 @@ export default function App() {
   )
   const [tagPickerFor, setTagPickerFor] = useState(null)
   const [tagPickerSelected, setTagPickerSelected] = useState([])
-  const [javTagPickerItem, setJavTagPickerItem] = useState(null)
-  const [javTagPickerSelected, setJavTagPickerSelected] = useState([])
   const [selectionOpsOpen, setSelectionOpsOpen] = useState(false)
   const [selectionTagsOpen, setSelectionTagsOpen] = useState(false)
   const [selectionTagAction, setSelectionTagAction] = useState('add')
@@ -1256,10 +1253,6 @@ export default function App() {
     () => Array.from(javIdolOptionMap.values()),
     [javIdolOptionMap]
   )
-  const javUserTagOptions = useMemo(
-    () => (javTagOptions || []).filter((tag) => isUserJavTag(tag)),
-    [javTagOptions]
-  )
   const showJavFilterRandomButton =
     isJavMode &&
     javTab === 'list' &&
@@ -1670,19 +1663,6 @@ export default function App() {
     [videos]
   )
 
-  const openJavTagEditor = useCallback(
-    (item) => {
-      if (!item) return
-      const initial = Array.isArray(item?.tags)
-        ? item.tags.filter((tag) => isUserJavTag(tag)).map((tag) => String(tag.id))
-        : []
-      setJavTagPickerItem(item)
-      setJavTagPickerSelected(initial)
-      loadJavTags()
-    },
-    [loadJavTags]
-  )
-
   const tagPickerExisting = useMemo(() => {
     if (!tagPickerFor) return []
     const target = videos.find((v) => v.id === tagPickerFor)
@@ -1699,24 +1679,6 @@ export default function App() {
     }
     return false
   }, [tagPickerExisting, tagPickerFor, tagPickerSelected])
-
-  const javTagPickerExisting = useMemo(() => {
-    if (!javTagPickerItem) return []
-    return Array.isArray(javTagPickerItem?.tags)
-      ? javTagPickerItem.tags.filter((tag) => isUserJavTag(tag)).map((tag) => String(tag.id))
-      : []
-  }, [javTagPickerItem])
-
-  const javTagPickerDirty = useMemo(() => {
-    if (!javTagPickerItem) return false
-    const current = new Set(javTagPickerExisting)
-    const selected = new Set(javTagPickerSelected)
-    if (current.size !== selected.size) return true
-    for (const id of current) {
-      if (!selected.has(id)) return true
-    }
-    return false
-  }, [javTagPickerExisting, javTagPickerItem, javTagPickerSelected])
 
   const handleApplyTags = async () => {
     if (!tagPickerFor) {
@@ -1750,72 +1712,13 @@ export default function App() {
     }
   }
 
-  const handleApplyJavTags = async () => {
-    if (!javTagPickerItem) {
-      setJavTagPickerItem(null)
-      setJavTagPickerSelected([])
-      return
-    }
-    const javId = javTagPickerItem.id
-    if (!javId) {
-      setJavTagPickerItem(null)
-      setJavTagPickerSelected([])
-      return
-    }
-    const selectedIds = javTagPickerSelected.map((t) => Number(t)).filter(Boolean)
-    if (!javTagPickerDirty) {
-      setJavTagPickerItem(null)
-      setJavTagPickerSelected([])
-      return
-    }
-    try {
-      await replaceJavTagsForItems([javId], selectedIds)
-      useStore.setState((state) => {
-        if (!Array.isArray(state.javItems)) return {}
-        const userTagMap = new Map(javUserTagOptions.map((tag) => [tag.id, tag]))
-        const next = state.javItems.map((item) => {
-          if (item.id !== javId) return item
-          const existingTags = Array.isArray(item.tags) ? item.tags : []
-          for (const tag of existingTags) {
-            if (isUserJavTag(tag) && !userTagMap.has(tag.id)) {
-              userTagMap.set(tag.id, tag)
-            }
-          }
-          const nextUserTags = selectedIds.map((id) => userTagMap.get(id)).filter(Boolean)
-          const nonUserTags = existingTags.filter((tag) => !isUserJavTag(tag))
-          return { ...item, tags: [...nonUserTags, ...nextUserTags] }
-        })
-        return { javItems: next }
-      })
-    } catch (err) {
-      console.error('update jav tags failed', err)
-    } finally {
-      setJavTagPickerItem(null)
-      setJavTagPickerSelected([])
-    }
-  }
-
   const handleTagPickerClose = () => {
     setTagPickerFor(null)
     setTagPickerSelected([])
   }
 
-  const handleJavTagPickerClose = () => {
-    setJavTagPickerItem(null)
-    setJavTagPickerSelected([])
-  }
-
   const handleTagPickerToggle = (tagId, checked) => {
     setTagPickerSelected((prev) => {
-      const set = new Set(prev)
-      if (checked) set.add(String(tagId))
-      else set.delete(String(tagId))
-      return Array.from(set)
-    })
-  }
-
-  const handleJavTagPickerToggle = (tagId, checked) => {
-    setJavTagPickerSelected((prev) => {
       const set = new Set(prev)
       if (checked) set.add(String(tagId))
       else set.delete(String(tagId))
@@ -2573,7 +2476,6 @@ export default function App() {
               onStudioClick: handleSelectStudio,
               onSeriesClick: handleSelectSeries,
               onTagClick: handleJavTagClick,
-              onEditTags: openJavTagEditor,
               waterfallMode: waterfallModes.jav,
               onWaterfallModeChange: (enabled) => setWaterfallMode('jav', enabled),
               onLoadMore: loadMoreJavs,
@@ -2782,15 +2684,6 @@ export default function App() {
         onClose={handleTagPickerClose}
         onSave={handleApplyTags}
         saveDisabled={!tagPickerDirty}
-      />
-      <TagPickerModal
-        open={Boolean(javTagPickerItem)}
-        tags={javUserTagOptions}
-        selectedIds={javTagPickerSelected}
-        onToggleChoice={handleJavTagPickerToggle}
-        onClose={handleJavTagPickerClose}
-        onSave={handleApplyJavTags}
-        saveDisabled={!javTagPickerDirty}
       />
 
       <VideoTagModal

@@ -114,6 +114,27 @@ func TestListJavIdolsOnlyIncludesIdolsWithVisibleSoloWorks(t *testing.T) {
 	}
 }
 
+func TestListJavIdolOptionsIncludesIdolsWithoutWorks(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	idols := []models.JavIdol{
+		{Name: "Has Work Idol"},
+		{Name: "No Work Idol"},
+		{Name: "English Idol", IsEnglish: true},
+	}
+	if err := db.Create(&idols).Error; err != nil {
+		t.Fatalf("create idols: %v", err)
+	}
+
+	items, total, err := ListJavIdolOptions(ctx, "", 20, 0)
+	if err != nil {
+		t.Fatalf("ListJavIdolOptions: %v", err)
+	}
+
+	assertJavIdolSummaries(t, items, total, []string{"Has Work Idol", "No Work Idol"})
+}
+
 func TestDeleteJavIdolFavoriteGroupCascadesMapsOnNewConnection(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
@@ -251,6 +272,175 @@ func TestSearchJavFiltersByIdolIDs(t *testing.T) {
 	}
 	if items[0].Code != "IDA-001" {
 		t.Fatalf("unexpected jav code: got %q want IDA-001", items[0].Code)
+	}
+}
+
+func TestUpdateJavReplacesEditableMetadata(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+
+	dir := models.Directory{Path: "/tmp/media"}
+	if err := db.Create(&dir).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+
+	oldStudio := models.JavStudio{Name: "Old Studio"}
+	newStudio := models.JavStudio{Name: "New Studio"}
+	oldSeries := models.JavSeries{Name: "Old Series"}
+	newSeries := models.JavSeries{Name: "New Series"}
+	oldIdol := models.JavIdol{Name: "Old Idol"}
+	newIdolA := models.JavIdol{Name: "New Idol A"}
+	newIdolB := models.JavIdol{Name: "New Idol B"}
+	userTagA := models.JavTag{Name: "User A", IsUser: true}
+	userTagB := models.JavTag{Name: "User B", IsUser: true}
+	scrapedTag := models.JavTag{Name: "Scraped", IsUser: false}
+	if err := db.Create(&[]models.JavStudio{oldStudio, newStudio}).Error; err != nil {
+		t.Fatalf("create studios: %v", err)
+	}
+	if err := db.Create(&[]models.JavSeries{oldSeries, newSeries}).Error; err != nil {
+		t.Fatalf("create series: %v", err)
+	}
+	if err := db.Create(&[]models.JavIdol{oldIdol, newIdolA, newIdolB}).Error; err != nil {
+		t.Fatalf("create idols: %v", err)
+	}
+	var studios []models.JavStudio
+	if err := db.Order("name").Find(&studios).Error; err != nil {
+		t.Fatalf("load studios: %v", err)
+	}
+	studioByName := map[string]models.JavStudio{}
+	for _, studio := range studios {
+		studioByName[studio.Name] = studio
+	}
+	var seriesRows []models.JavSeries
+	if err := db.Order("name").Find(&seriesRows).Error; err != nil {
+		t.Fatalf("load series: %v", err)
+	}
+	seriesByName := map[string]models.JavSeries{}
+	for _, row := range seriesRows {
+		seriesByName[row.Name] = row
+	}
+	var idols []models.JavIdol
+	if err := db.Order("name").Find(&idols).Error; err != nil {
+		t.Fatalf("load idols: %v", err)
+	}
+	idolByName := map[string]models.JavIdol{}
+	for _, idol := range idols {
+		idolByName[idol.Name] = idol
+	}
+	if err := db.Create(&[]models.JavTag{userTagA, userTagB, scrapedTag}).Error; err != nil {
+		t.Fatalf("create tags: %v", err)
+	}
+	var tags []models.JavTag
+	if err := db.Order("name").Find(&tags).Error; err != nil {
+		t.Fatalf("load tags: %v", err)
+	}
+	tagByName := map[string]models.JavTag{}
+	for _, tag := range tags {
+		tagByName[tag.Name] = tag
+	}
+
+	oldStudioID := studioByName["Old Studio"].ID
+	oldSeriesID := seriesByName["Old Series"].ID
+	javRec := models.Jav{
+		Code:        "EDIT-001",
+		Title:       "Editable",
+		StudioID:    &oldStudioID,
+		SeriesID:    &oldSeriesID,
+		ReleaseUnix: now.Unix(),
+		DurationMin: 90,
+		FetchedAt:   now,
+	}
+	if err := db.Create(&javRec).Error; err != nil {
+		t.Fatalf("create jav: %v", err)
+	}
+	video := models.Video{
+		DirectoryID: dir.ID,
+		Path:        "editable.mp4",
+		Filename:    "editable.mp4",
+		Fingerprint: "fp-editable",
+		JavID:       int64Ptr(javRec.ID),
+		ModifiedAt:  now,
+	}
+	if err := db.Create(&video).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	createVideoLocationsForVideos(t, db, video)
+	if err := db.Create(&models.JavIdolMap{JavID: javRec.ID, JavIdolID: idolByName["Old Idol"].ID}).Error; err != nil {
+		t.Fatalf("create idol map: %v", err)
+	}
+	if err := db.Create(&[]models.JavTagMap{
+		{JavID: javRec.ID, JavTagID: tagByName["User A"].ID, Provider: int(jav.ProviderUser), CreatedAt: now},
+		{JavID: javRec.ID, JavTagID: tagByName["Scraped"].ID, Provider: int(jav.ProviderJavDB), CreatedAt: now},
+	}).Error; err != nil {
+		t.Fatalf("create tag maps: %v", err)
+	}
+
+	studioID := studioByName["New Studio"].ID
+	seriesID := seriesByName["New Series"].ID
+	idolIDs := []int64{idolByName["New Idol A"].ID, idolByName["New Idol B"].ID}
+	tagIDs := []int64{tagByName["User B"].ID}
+	releaseUnix := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC).Unix()
+	durationMin := 123
+	updated, err := UpdateJav(ctx, javRec.ID, JavUpdateInput{
+		StudioID:    &studioID,
+		SeriesID:    &seriesID,
+		IdolIDs:     &idolIDs,
+		UserTagIDs:  &tagIDs,
+		ReleaseUnix: &releaseUnix,
+		DurationMin: &durationMin,
+	}, nil)
+	if err != nil {
+		t.Fatalf("UpdateJav: %v", err)
+	}
+
+	if updated.Studio == nil || updated.Studio.ID != studioID {
+		t.Fatalf("updated studio = %#v, want id %d", updated.Studio, studioID)
+	}
+	if updated.Series == nil || updated.Series.ID != seriesID {
+		t.Fatalf("updated series = %#v, want id %d", updated.Series, seriesID)
+	}
+	if updated.ReleaseUnix != releaseUnix {
+		t.Fatalf("release unix = %d, want %d", updated.ReleaseUnix, releaseUnix)
+	}
+	if updated.DurationMin != durationMin {
+		t.Fatalf("duration = %d, want %d", updated.DurationMin, durationMin)
+	}
+	updatedIdolNames := map[string]bool{}
+	for _, idol := range updated.Idols {
+		updatedIdolNames[idol.Name] = true
+	}
+	if len(updatedIdolNames) != 2 || !updatedIdolNames["New Idol A"] || !updatedIdolNames["New Idol B"] {
+		t.Fatalf("updated idols = %#v", updated.Idols)
+	}
+
+	var oldIdolMapCount int64
+	if err := db.Model(&models.JavIdolMap{}).
+		Where("jav_id = ? AND jav_idol_id = ?", javRec.ID, idolByName["Old Idol"].ID).
+		Count(&oldIdolMapCount).Error; err != nil {
+		t.Fatalf("count old idol map: %v", err)
+	}
+	if oldIdolMapCount != 0 {
+		t.Fatalf("old idol map remains: %d", oldIdolMapCount)
+	}
+
+	var userAMapCount int64
+	if err := db.Model(&models.JavTagMap{}).
+		Where("jav_id = ? AND jav_tag_id = ? AND provider = ?", javRec.ID, tagByName["User A"].ID, int(jav.ProviderUser)).
+		Count(&userAMapCount).Error; err != nil {
+		t.Fatalf("count old user tag map: %v", err)
+	}
+	if userAMapCount != 0 {
+		t.Fatalf("old user tag map remains: %d", userAMapCount)
+	}
+	var scrapedMapCount int64
+	if err := db.Model(&models.JavTagMap{}).
+		Where("jav_id = ? AND jav_tag_id = ? AND provider = ?", javRec.ID, tagByName["Scraped"].ID, int(jav.ProviderJavDB)).
+		Count(&scrapedMapCount).Error; err != nil {
+		t.Fatalf("count scraped tag map: %v", err)
+	}
+	if scrapedMapCount != 1 {
+		t.Fatalf("scraped tag map count = %d, want 1", scrapedMapCount)
 	}
 }
 

@@ -211,7 +211,6 @@ function JavListRoute({
   javTempSort,
   javTitleMaxRows,
   loadingMore,
-  onEditTags,
   onIdolClick,
   onLoadMore,
   onOpenFavorites,
@@ -255,7 +254,6 @@ function JavListRoute({
       onStudioClick={onStudioClick}
       onSeriesClick={onSeriesClick}
       onTagClick={onTagClick}
-      onEditTags={onEditTags}
       waterfallMode={waterfallMode}
       onWaterfallModeChange={onWaterfallModeChange}
       onLoadMore={onLoadMore}

@@ -49,6 +49,24 @@ func listJavIdols(c *gin.Context) {
 	})
 }
 
+func listJavIdolOptions(c *gin.Context) {
+	limit := queryInt(c, "limit", 100)
+	offset := queryInt(c, "offset", 0)
+	search := strings.TrimSpace(c.Query("search"))
+
+	items, total, err := dbpkg.ListJavIdolOptions(c.Request.Context(), search, limit, offset)
+	if err != nil {
+		logging.Error("list jav idol options: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"items": items,
+		"total": total,
+	})
+}
+
 func listJavIdolFavoriteGroups(c *gin.Context) {
 	groups, err := dbpkg.ListJavIdolFavoriteGroups(c.Request.Context(), parseDirectoryIDs(c.Query("directory_ids")))
 	if err != nil {

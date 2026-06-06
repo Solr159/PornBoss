@@ -34,6 +34,16 @@ type JavScanVideo struct {
 	DurationSec int64     `gorm:"column:duration_sec"`
 }
 
+// JavUpdateInput contains user-editable JAV metadata fields.
+type JavUpdateInput struct {
+	StudioID    *int64
+	SeriesID    *int64
+	IdolIDs     *[]int64
+	UserTagIDs  *[]int64
+	ReleaseUnix *int64
+	DurationMin *int
+}
+
 // JavMetadataScanItem contains a JAV row that needs studio or series metadata.
 type JavMetadataScanItem struct {
 	ID         int64  `gorm:"column:id"`
@@ -42,6 +52,35 @@ type JavMetadataScanItem struct {
 	StudioID   *int64 `gorm:"column:studio_id"`
 	SeriesID   *int64 `gorm:"column:series_id"`
 	SeriesEnID *int64 `gorm:"column:series_en_id"`
+}
+
+// GetJav returns one JAV record with display-language associations and visible files/tags.
+func GetJav(ctx context.Context, javID int64, directoryIDs []int64) (*models.Jav, error) {
+	if javID <= 0 {
+		return nil, errors.New("jav id must be positive")
+	}
+
+	var item models.Jav
+	query := common.DB.WithContext(ctx).
+		Preload("Studio").
+		Preload("Idols", "COALESCE(is_english, 0) = ?", jav.CurrentMetadataLanguageIsEnglish()).
+		Where("id = ?", javID)
+	if jav.CurrentMetadataLanguageIsEnglish() {
+		query = query.Preload("SeriesEn")
+	} else {
+		query = query.Preload("Series")
+	}
+	if err := query.First(&item).Error; err != nil {
+		return nil, fmt.Errorf("get jav: %w", err)
+	}
+	items := []models.Jav{item}
+	if err := attachJavLocationVideos(ctx, items, directoryIDs); err != nil {
+		return nil, err
+	}
+	if err := attachVisibleJavTags(ctx, items); err != nil {
+		return nil, err
+	}
+	return &items[0], nil
 }
 
 // SearchJav lists Jav metadata filtered by idol IDs/tag IDs/search with pagination and sorting.
@@ -226,6 +265,86 @@ func attachJavLocationVideos(ctx context.Context, items []models.Jav, directoryI
 		items[i].Videos = byJavID[items[i].ID]
 	}
 	return nil
+}
+
+// UpdateJav applies user edits to one JAV record in the current metadata language.
+func UpdateJav(ctx context.Context, javID int64, input JavUpdateInput, directoryIDs []int64) (*models.Jav, error) {
+	if javID <= 0 {
+		return nil, errors.New("jav id must be positive")
+	}
+	isEnglish := jav.CurrentMetadataLanguageIsEnglish()
+	err := common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var javRec models.Jav
+		if err := tx.Select("id", "studio_id").Where("id = ?", javID).First(&javRec).Error; err != nil {
+			return fmt.Errorf("find jav: %w", err)
+		}
+
+		updates := map[string]any{}
+		if input.ReleaseUnix != nil {
+			releaseUnix := *input.ReleaseUnix
+			if releaseUnix < 0 {
+				releaseUnix = 0
+			}
+			updates["release_unix"] = releaseUnix
+		}
+		if input.DurationMin != nil {
+			durationMin := *input.DurationMin
+			if durationMin < 0 {
+				durationMin = 0
+			}
+			updates["duration_min"] = durationMin
+		}
+		if input.StudioID != nil {
+			studioID := *input.StudioID
+			if studioID <= 0 {
+				updates["studio_id"] = nil
+				javRec.StudioID = nil
+			} else {
+				var studio models.JavStudio
+				if err := tx.Select("id").Where("id = ?", studioID).First(&studio).Error; err != nil {
+					return fmt.Errorf("find jav studio: %w", err)
+				}
+				updates["studio_id"] = studio.ID
+				javRec.StudioID = &studio.ID
+			}
+		}
+		if input.SeriesID != nil {
+			seriesID := *input.SeriesID
+			column := "series_id"
+			if isEnglish {
+				column = "series_en_id"
+			}
+			if seriesID <= 0 {
+				updates[column] = nil
+			} else {
+				var series models.JavSeries
+				if err := tx.Select("id").Where("id = ? AND COALESCE(is_english, 0) = ?", seriesID, isEnglish).First(&series).Error; err != nil {
+					return fmt.Errorf("find jav series: %w", err)
+				}
+				updates[column] = series.ID
+			}
+		}
+		if len(updates) > 0 {
+			if err := tx.Model(&models.Jav{}).Where("id = ?", javID).Updates(updates).Error; err != nil {
+				return fmt.Errorf("update jav metadata: %w", err)
+			}
+		}
+		if input.IdolIDs != nil {
+			if err := replaceJavIdolsForLanguageTx(tx, javID, *input.IdolIDs, isEnglish); err != nil {
+				return err
+			}
+		}
+		if input.UserTagIDs != nil {
+			if err := replaceJavUserTagsTx(tx, []int64{javID}, *input.UserTagIDs); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return GetJav(ctx, javID, directoryIDs)
 }
 
 // ListJavTags returns JAV tags with the number of works for each tag.
@@ -463,6 +582,12 @@ func RemoveJavTagFromJavs(ctx context.Context, tagID int64, javIDs []int64) erro
 
 // ReplaceJavUserTags replaces user-defined tags for the given JAV entries.
 func ReplaceJavUserTags(ctx context.Context, javIDs, tagIDs []int64) error {
+	return common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return replaceJavUserTagsTx(tx, javIDs, tagIDs)
+	})
+}
+
+func replaceJavUserTagsTx(tx *gorm.DB, javIDs, tagIDs []int64) error {
 	cleanJavIDs := uniqueInt64s(javIDs)
 	if len(cleanJavIDs) == 0 {
 		return nil
@@ -471,7 +596,7 @@ func ReplaceJavUserTags(ctx context.Context, javIDs, tagIDs []int64) error {
 
 	if len(cleanTagIDs) > 0 {
 		var count int64
-		if err := common.DB.WithContext(ctx).
+		if err := tx.
 			Model(&models.JavTag{}).
 			Where("id IN ?", cleanTagIDs).
 			Where("is_user = ?", true).
@@ -483,27 +608,25 @@ func ReplaceJavUserTags(ctx context.Context, javIDs, tagIDs []int64) error {
 		}
 	}
 
-	return common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.
-			Where("jav_id IN ? AND provider = ?", cleanJavIDs, int(jav.ProviderUser)).
-			Delete(&models.JavTagMap{}).Error; err != nil {
-			return fmt.Errorf("delete jav tag map: %w", err)
-		}
-		if len(cleanTagIDs) == 0 {
-			return nil
-		}
-		now := time.Now()
-		rows := make([]models.JavTagMap, 0, len(cleanJavIDs)*len(cleanTagIDs))
-		for _, javID := range cleanJavIDs {
-			for _, tagID := range cleanTagIDs {
-				rows = append(rows, models.JavTagMap{JavID: javID, JavTagID: tagID, Provider: int(jav.ProviderUser), CreatedAt: now})
-			}
-		}
-		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&rows).Error; err != nil {
-			return fmt.Errorf("insert jav tag map: %w", err)
-		}
+	if err := tx.
+		Where("jav_id IN ? AND provider = ?", cleanJavIDs, int(jav.ProviderUser)).
+		Delete(&models.JavTagMap{}).Error; err != nil {
+		return fmt.Errorf("delete jav tag map: %w", err)
+	}
+	if len(cleanTagIDs) == 0 {
 		return nil
-	})
+	}
+	now := time.Now()
+	rows := make([]models.JavTagMap, 0, len(cleanJavIDs)*len(cleanTagIDs))
+	for _, javID := range cleanJavIDs {
+		for _, tagID := range cleanTagIDs {
+			rows = append(rows, models.JavTagMap{JavID: javID, JavTagID: tagID, Provider: int(jav.ProviderUser), CreatedAt: now})
+		}
+	}
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&rows).Error; err != nil {
+		return fmt.Errorf("insert jav tag map: %w", err)
+	}
+	return nil
 }
 
 func buildJavFilter(ctx context.Context, idolIDs []int64, tagIDs []int64, search string, directoryIDs []int64, studioID, seriesID int64) *gorm.DB {
@@ -943,6 +1066,38 @@ func ResolveJavIdols(ctx context.Context, ids []int64) ([]JavIdolSummary, error)
 		return nil, fmt.Errorf("resolve jav idols: %w", err)
 	}
 	return items, nil
+}
+
+// ListJavIdolOptions returns all idols in the active metadata language for edit selectors.
+func ListJavIdolOptions(ctx context.Context, search string, limit, offset int) ([]JavIdolSummary, int64, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	base := common.DB.WithContext(ctx).
+		Table("jav_idol ji").
+		Where("COALESCE(ji.is_english, 0) = ?", jav.CurrentMetadataLanguageIsEnglish())
+	base = applyJavIdolSearch(base, search)
+
+	var total int64
+	if err := base.Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("count jav idol options: %w", err)
+	}
+
+	var items []JavIdolSummary
+	if err := base.
+		Select("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, COALESCE(ji.cover_crop_left, 0.53) AS cover_crop_left").
+		Order("ji.name ASC, ji.id ASC").
+		Limit(limit).
+		Offset(offset).
+		Scan(&items).Error; err != nil {
+		return nil, 0, fmt.Errorf("list jav idol options: %w", err)
+	}
+
+	return items, total, nil
 }
 
 // ListJavIdols returns idols ordered by selected sort with pagination.
@@ -1941,6 +2096,53 @@ func ensureJavIdolsTx(tx *gorm.DB, names []string, isEnglish bool) ([]models.Jav
 		idols = append(idols, idol)
 	}
 	return idols, nil
+}
+
+func replaceJavIdolsForLanguageTx(tx *gorm.DB, javID int64, idolIDs []int64, isEnglish bool) error {
+	if javID <= 0 {
+		return errors.New("jav id cannot be zero")
+	}
+	cleanIDs := uniqueInt64s(idolIDs)
+	idolIDsForLanguage := tx.
+		Model(&models.JavIdol{}).
+		Select("id").
+		Where("COALESCE(is_english, 0) = ?", isEnglish)
+	if err := tx.
+		Where("jav_id = ? AND jav_idol_id IN (?)", javID, idolIDsForLanguage).
+		Delete(&models.JavIdolMap{}).Error; err != nil {
+		return fmt.Errorf("delete jav idol maps: %w", err)
+	}
+
+	if len(cleanIDs) == 0 {
+		return nil
+	}
+	var count int64
+	if err := tx.Model(&models.JavIdol{}).
+		Where("id IN ?", cleanIDs).
+		Where("COALESCE(is_english, 0) = ?", isEnglish).
+		Count(&count).Error; err != nil {
+		return fmt.Errorf("find jav idols: %w", err)
+	}
+	if count != int64(len(cleanIDs)) {
+		return errors.New("invalid idol_id")
+	}
+
+	now := time.Now()
+	rows := make([]models.JavIdolMap, 0, len(cleanIDs))
+	for _, idolID := range cleanIDs {
+		rows = append(rows, models.JavIdolMap{
+			JavID:     javID,
+			JavIdolID: idolID,
+			CreatedAt: now,
+		})
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&rows).Error; err != nil {
+		return fmt.Errorf("insert jav idol maps: %w", err)
+	}
+	return nil
 }
 
 func setVideoLocationJavIDTx(tx *gorm.DB, locationID, expectedVideoID, javID int64, expectedUpdatedAt time.Time) error {
