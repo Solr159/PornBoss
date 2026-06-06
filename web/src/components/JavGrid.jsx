@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { IconButton, Popper, Tooltip } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined'
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
+import { MovieEdit } from '@mui/icons-material'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import MovieCreationIcon from '@mui/icons-material/MovieCreation'
@@ -2090,7 +2090,7 @@ function JavCard({
                 aria-label={zh('编辑 JAV', 'Edit JAV')}
                 className="h-6 w-6"
               >
-                <EditOutlinedIcon fontSize="inherit" />
+                <MovieEdit fontSize="inherit" />
               </IconButton>
             </Tooltip>
           </div>
