@@ -84,6 +84,7 @@ export default function App() {
   const scrollSaveFrameRef = useRef(null)
   const scrollRestoreFrameRef = useRef(null)
   const scrollRestoreTimerRef = useRef(null)
+  const preNavigationScrollSaveUrlRef = useRef(null)
   const pendingVideoTagIdsRef = useRef(null)
   const {
     page,
@@ -278,6 +279,15 @@ export default function App() {
       window.location.pathname + window.location.search
     )
   }, [normalizeHistoryScrollPosition, readWindowScrollPosition])
+
+  const saveScrollBeforeUrlStateChange = useCallback(() => {
+    if (scrollSaveFrameRef.current) {
+      window.cancelAnimationFrame(scrollSaveFrameRef.current)
+      scrollSaveFrameRef.current = null
+    }
+    saveCurrentScrollPosition()
+    preNavigationScrollSaveUrlRef.current = window.location.pathname + window.location.search
+  }, [saveCurrentScrollPosition])
 
   const ensureBrowserHistoryState = useCallback(() => {
     const currentState = window.history.state || {}
@@ -738,10 +748,11 @@ export default function App() {
   const handleVideoTagClick = useCallback(
     (name) => {
       if (!name) return
+      saveScrollBeforeUrlStateChange()
       setSearchTerm('', { resetPage: false, triggerLoad: false })
       setSelectedTags([name])
     },
-    [setSearchTerm, setSelectedTags]
+    [saveScrollBeforeUrlStateChange, setSearchTerm, setSelectedTags]
   )
 
   const handleJavPlay = useCallback(
@@ -1055,35 +1066,39 @@ export default function App() {
     ]
   )
 
-  const applyJavTagFilter = useCallback((tagIds) => {
-    const clean = Array.from(
-      new Set(
-        (tagIds || [])
-          .map((id) => Number.parseInt(String(id), 10))
-          .filter((value) => Number.isFinite(value) && value > 0)
+  const applyJavTagFilter = useCallback(
+    (tagIds) => {
+      const clean = Array.from(
+        new Set(
+          (tagIds || [])
+            .map((id) => Number.parseInt(String(id), 10))
+            .filter((value) => Number.isFinite(value) && value > 0)
+        )
       )
-    )
-    useStore.setState({
-      viewMode: 'jav',
-      videoTempSort: '',
-      javTab: 'list',
-      javTempSort: '',
-      javRandomMode: false,
-      javRandomSeed: null,
-      javIdolIds: [],
-      javStudioId: null,
-      javStudioName: '',
-      javSeriesId: null,
-      javSeriesName: '',
-      idolFavoriteGroupId: null,
-      javTags: clean,
-      javSearchTerm: '',
-      javPage: 1,
-      idolPage: 1,
-      studioPage: 1,
-      seriesPage: 1,
-    })
-  }, [])
+      saveScrollBeforeUrlStateChange()
+      useStore.setState({
+        viewMode: 'jav',
+        videoTempSort: '',
+        javTab: 'list',
+        javTempSort: '',
+        javRandomMode: false,
+        javRandomSeed: null,
+        javIdolIds: [],
+        javStudioId: null,
+        javStudioName: '',
+        javSeriesId: null,
+        javSeriesName: '',
+        idolFavoriteGroupId: null,
+        javTags: clean,
+        javSearchTerm: '',
+        javPage: 1,
+        idolPage: 1,
+        studioPage: 1,
+        seriesPage: 1,
+      })
+    },
+    [saveScrollBeforeUrlStateChange]
+  )
 
   const applyUrlState = useCallback(
     (parsed, { fromPopstate = false } = {}) => {
@@ -1395,18 +1410,24 @@ export default function App() {
     const nextUrl = buildUrlFromState(currentUrlState)
     const currentUrl = window.location.pathname + window.location.search
     if (nextUrl === currentUrl) {
+      preNavigationScrollSaveUrlRef.current = null
       lastUrlRef.current = nextUrl
       isPoppingRef.current = false
       return
     }
     if (isPoppingRef.current) {
+      preNavigationScrollSaveUrlRef.current = null
       lastUrlRef.current = nextUrl
       isPoppingRef.current = false
       return
     }
     pendingScrollRestoreRef.current = null
     cancelScheduledScrollRestore()
-    saveCurrentScrollPosition()
+    if (preNavigationScrollSaveUrlRef.current === currentUrl) {
+      preNavigationScrollSaveUrlRef.current = null
+    } else {
+      saveCurrentScrollPosition()
+    }
     const nextIndex = browserHistoryIndexRef.current + 1
     const nextScroll = readWindowScrollPosition()
     window.history.pushState(
@@ -1436,9 +1457,10 @@ export default function App() {
   const navigateVideoPage = useCallback(
     (targetPage) => {
       if (!targetPage || targetPage === page) return
+      saveScrollBeforeUrlStateChange()
       setPage(targetPage)
     },
-    [page, setPage]
+    [page, saveScrollBeforeUrlStateChange, setPage]
   )
   const selectedCount = useMemo(() => selectedVideoIds.size, [selectedVideoIds])
   const selectedList = useMemo(() => {
@@ -2184,6 +2206,7 @@ export default function App() {
   const handleSwitchToJav = () => {
     const targetTab =
       javTab === 'idol' || javTab === 'studio' || javTab === 'series' ? javTab : 'list'
+    saveScrollBeforeUrlStateChange()
     useStore.setState({ viewMode: 'jav', videoTempSort: '', javTab: targetTab, javTempSort: '' })
     forceReloadJavByTab(targetTab)
   }
@@ -2216,12 +2239,14 @@ export default function App() {
       updates.javSearchTerm = ''
       setJavSearchInput('')
     }
+    saveScrollBeforeUrlStateChange()
     useStore.setState(updates)
     forceReloadJavByTab(nextTab)
   }
 
   const handleToggleMode = () => {
     if (isJavMode) {
+      saveScrollBeforeUrlStateChange()
       setViewMode('video')
       forceReloadVideos()
     } else {
@@ -2232,6 +2257,7 @@ export default function App() {
   const handleSelectIdol = (idol) => {
     const id = Number(idol?.id)
     if (!Number.isFinite(id) || id <= 0) return
+    saveScrollBeforeUrlStateChange()
     useStore.setState({
       viewMode: 'jav',
       videoTempSort: '',
@@ -2402,34 +2428,39 @@ export default function App() {
     [idolFavoriteGroupId, isJavMode, javTab, loadJavIdolFavoriteGroups, loadJavIdols]
   )
 
-  const handleJavIdolClick = useCallback((idol) => {
-    const id = Number(idol?.id ?? idol)
-    if (!Number.isFinite(id) || id <= 0) return
-    useStore.setState({
-      viewMode: 'jav',
-      videoTempSort: '',
-      javTab: 'list',
-      javTempSort: '',
-      javRandomMode: false,
-      javRandomSeed: null,
-      javIdolIds: [id],
-      javTags: [],
-      javStudioId: null,
-      javStudioName: '',
-      javSeriesId: null,
-      javSeriesName: '',
-      idolFavoriteGroupId: null,
-      javSearchTerm: '',
-      javPage: 1,
-      idolPage: 1,
-      studioPage: 1,
-      seriesPage: 1,
-    })
-  }, [])
+  const handleJavIdolClick = useCallback(
+    (idol) => {
+      const id = Number(idol?.id ?? idol)
+      if (!Number.isFinite(id) || id <= 0) return
+      saveScrollBeforeUrlStateChange()
+      useStore.setState({
+        viewMode: 'jav',
+        videoTempSort: '',
+        javTab: 'list',
+        javTempSort: '',
+        javRandomMode: false,
+        javRandomSeed: null,
+        javIdolIds: [id],
+        javTags: [],
+        javStudioId: null,
+        javStudioName: '',
+        javSeriesId: null,
+        javSeriesName: '',
+        idolFavoriteGroupId: null,
+        javSearchTerm: '',
+        javPage: 1,
+        idolPage: 1,
+        studioPage: 1,
+        seriesPage: 1,
+      })
+    },
+    [saveScrollBeforeUrlStateChange]
+  )
 
   const handleSelectStudio = (studio) => {
     const id = Number(studio?.id)
     if (!Number.isFinite(id) || id <= 0) return
+    saveScrollBeforeUrlStateChange()
     useStore.setState({
       viewMode: 'jav',
       videoTempSort: '',
@@ -2455,6 +2486,7 @@ export default function App() {
   const handleSelectSeries = (series) => {
     const id = Number(series?.id)
     if (!Number.isFinite(id) || id <= 0) return
+    saveScrollBeforeUrlStateChange()
     useStore.setState({
       viewMode: 'jav',
       videoTempSort: '',
@@ -2492,47 +2524,55 @@ export default function App() {
     loadJavTags()
   }, [loadJavTags])
 
-  const handleApplyJavQuery = useCallback((query) => {
-    const nextSearch = String(query?.search || '').trim()
-    const nextIdolIds = Array.from(
-      new Set(
-        (query?.idolIds || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+  const handleApplyJavQuery = useCallback(
+    (query) => {
+      const nextSearch = String(query?.search || '').trim()
+      const nextIdolIds = Array.from(
+        new Set(
+          (query?.idolIds || [])
+            .map((id) => Number(id))
+            .filter((id) => Number.isFinite(id) && id > 0)
+        )
       )
-    )
-    const nextTags = Array.from(
-      new Set(
-        (query?.tagIds || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+      const nextTags = Array.from(
+        new Set(
+          (query?.tagIds || [])
+            .map((id) => Number(id))
+            .filter((id) => Number.isFinite(id) && id > 0)
+        )
       )
-    )
-    const nextStudioId = Number(query?.studio?.id)
-    const hasStudio = Number.isFinite(nextStudioId) && nextStudioId > 0
-    const nextStudioName = hasStudio ? String(query?.studio?.name || '').trim() : ''
-    const nextSeriesId = Number(query?.series?.id)
-    const hasSeries = Number.isFinite(nextSeriesId) && nextSeriesId > 0
-    const nextSeriesName = hasSeries ? String(query?.series?.name || '').trim() : ''
-    useStore.setState({
-      viewMode: 'jav',
-      videoTempSort: '',
-      javTab: 'list',
-      javTempSort: '',
-      javRandomMode: false,
-      javRandomSeed: null,
-      javSearchTerm: nextSearch,
-      javIdolIds: nextIdolIds,
-      javTags: nextTags,
-      javStudioId: hasStudio ? nextStudioId : null,
-      javStudioName: nextStudioName,
-      javSeriesId: hasSeries ? nextSeriesId : null,
-      javSeriesName: nextSeriesName,
-      idolFavoriteGroupId: null,
-      javPage: 1,
-      idolPage: 1,
-      studioPage: 1,
-      seriesPage: 1,
-    })
-    setJavSearchInput(nextSearch)
-    setJavQueryEditorOpen(false)
-  }, [])
+      const nextStudioId = Number(query?.studio?.id)
+      const hasStudio = Number.isFinite(nextStudioId) && nextStudioId > 0
+      const nextStudioName = hasStudio ? String(query?.studio?.name || '').trim() : ''
+      const nextSeriesId = Number(query?.series?.id)
+      const hasSeries = Number.isFinite(nextSeriesId) && nextSeriesId > 0
+      const nextSeriesName = hasSeries ? String(query?.series?.name || '').trim() : ''
+      saveScrollBeforeUrlStateChange()
+      useStore.setState({
+        viewMode: 'jav',
+        videoTempSort: '',
+        javTab: 'list',
+        javTempSort: '',
+        javRandomMode: false,
+        javRandomSeed: null,
+        javSearchTerm: nextSearch,
+        javIdolIds: nextIdolIds,
+        javTags: nextTags,
+        javStudioId: hasStudio ? nextStudioId : null,
+        javStudioName: nextStudioName,
+        javSeriesId: hasSeries ? nextSeriesId : null,
+        javSeriesName: nextSeriesName,
+        idolFavoriteGroupId: null,
+        javPage: 1,
+        idolPage: 1,
+        studioPage: 1,
+        seriesPage: 1,
+      })
+      setJavSearchInput(nextSearch)
+      setJavQueryEditorOpen(false)
+    },
+    [saveScrollBeforeUrlStateChange]
+  )
 
   const handleToggleSelectPage = useCallback(() => {
     if (!Array.isArray(videos) || videos.length === 0) return
