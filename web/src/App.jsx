@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import {
   buildUrlFromState,
   generateRandomSeed,
@@ -74,9 +75,34 @@ const normalizeInitialViewMode = (value) =>
     ? 'jav'
     : 'video'
 
+const getHistoryUserState = (state) =>
+  state?.usr && typeof state.usr === 'object' ? state.usr : {}
+
+const getHistoryAppStateValue = (state, key) => {
+  const userState = getHistoryUserState(state)
+  return state?.[key] ?? userState?.[key]
+}
+
+const withHistoryAppState = (state, entries) => ({
+  ...(state || {}),
+  ...entries,
+  usr: {
+    ...getHistoryUserState(state),
+    ...entries,
+  },
+})
+
 export default function App() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const navigationType = useNavigationType()
+  const currentRoute = useMemo(
+    () => `${location.pathname}${location.search}`,
+    [location.pathname, location.search]
+  )
   const isPoppingRef = useRef(false)
-  const lastUrlRef = useRef(window.location.pathname + window.location.search)
+  const lastUrlRef = useRef(currentRoute)
+  const routeInitializedRef = useRef(false)
   const browserInitialCanGoBackRef = useRef(window.history.length > 1)
   const browserHistoryIndexRef = useRef(0)
   const browserHistoryMaxRef = useRef(0)
@@ -247,7 +273,7 @@ export default function App() {
   }, [])
 
   const readBrowserHistoryIndex = useCallback((state = window.history.state) => {
-    const rawIndex = Number(state?.[HISTORY_INDEX_KEY])
+    const rawIndex = Number(getHistoryAppStateValue(state, HISTORY_INDEX_KEY))
     return Number.isFinite(rawIndex) && rawIndex >= 0 ? Math.floor(rawIndex) : 0
   }, [])
 
@@ -271,14 +297,16 @@ export default function App() {
   const saveCurrentScrollPosition = useCallback(() => {
     const currentState = window.history.state || {}
     const currentScroll = readWindowScrollPosition()
-    const previousScroll = normalizeHistoryScrollPosition(currentState[HISTORY_SCROLL_KEY])
+    const previousScroll = normalizeHistoryScrollPosition(
+      getHistoryAppStateValue(currentState, HISTORY_SCROLL_KEY)
+    )
     if (previousScroll.x === currentScroll.x && previousScroll.y === currentScroll.y) return
     window.history.replaceState(
-      { ...currentState, [HISTORY_SCROLL_KEY]: currentScroll },
+      withHistoryAppState(currentState, { [HISTORY_SCROLL_KEY]: currentScroll }),
       '',
-      window.location.pathname + window.location.search
+      currentRoute
     )
-  }, [normalizeHistoryScrollPosition, readWindowScrollPosition])
+  }, [currentRoute, normalizeHistoryScrollPosition, readWindowScrollPosition])
 
   const saveScrollBeforeUrlStateChange = useCallback(() => {
     if (scrollSaveFrameRef.current) {
@@ -286,30 +314,31 @@ export default function App() {
       scrollSaveFrameRef.current = null
     }
     saveCurrentScrollPosition()
-    preNavigationScrollSaveUrlRef.current = window.location.pathname + window.location.search
-  }, [saveCurrentScrollPosition])
+    preNavigationScrollSaveUrlRef.current = currentRoute
+  }, [currentRoute, saveCurrentScrollPosition])
 
   const ensureBrowserHistoryState = useCallback(() => {
     const currentState = window.history.state || {}
-    const hasIndex = Number.isFinite(Number(currentState[HISTORY_INDEX_KEY]))
-    const hasScroll =
-      currentState[HISTORY_SCROLL_KEY] && typeof currentState[HISTORY_SCROLL_KEY] === 'object'
+    const stateIndex = getHistoryAppStateValue(currentState, HISTORY_INDEX_KEY)
+    const stateScroll = getHistoryAppStateValue(currentState, HISTORY_SCROLL_KEY)
+    const hasIndex = Number.isFinite(Number(stateIndex))
+    const hasScroll = stateScroll && typeof stateScroll === 'object'
     const index = hasIndex ? readBrowserHistoryIndex(currentState) : browserHistoryIndexRef.current
     if (!hasIndex || !hasScroll) {
       window.history.replaceState(
-        {
-          ...currentState,
+        withHistoryAppState(currentState, {
           [HISTORY_INDEX_KEY]: index,
           [HISTORY_SCROLL_KEY]: hasScroll
-            ? normalizeHistoryScrollPosition(currentState[HISTORY_SCROLL_KEY])
+            ? normalizeHistoryScrollPosition(stateScroll)
             : readWindowScrollPosition(),
-        },
+        }),
         '',
-        window.location.pathname + window.location.search
+        currentRoute
       )
     }
     setBrowserNavigationFromIndex(index, Math.max(browserHistoryMaxRef.current, index))
   }, [
+    currentRoute,
     normalizeHistoryScrollPosition,
     readBrowserHistoryIndex,
     readWindowScrollPosition,
@@ -947,9 +976,9 @@ export default function App() {
         sp.set('page', String(targetPage))
       }
       const query = sp.toString()
-      return `${window.location.pathname}${query ? `?${query}` : ''}`
+      return `${location.pathname}${query ? `?${query}` : ''}`
     },
-    [page, randomMode, randomSeed, searchTerm, selectedTagIds, videoTempSort]
+    [location.pathname, page, randomMode, randomSeed, searchTerm, selectedTagIds, videoTempSort]
   )
 
   const buildJavUrl = useCallback(
@@ -1044,11 +1073,12 @@ export default function App() {
         sp.set('page', String(targetPage))
       }
       const query = sp.toString()
-      return `${window.location.pathname}${query ? `?${query}` : ''}`
+      return `${location.pathname}${query ? `?${query}` : ''}`
     },
     [
       idolPage,
       idolFavoriteGroupId,
+      location.pathname,
       studioPage,
       seriesPage,
       javIdolIds,
@@ -1101,9 +1131,9 @@ export default function App() {
   )
 
   const applyUrlState = useCallback(
-    (parsed, { fromPopstate = false } = {}) => {
+    (parsed, { fromPopstate = false, route = currentRoute } = {}) => {
       isPoppingRef.current = fromPopstate
-      lastUrlRef.current = window.location.pathname + window.location.search
+      lastUrlRef.current = route
       useStore.getState().setDirectoryFilterFromUrl(parsed.directoryIds)
       const mapTagIdsToNamesFromStore = (ids) => {
         if (!Array.isArray(ids) || ids.length === 0) return []
@@ -1163,40 +1193,42 @@ export default function App() {
       }
       setHydrated(true)
     },
-    [setJavSearchInput, setSearchInput]
+    [currentRoute, setJavSearchInput, setSearchInput]
   )
 
   useEffect(() => {
     if (!configLoaded) return
     ensureBrowserHistoryState()
-    const apply = (fromPopstate = false) => {
-      const parsed = parseUrlState(window.location.search, { defaultView: initialViewMode })
-      if (parsed.view === 'jav') {
-        useStore.setState({ viewMode: 'jav' })
-      } else {
-        useStore.setState({ viewMode: 'video' })
-      }
-      applyUrlState(parsed, { fromPopstate })
-    }
-    apply(false)
-    const onPop = (event) => {
-      const index = readBrowserHistoryIndex(event.state)
+    const fromRouterPop = routeInitializedRef.current && navigationType === 'POP'
+    if (fromRouterPop) {
+      const index = readBrowserHistoryIndex(location.state)
       const max = Math.max(browserHistoryMaxRef.current, index)
       pendingScrollRestoreRef.current = {
-        ...normalizeHistoryScrollPosition(event.state?.[HISTORY_SCROLL_KEY]),
+        ...normalizeHistoryScrollPosition(
+          getHistoryAppStateValue(location.state, HISTORY_SCROLL_KEY)
+        ),
         attempts: 0,
       }
       cancelScheduledScrollRestore()
       setBrowserNavigationFromIndex(index, max)
-      apply(true)
     }
-    window.addEventListener('popstate', onPop)
-    return () => window.removeEventListener('popstate', onPop)
+    const parsed = parseUrlState(location.search, { defaultView: initialViewMode })
+    if (parsed.view === 'jav') {
+      useStore.setState({ viewMode: 'jav' })
+    } else {
+      useStore.setState({ viewMode: 'video' })
+    }
+    applyUrlState(parsed, { fromPopstate: fromRouterPop, route: currentRoute })
+    routeInitializedRef.current = true
   }, [
     applyUrlState,
     cancelScheduledScrollRestore,
+    currentRoute,
     ensureBrowserHistoryState,
+    location.search,
+    location.state,
     normalizeHistoryScrollPosition,
+    navigationType,
     readBrowserHistoryIndex,
     setBrowserNavigationFromIndex,
     configLoaded,
@@ -1407,8 +1439,8 @@ export default function App() {
 
   useEffect(() => {
     if (!hydrated) return
-    const nextUrl = buildUrlFromState(currentUrlState)
-    const currentUrl = window.location.pathname + window.location.search
+    const nextUrl = buildUrlFromState(currentUrlState, location.pathname)
+    const currentUrl = currentRoute
     if (nextUrl === currentUrl) {
       preNavigationScrollSaveUrlRef.current = null
       lastUrlRef.current = nextUrl
@@ -1430,21 +1462,21 @@ export default function App() {
     }
     const nextIndex = browserHistoryIndexRef.current + 1
     const nextScroll = readWindowScrollPosition()
-    window.history.pushState(
-      {
-        ...(window.history.state || {}),
+    navigate(nextUrl, {
+      state: {
         [HISTORY_INDEX_KEY]: nextIndex,
         [HISTORY_SCROLL_KEY]: nextScroll,
       },
-      '',
-      nextUrl
-    )
+    })
     setBrowserNavigationFromIndex(nextIndex, nextIndex)
     lastUrlRef.current = nextUrl
   }, [
     cancelScheduledScrollRestore,
+    currentRoute,
     currentUrlState,
     hydrated,
+    location.pathname,
+    navigate,
     readWindowScrollPosition,
     saveCurrentScrollPosition,
     setBrowserNavigationFromIndex,
