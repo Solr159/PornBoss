@@ -707,8 +707,8 @@ function JavEditModal({ open, item, directoryIds, javMetadataLanguage, onClose, 
     }
     setSaving(true)
     setError('')
+    const trimmedCoverUrl = coverUrl.trim()
     try {
-      const trimmedCoverUrl = coverUrl.trim()
       const payload = {
         ...(trimmedCoverUrl ? { cover_url: trimmedCoverUrl } : {}),
         tag_ids: selectedTagIds.map((id) => Number(id)).filter(Boolean),
@@ -732,7 +732,10 @@ function JavEditModal({ open, item, directoryIds, javMetadataLanguage, onClose, 
       }
       onSaved?.(normalizedUpdated, Boolean(trimmedCoverUrl))
     } catch (err) {
-      setError(err?.message || zh('保存 JAV 信息失败', 'Failed to save JAV info'))
+      const message = err?.message || zh('保存 JAV 信息失败', 'Failed to save JAV info')
+      setError(
+        trimmedCoverUrl ? zh(`${message}。请重试。`, `${message}. Please try again.`) : message
+      )
     } finally {
       setSaving(false)
     }
