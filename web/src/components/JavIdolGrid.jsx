@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import PhotoCameraRoundedIcon from '@mui/icons-material/PhotoCameraRounded'
 import StarBorderRoundedIcon from '@mui/icons-material/StarBorderRounded'
 import StarRoundedIcon from '@mui/icons-material/StarRounded'
@@ -6,7 +6,6 @@ import { fetchJavIdolJavDBURL } from '@/api'
 import JavIdolCoverModal, {
   IDOL_COVER_DEFAULT_CROP_LEFT,
   IDOL_COVER_VISIBLE_RATIO,
-  idolCoverBackgroundPosition,
   normalizeIdolCoverCropLeft,
 } from '@/components/JavIdolCoverModal'
 import { isChineseLocale, zh } from '@/utils/i18n'
@@ -31,7 +30,7 @@ export default function JavIdolGrid({
   javMetadataLanguage,
   directoryIds = [],
 }) {
-  const { bgWidthPercent, coverAspectPercent } = getIdolCardLayoutProps()
+  const { coverAspectPercent } = getIdolCardLayoutProps()
   const [coverEditorItem, setCoverEditorItem] = useState(null)
   const [coverOverrides, setCoverOverrides] = useState(() => new Map())
   const displayItems = useMemo(() => {
@@ -63,7 +62,6 @@ export default function JavIdolGrid({
             onOpenFavorites={onOpenFavorites}
             onOpenCoverEditor={setCoverEditorItem}
             href={buildIdolUrl?.(item)}
-            bgWidthPercent={bgWidthPercent}
             coverAspectPercent={coverAspectPercent}
             javMetadataLanguage={javMetadataLanguage}
           />
@@ -95,7 +93,6 @@ export function IdolCard({
   onOpenFavorites,
   onOpenCoverEditor,
   href,
-  bgWidthPercent,
   coverAspectPercent,
   showWorkCount = true,
   javMetadataLanguage = 'zh',
@@ -106,6 +103,9 @@ export function IdolCard({
   const coverCropLeft = normalizeIdolCoverCropLeft(
     item?.cover_crop_left ?? IDOL_COVER_DEFAULT_CROP_LEFT
   )
+  const coverFrameRef = useRef(null)
+  const [coverFrame, setCoverFrame] = useState({ width: 0, height: 0 })
+  const [coverImageSize, setCoverImageSize] = useState(null)
   const workCount = item?.work_count || 0
   const favoriteCount = Number(item?.favorite_count) || 0
   const name = item?.name || zh('未知女优', 'Unknown idol')
@@ -129,6 +129,38 @@ export function IdolCard({
   })
   const metaRows = buildMetaRows({ birthDate, height, bwh, cup, secondaryName })
   const canOpenJavDB = Boolean(javdbURL || (sampleCode && name))
+  const renderedCoverWidth =
+    coverImageSize?.height > 0 && coverFrame.height > 0
+      ? coverFrame.height * (coverImageSize.width / coverImageSize.height)
+      : 0
+  const coverLeft = calculateCoverLeft({
+    cropLeft: coverCropLeft,
+    frameWidth: coverFrame.width,
+    renderedWidth: renderedCoverWidth,
+  })
+
+  useEffect(() => {
+    setCoverImageSize(null)
+  }, [cover])
+
+  useEffect(() => {
+    const node = coverFrameRef.current
+    if (!node) return undefined
+
+    const updateFrame = () => {
+      const rect = node.getBoundingClientRect()
+      setCoverFrame({ width: rect.width, height: rect.height })
+    }
+    updateFrame()
+
+    if (!window.ResizeObserver) {
+      window.addEventListener('resize', updateFrame)
+      return () => window.removeEventListener('resize', updateFrame)
+    }
+    const observer = new window.ResizeObserver(updateFrame)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [cover])
 
   const handleClick = (e) => {
     const selection = window.getSelection?.()
@@ -203,20 +235,25 @@ export function IdolCard({
       }}
     >
       <div
+        ref={coverFrameRef}
         className="relative w-full overflow-hidden bg-gray-100"
         style={{ paddingTop: `${coverAspectPercent}%` }} // 维持可见区域的原始纵横比，避免压扁
       >
         {cover ? (
-          <div
-            className="absolute inset-0"
+          <img
+            src={cover}
+            alt={primaryName}
+            className="absolute top-0 h-full max-w-none select-none"
             style={{
-              backgroundImage: `url(${cover})`,
-              backgroundSize: `${bgWidthPercent}% 100%`, // 根据 RIGHT_PORTION 自动计算
-              backgroundPosition: idolCoverBackgroundPosition(coverCropLeft),
-              backgroundRepeat: 'no-repeat',
+              left: `${coverLeft}px`,
+              width: 'auto',
             }}
-            role="img"
-            aria-label={primaryName}
+            draggable={false}
+            loading="lazy"
+            onLoad={(event) => {
+              const img = event.currentTarget
+              setCoverImageSize({ width: img.naturalWidth, height: img.naturalHeight })
+            }}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 text-lg font-semibold text-gray-600">
@@ -295,6 +332,16 @@ export function IdolCard({
       </div>
     </a>
   )
+}
+
+function calculateCoverLeft({ cropLeft, frameWidth, renderedWidth }) {
+  if (!Number.isFinite(frameWidth) || frameWidth <= 0) return 0
+  if (!Number.isFinite(renderedWidth) || renderedWidth <= 0) return 0
+  if (renderedWidth <= frameWidth) {
+    return (frameWidth - renderedWidth) / 2
+  }
+  const maxOffset = renderedWidth - frameWidth
+  return -Math.min(Math.max(cropLeft * renderedWidth, 0), maxOffset)
 }
 
 function formatBirthDate(value) {

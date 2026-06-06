@@ -9,6 +9,10 @@ import { zh } from '@/utils/i18n'
 
 export const IDOL_COVER_VISIBLE_RATIO = 0.47
 export const IDOL_COVER_DEFAULT_CROP_LEFT = 1 - IDOL_COVER_VISIBLE_RATIO
+const IDOL_COVER_SOURCE_WIDTH = 800
+const IDOL_COVER_SOURCE_HEIGHT = 538
+const IDOL_COVER_FRAME_ASPECT =
+  (IDOL_COVER_SOURCE_WIDTH * IDOL_COVER_VISIBLE_RATIO) / IDOL_COVER_SOURCE_HEIGHT
 
 export function normalizeIdolCoverCropLeft(value) {
   const max = IDOL_COVER_DEFAULT_CROP_LEFT
@@ -17,11 +21,28 @@ export function normalizeIdolCoverCropLeft(value) {
   return Math.min(Math.max(parsed, 0), max)
 }
 
-export function idolCoverBackgroundPosition(cropLeft) {
-  const max = IDOL_COVER_DEFAULT_CROP_LEFT
-  if (max <= 0) return '50% 50%'
-  const percent = (normalizeIdolCoverCropLeft(cropLeft) / max) * 100
-  return `${percent}% 50%`
+function getCoverVisibleRatio(size) {
+  const imageWidth = Number(size?.width)
+  const imageHeight = Number(size?.height)
+  if (
+    !Number.isFinite(imageWidth) ||
+    !Number.isFinite(imageHeight) ||
+    imageWidth <= 0 ||
+    imageHeight <= 0
+  ) {
+    return IDOL_COVER_VISIBLE_RATIO
+  }
+  const imageAspect = imageWidth / imageHeight
+  if (imageAspect <= 0) return IDOL_COVER_VISIBLE_RATIO
+  return Math.min(1, IDOL_COVER_FRAME_ASPECT / imageAspect)
+}
+
+function normalizeDynamicCropLeft(value, maxCropLeft) {
+  const parsed = Number(value)
+  const max = Number(maxCropLeft)
+  if (!Number.isFinite(parsed)) return 0
+  if (!Number.isFinite(max) || max <= 0) return 0
+  return Math.min(Math.max(parsed, 0), max)
 }
 
 export default function JavIdolCoverModal({
@@ -41,6 +62,7 @@ export default function JavIdolCoverModal({
   const [cropLeft, setCropLeft] = useState(IDOL_COVER_DEFAULT_CROP_LEFT)
   const [dragging, setDragging] = useState(false)
   const [imageFailed, setImageFailed] = useState(false)
+  const [imageSize, setImageSize] = useState(null)
 
   const idolId = Number(item?.id)
   const directoryKey = (directoryIds || []).join(',')
@@ -89,6 +111,7 @@ export default function JavIdolCoverModal({
     if (!open) {
       setDragging(false)
       setImageFailed(false)
+      setImageSize(null)
     }
   }, [open])
 
@@ -99,12 +122,19 @@ export default function JavIdolCoverModal({
   const previewCode = String(selectedOption?.code || item?.sample_code || '').trim()
   const coverSrc = previewCode ? `/jav/${encodeURIComponent(previewCode)}/cover` : ''
   const title = selectedOption ? getJavDisplayTitle(selectedOption, javMetadataLanguage) : ''
+  const visibleRatio = getCoverVisibleRatio(imageSize)
+  const maxCropLeft = Math.max(0, 1 - visibleRatio)
+  const displayCropLeft = Math.min(cropLeft, maxCropLeft)
+
+  useEffect(() => {
+    setImageSize(null)
+  }, [coverSrc])
 
   const setCropFromClientX = (clientX) => {
     const rect = previewRef.current?.getBoundingClientRect()
     if (!rect || rect.width <= 0) return
     const ratio = (clientX - rect.left) / rect.width
-    setCropLeft(normalizeIdolCoverCropLeft(ratio - IDOL_COVER_VISIBLE_RATIO / 2))
+    setCropLeft(normalizeDynamicCropLeft(ratio - visibleRatio / 2, maxCropLeft))
   }
 
   const handlePointerDown = (event) => {
@@ -131,7 +161,7 @@ export default function JavIdolCoverModal({
     try {
       const updated = await updateJavIdolCover(idolId, {
         javId: Number(selectedJavId) || 0,
-        cropLeft,
+        cropLeft: displayCropLeft,
         directoryIds,
       })
       onSaved?.(updated)
@@ -235,7 +265,7 @@ export default function JavIdolCoverModal({
                   ) : null}
                 </div>
                 <div className="text-xs tabular-nums text-slate-500">
-                  {Math.round(cropLeft * 100)}%
+                  {Math.round(displayCropLeft * 100)}%
                 </div>
               </div>
 
@@ -253,7 +283,14 @@ export default function JavIdolCoverModal({
                     alt={previewCode}
                     className="block w-full"
                     draggable={false}
-                    onError={() => setImageFailed(true)}
+                    onLoad={(event) => {
+                      const img = event.currentTarget
+                      setImageSize({ width: img.naturalWidth, height: img.naturalHeight })
+                    }}
+                    onError={() => {
+                      setImageFailed(true)
+                      setImageSize(null)
+                    }}
                   />
                 ) : (
                   <div className="flex aspect-[800/538] items-center justify-center text-sm text-slate-500">
@@ -264,8 +301,8 @@ export default function JavIdolCoverModal({
                   <div
                     className="absolute inset-y-0 border-2 border-white bg-white/10 shadow-[0_0_0_999px_rgba(15,23,42,0.45)]"
                     style={{
-                      left: `${cropLeft * 100}%`,
-                      width: `${IDOL_COVER_VISIBLE_RATIO * 100}%`,
+                      left: `${displayCropLeft * 100}%`,
+                      width: `${visibleRatio * 100}%`,
                     }}
                   >
                     <div className="absolute inset-y-0 left-0 w-1 bg-white/80" />
@@ -279,10 +316,12 @@ export default function JavIdolCoverModal({
                 <input
                   type="range"
                   min="0"
-                  max={IDOL_COVER_DEFAULT_CROP_LEFT}
+                  max={maxCropLeft}
                   step="0.001"
-                  value={cropLeft}
-                  onChange={(event) => setCropLeft(normalizeIdolCoverCropLeft(event.target.value))}
+                  value={displayCropLeft}
+                  onChange={(event) =>
+                    setCropLeft(normalizeDynamicCropLeft(event.target.value, maxCropLeft))
+                  }
                   className="min-w-0 flex-1 accent-slate-900"
                 />
               </label>
