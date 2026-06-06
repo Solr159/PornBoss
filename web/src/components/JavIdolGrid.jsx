@@ -1,10 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import PhotoCameraRoundedIcon from '@mui/icons-material/PhotoCameraRounded'
 import StarBorderRoundedIcon from '@mui/icons-material/StarBorderRounded'
 import StarRoundedIcon from '@mui/icons-material/StarRounded'
 import { fetchJavIdolJavDBURL } from '@/api'
+import JavIdolCoverModal, {
+  IDOL_COVER_DEFAULT_CROP_LEFT,
+  IDOL_COVER_VISIBLE_RATIO,
+  normalizeIdolCoverCropLeft,
+} from '@/components/JavIdolCoverModal'
 import { isChineseLocale, zh } from '@/utils/i18n'
 
-const RIGHT_PORTION = 0.47
+const RIGHT_PORTION = IDOL_COVER_VISIBLE_RATIO
 
 export function getIdolCardLayoutProps() {
   const visibleRatio = Math.min(Math.max(RIGHT_PORTION, 0.01), 1)
@@ -22,10 +28,21 @@ export default function JavIdolGrid({
   onOpenFavorites,
   buildIdolUrl,
   javMetadataLanguage,
+  directoryIds = [],
 }) {
-  const { bgWidthPercent, coverAspectPercent } = getIdolCardLayoutProps()
+  const { coverAspectPercent } = getIdolCardLayoutProps()
+  const [coverEditorItem, setCoverEditorItem] = useState(null)
+  const [coverOverrides, setCoverOverrides] = useState(() => new Map())
+  const displayItems = useMemo(() => {
+    if (!Array.isArray(items)) return []
+    return items.map((item) => {
+      const id = Number(item?.id)
+      const override = Number.isFinite(id) ? coverOverrides.get(id) : null
+      return override ? { ...item, ...override } : item
+    })
+  }, [coverOverrides, items])
 
-  const hasItems = Array.isArray(items) && items.length > 0
+  const hasItems = displayItems.length > 0
   if (!hasItems) {
     return (
       <div className="flex min-h-[200px] items-center justify-center rounded border border-dashed border-gray-200 text-gray-500">
@@ -35,20 +52,39 @@ export default function JavIdolGrid({
   }
 
   return (
-    <div className="grid gap-3 bg-white sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
-      {items.map((item) => (
-        <IdolCard
-          key={item.id || item.name}
-          item={item}
-          onSelectIdol={onSelectIdol}
-          onOpenFavorites={onOpenFavorites}
-          href={buildIdolUrl?.(item)}
-          bgWidthPercent={bgWidthPercent}
-          coverAspectPercent={coverAspectPercent}
-          javMetadataLanguage={javMetadataLanguage}
-        />
-      ))}
-    </div>
+    <>
+      <div className="grid gap-3 bg-white sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
+        {displayItems.map((item) => (
+          <IdolCard
+            key={item.id || item.name}
+            item={item}
+            onSelectIdol={onSelectIdol}
+            onOpenFavorites={onOpenFavorites}
+            onOpenCoverEditor={setCoverEditorItem}
+            href={buildIdolUrl?.(item)}
+            coverAspectPercent={coverAspectPercent}
+            javMetadataLanguage={javMetadataLanguage}
+          />
+        ))}
+      </div>
+      <JavIdolCoverModal
+        key={coverEditorItem?.id || 'closed'}
+        open={Boolean(coverEditorItem)}
+        item={coverEditorItem}
+        directoryIds={directoryIds}
+        javMetadataLanguage={javMetadataLanguage}
+        onClose={() => setCoverEditorItem(null)}
+        onSaved={(updated) => {
+          const id = Number(updated?.id)
+          if (!Number.isFinite(id) || id <= 0) return
+          setCoverOverrides((current) => {
+            const next = new Map(current)
+            next.set(id, updated)
+            return next
+          })
+        }}
+      />
+    </>
   )
 }
 
@@ -56,14 +92,21 @@ export function IdolCard({
   item,
   onSelectIdol,
   onOpenFavorites,
+  onOpenCoverEditor,
   href,
-  bgWidthPercent,
   coverAspectPercent,
   showWorkCount = true,
   javMetadataLanguage = 'zh',
 }) {
   const chineseLocale = isChineseLocale()
-  const cover = item?.sample_code ? `/jav/${encodeURIComponent(item.sample_code)}/cover` : null
+  const coverCode = String(item?.cover_code || '').trim()
+  const cover = coverCode ? `/jav/${encodeURIComponent(coverCode)}/cover` : null
+  const coverCropLeft = normalizeIdolCoverCropLeft(
+    item?.cover_crop_left ?? IDOL_COVER_DEFAULT_CROP_LEFT
+  )
+  const coverFrameRef = useRef(null)
+  const [coverFrame, setCoverFrame] = useState({ width: 0, height: 0 })
+  const [coverImageSize, setCoverImageSize] = useState(null)
   const workCount = item?.work_count || 0
   const favoriteCount = Number(item?.favorite_count) || 0
   const name = item?.name || zh('未知女优', 'Unknown idol')
@@ -74,7 +117,7 @@ export function IdolCard({
   const height = typeof item?.height_cm === 'number' ? `${item.height_cm}cm` : ''
   const bwh = formatBwh(item)
   const cup = formatCup(item?.cup)
-  const sampleCode = String(item?.sample_code || '').trim()
+  const lookupCode = coverCode
   const [javdbURL, setJavdbURL] = useState(String(item?.javdb_url || '').trim())
   const [javdbOpening, setJavdbOpening] = useState(false)
   const { primaryName, secondaryName } = buildDisplayNames({
@@ -86,7 +129,39 @@ export function IdolCard({
     javMetadataLanguage,
   })
   const metaRows = buildMetaRows({ birthDate, height, bwh, cup, secondaryName })
-  const canOpenJavDB = Boolean(javdbURL || (sampleCode && name))
+  const canOpenJavDB = Boolean(javdbURL || (lookupCode && name))
+  const renderedCoverWidth =
+    coverImageSize?.height > 0 && coverFrame.height > 0
+      ? coverFrame.height * (coverImageSize.width / coverImageSize.height)
+      : 0
+  const coverLeft = calculateCoverLeft({
+    cropLeft: coverCropLeft,
+    frameWidth: coverFrame.width,
+    renderedWidth: renderedCoverWidth,
+  })
+
+  useEffect(() => {
+    setCoverImageSize(null)
+  }, [cover])
+
+  useEffect(() => {
+    const node = coverFrameRef.current
+    if (!node) return undefined
+
+    const updateFrame = () => {
+      const rect = node.getBoundingClientRect()
+      setCoverFrame({ width: rect.width, height: rect.height })
+    }
+    updateFrame()
+
+    if (!window.ResizeObserver) {
+      window.addEventListener('resize', updateFrame)
+      return () => window.removeEventListener('resize', updateFrame)
+    }
+    const observer = new window.ResizeObserver(updateFrame)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [cover])
 
   const handleClick = (e) => {
     const selection = window.getSelection?.()
@@ -116,7 +191,7 @@ export function IdolCard({
       setJavdbOpening(true)
       let targetURL = javdbURL
       if (!targetURL) {
-        targetURL = await fetchJavIdolJavDBURL({ code: sampleCode, name })
+        targetURL = await fetchJavIdolJavDBURL({ code: lookupCode, name })
         setJavdbURL(targetURL)
       }
       if (!targetURL) {
@@ -142,6 +217,12 @@ export function IdolCard({
     onOpenFavorites?.(item)
   }
 
+  const handleOpenCoverEditor = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    onOpenCoverEditor?.(item)
+  }
+
   return (
     <a
       href={href || '#'}
@@ -155,20 +236,25 @@ export function IdolCard({
       }}
     >
       <div
+        ref={coverFrameRef}
         className="relative w-full overflow-hidden bg-gray-100"
         style={{ paddingTop: `${coverAspectPercent}%` }} // 维持可见区域的原始纵横比，避免压扁
       >
         {cover ? (
-          <div
-            className="absolute inset-0"
+          <img
+            src={cover}
+            alt={primaryName}
+            className="absolute top-0 h-full max-w-none select-none"
             style={{
-              backgroundImage: `url(${cover})`,
-              backgroundSize: `${bgWidthPercent}% 100%`, // 根据 RIGHT_PORTION 自动计算
-              backgroundPosition: '100% 50%',
-              backgroundRepeat: 'no-repeat',
+              left: `${coverLeft}px`,
+              width: 'auto',
             }}
-            role="img"
-            aria-label={primaryName}
+            draggable={false}
+            loading="lazy"
+            onLoad={(event) => {
+              const img = event.currentTarget
+              setCoverImageSize({ width: img.naturalWidth, height: img.naturalHeight })
+            }}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 text-lg font-semibold text-gray-600">
@@ -214,6 +300,15 @@ export function IdolCard({
             loading="lazy"
           />
         </button>
+        <button
+          type="button"
+          className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white opacity-0 shadow-lg shadow-black/60 transition-opacity hover:bg-black/85 group-focus-within:opacity-100 group-hover:opacity-100"
+          title={zh('编辑女优封面', 'Edit idol cover')}
+          aria-label={zh('编辑女优封面', 'Edit idol cover')}
+          onClick={handleOpenCoverEditor}
+        >
+          <PhotoCameraRoundedIcon sx={{ fontSize: 16 }} />
+        </button>
       </div>
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div className="line-clamp-2 text-sm font-semibold leading-tight">{primaryName}</div>
@@ -238,6 +333,16 @@ export function IdolCard({
       </div>
     </a>
   )
+}
+
+function calculateCoverLeft({ cropLeft, frameWidth, renderedWidth }) {
+  if (!Number.isFinite(frameWidth) || frameWidth <= 0) return 0
+  if (!Number.isFinite(renderedWidth) || renderedWidth <= 0) return 0
+  if (renderedWidth <= frameWidth) {
+    return (frameWidth - renderedWidth) / 2
+  }
+  const maxOffset = renderedWidth - frameWidth
+  return -Math.min(Math.max(cropLeft * renderedWidth, 0), maxOffset)
 }
 
 function formatBirthDate(value) {

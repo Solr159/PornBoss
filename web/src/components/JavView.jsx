@@ -42,7 +42,6 @@ export default function JavView({
   onStudioClick,
   onSeriesClick,
   onTagClick,
-  onEditTags,
   onOpenFile,
   openFileLabel,
   onRevealFile,
@@ -190,7 +189,6 @@ export default function JavView({
             onStudioClick={onStudioClick}
             onSeriesClick={onSeriesClick}
             onTagClick={onTagClick}
-            onEditTags={onEditTags}
             onOpenFile={onOpenFile}
             openFileLabel={openFileLabel}
             onRevealFile={onRevealFile}

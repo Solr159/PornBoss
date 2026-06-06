@@ -370,6 +370,35 @@ export async function fetchJavTags({ directoryIds = [] } = {}) {
   return res.json()
 }
 
+export async function updateJavCover(code, url) {
+  const res = await apiFetch(`/jav/${encodeURIComponent(code)}/cover`, {
+    method: 'PUT',
+    headers: jsonHeaders,
+    body: JSON.stringify({ url }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('保存 JAV 封面失败', 'Failed to save JAV cover'))
+  }
+  return res.json()
+}
+
+export async function updateJavItem(id, payload, { directoryIds = [] } = {}) {
+  const params = new URLSearchParams()
+  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
+  const query = params.toString()
+  const res = await apiFetch(`/jav/items/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
+    method: 'PUT',
+    headers: jsonHeaders,
+    body: JSON.stringify(payload || {}),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('保存 JAV 信息失败', 'Failed to save JAV info'))
+  }
+  return res.json()
+}
+
 export async function createJavTag(name) {
   const res = await apiFetch('/jav/tags', {
     method: 'POST',
@@ -467,6 +496,19 @@ export async function fetchJavIdols({
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
   if (favoriteGroupId) params.set('favorite_group_id', String(favoriteGroupId))
   const res = await apiFetch(`/jav/idols?${params.toString()}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('加载女优失败', 'Failed to load idols'))
+  }
+  return res.json()
+}
+
+export async function fetchJavIdolOptions({ limit = 25, offset = 0, search = '' } = {}) {
+  const params = new URLSearchParams()
+  params.set('limit', String(limit))
+  params.set('offset', String(offset))
+  if (search) params.set('search', search)
+  const res = await apiFetch(`/jav/idols/options?${params.toString()}`)
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || zh('加载女优失败', 'Failed to load idols'))
@@ -595,6 +637,43 @@ export async function replaceJavIdolFavoriteGroups(id, groupIds = []) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || zh('保存女优收藏夹失败', 'Failed to save idol favorites'))
   }
+}
+
+export async function fetchJavIdolCoverOptions(id, { directoryIds = [] } = {}) {
+  const params = new URLSearchParams()
+  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
+  const query = params.toString()
+  const res = await apiFetch(
+    `/jav/idols/${encodeURIComponent(id)}/cover-options${query ? `?${query}` : ''}`
+  )
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('加载封面作品失败', 'Failed to load cover works'))
+  }
+  const data = await res.json()
+  return Array.isArray(data?.items) ? data.items : []
+}
+
+export async function updateJavIdolCover(
+  id,
+  { javId = 0, cropLeft = 0.53, directoryIds = [] } = {}
+) {
+  const params = new URLSearchParams()
+  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
+  const query = params.toString()
+  const res = await apiFetch(
+    `/jav/idols/${encodeURIComponent(id)}/cover${query ? `?${query}` : ''}`,
+    {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify({ jav_id: javId, crop_left: cropLeft }),
+    }
+  )
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('保存女优封面失败', 'Failed to save idol cover'))
+  }
+  return res.json()
 }
 
 export async function fetchJavStudios({

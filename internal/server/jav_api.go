@@ -1,14 +1,19 @@
 package server
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"pornboss/internal/common"
 	"pornboss/internal/common/logging"
 	dbpkg "pornboss/internal/db"
+	"pornboss/internal/manager"
 )
 
 func searchJav(c *gin.Context) {
@@ -71,6 +76,90 @@ func listJavTags(c *gin.Context) {
 		tags = []dbpkg.JavTagCount{}
 	}
 	c.JSON(http.StatusOK, tags)
+}
+
+type javItemUpdateRequest struct {
+	CoverURL    *string  `json:"cover_url"`
+	TagIDs      *[]int64 `json:"tag_ids"`
+	IdolIDs     *[]int64 `json:"idol_ids"`
+	StudioID    *int64   `json:"studio_id"`
+	SeriesID    *int64   `json:"series_id"`
+	ReleaseDate *string  `json:"release_date"`
+	DurationMin *int     `json:"duration_min"`
+}
+
+func updateJavItem(c *gin.Context) {
+	id, err := strconv.ParseInt(strings.TrimSpace(c.Param("id")), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	var req javItemUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+
+	var releaseUnix *int64
+	if req.ReleaseDate != nil {
+		parsed, err := parseJavEditReleaseUnix(*req.ReleaseDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		releaseUnix = &parsed
+	}
+
+	if req.CoverURL != nil {
+		coverURL := strings.TrimSpace(*req.CoverURL)
+		if coverURL != "" {
+			cfg := common.AppConfig
+			if cfg == nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "config not loaded"})
+				return
+			}
+			item, err := dbpkg.GetJav(c.Request.Context(), id, parseDirectoryIDs(c.Query("directory_ids")))
+			if err != nil {
+				logging.Error("get jav for cover update error: %v", err)
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
+			defer cancel()
+			if err := manager.DownloadCoverFromURL(ctx, cfg.JavCoverDir, item.Code, coverURL); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+		}
+	}
+
+	updated, err := dbpkg.UpdateJav(c.Request.Context(), id, dbpkg.JavUpdateInput{
+		StudioID:    req.StudioID,
+		SeriesID:    req.SeriesID,
+		IdolIDs:     req.IdolIDs,
+		UserTagIDs:  req.TagIDs,
+		ReleaseUnix: releaseUnix,
+		DurationMin: req.DurationMin,
+	}, parseDirectoryIDs(c.Query("directory_ids")))
+	if err != nil {
+		logging.Error("update jav item error: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, updated)
+}
+
+func parseJavEditReleaseUnix(raw string) (int64, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, nil
+	}
+	t, err := time.Parse("2006-01-02", raw)
+	if err != nil {
+		return 0, errors.New("release_date must be YYYY-MM-DD")
+	}
+	return t.Unix(), nil
 }
 
 func createJavTag(c *gin.Context) {
