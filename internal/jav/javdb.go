@@ -60,14 +60,15 @@ func (javDB) LookupActressURLByCodeAndName(code, name string) (string, error) {
 	defer cancel()
 
 	doc, detailURL, err := fetchJavDBDetailByCode(ctx, code)
-	if err != nil {
+	if err != nil && !errors.Is(err, ResourceNotFonud) {
 		return "", err
 	}
-	actressURL := parseJavDBActressURLByName(doc, name, detailURL)
-	if actressURL == "" {
-		return "", ResourceNotFonud
+	if err == nil {
+		if actressURL := parseJavDBActressURLByName(doc, name, detailURL); actressURL != "" {
+			return actressURL, nil
+		}
 	}
-	return actressURL, nil
+	return lookupJavDBActressURLByName(ctx, name)
 }
 
 // LookupSeriesURLByCode resolves a series detail URL from a movie detail page.
@@ -213,6 +214,36 @@ func fetchJavDBDetailByCode(ctx context.Context, code string) (*html.Node, strin
 
 func javDBSearchURL(code string) string {
 	return fmt.Sprintf("%s/search?q=%s&f=all", javDBBaseURL, url.QueryEscape(strings.TrimSpace(code)))
+}
+
+func javDBActorSearchURL(name string) string {
+	return fmt.Sprintf("%s/search?q=%s&f=actor", javDBBaseURL, url.QueryEscape(strings.TrimSpace(name)))
+}
+
+func lookupJavDBActressURLByName(ctx context.Context, name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", ResourceNotFonud
+	}
+
+	searchURL := javDBActorSearchURL(name)
+	doc, status, err := fetchJavDBHTML(ctx, searchURL, javDBBaseURL)
+	if err != nil {
+		return "", err
+	}
+	if status == http.StatusNotFound || doc == nil {
+		return "", ResourceNotFonud
+	}
+
+	urls := findJavDBActorSearchResultURLs(doc, name, searchURL)
+	switch len(urls) {
+	case 0:
+		return "", ResourceNotFonud
+	case 1:
+		return urls[0], nil
+	default:
+		return searchURL, nil
+	}
 }
 
 func fetchJavDBHTML(ctx context.Context, targetURL, referer string) (*html.Node, int, error) {
@@ -642,6 +673,99 @@ func parseJavDBActressURLByName(root *html.Node, name, pageURL string) string {
 	return actressURL
 }
 
+func findJavDBActorSearchResultURLs(root *html.Node, name, pageURL string) []string {
+	name = strings.TrimSpace(name)
+	if root == nil || name == "" {
+		return nil
+	}
+
+	list := findJavDBActorList(root)
+	if list == nil {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	var urls []string
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "div" && hasClass(n, "actor-box") {
+			if href := javDBActorBoxExactHref(n, name); href != "" {
+				actorURL := resolveURL(pageURL, href)
+				if actorURL != "" {
+					if _, ok := seen[actorURL]; !ok {
+						seen[actorURL] = struct{}{}
+						urls = append(urls, actorURL)
+					}
+				}
+			}
+			return
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(list)
+	return urls
+}
+
+func findJavDBActorList(root *html.Node) *html.Node {
+	var found *html.Node
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if found != nil {
+			return
+		}
+		if n.Type == html.ElementNode && n.Data == "div" {
+			id := strings.TrimSpace(attrValue(n, "id"))
+			if id == "actors" || hasClass(n, "actors") {
+				found = n
+				return
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(root)
+	return found
+}
+
+func javDBActorBoxExactHref(root *html.Node, name string) string {
+	if root == nil {
+		return ""
+	}
+	name = strings.TrimSpace(name)
+	var href string
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if href != "" {
+			return
+		}
+		if n.Type == html.ElementNode && n.Data == "a" {
+			candidateHref := strings.TrimSpace(attrValue(n, "href"))
+			if candidateHref != "" && isJavDBActorURL(candidateHref) && javDBActorAnchorMatchesName(n, name) {
+				href = candidateHref
+				return
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(root)
+	return href
+}
+
+func javDBActorAnchorMatchesName(anchor *html.Node, name string) bool {
+	if anchor == nil || name == "" {
+		return false
+	}
+	if strings.TrimSpace(attrValue(anchor, "title")) == name {
+		return true
+	}
+	return strings.TrimSpace(firstDescendantTextByTag(anchor, "strong")) == name
+}
+
 func parseJavDBSeriesURL(root *html.Node, pageURL string) string {
 	return parseJavDBPanelURL(root, pageURL, "系列", isJavDBSeriesURL)
 }
@@ -750,6 +874,28 @@ func firstDescendantTextByClass(root *html.Node, tag, class string) string {
 			return
 		}
 		if n.Type == html.ElementNode && n.Data == tag && hasClass(n, class) {
+			text = strings.TrimSpace(flattenText(n))
+			return
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(root)
+	return text
+}
+
+func firstDescendantTextByTag(root *html.Node, tag string) string {
+	if root == nil || tag == "" {
+		return ""
+	}
+	var text string
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if text != "" {
+			return
+		}
+		if n.Type == html.ElementNode && n.Data == tag {
 			text = strings.TrimSpace(flattenText(n))
 			return
 		}

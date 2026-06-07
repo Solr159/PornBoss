@@ -250,6 +250,67 @@ func TestParseJavDBActressURLByName(t *testing.T) {
 	}
 }
 
+func TestFindJavDBActorSearchResultURLsExactName(t *testing.T) {
+	doc, err := html.Parse(strings.NewReader(`
+<!doctype html>
+<html>
+<body>
+  <div id="actors" class="actors">
+    <div class="box actor-box">
+      <a href="/actors/A1JK" title="美月アンジェリア">
+        <figure class="image"></figure>
+        <strong>美月アンジェリア</strong>
+      </a>
+    </div>
+    <div class="box actor-box">
+      <a href="/actors/other" title="美月アンジェリア別名">
+        <strong>美月アンジェリア別名</strong>
+      </a>
+    </div>
+  </div>
+</body>
+</html>`))
+	if err != nil {
+		t.Fatalf("parse html: %v", err)
+	}
+
+	got := findJavDBActorSearchResultURLs(doc, "美月アンジェリア", "https://javdb.com/search?q=x&f=actor")
+	if len(got) != 1 || got[0] != "https://javdb.com/actors/A1JK" {
+		t.Fatalf("unexpected actor urls: %#v", got)
+	}
+}
+
+func TestFindJavDBActorSearchResultURLsReturnsAllExactMatches(t *testing.T) {
+	doc, err := html.Parse(strings.NewReader(`
+<!doctype html>
+<html>
+<body>
+  <div id="actors" class="actors">
+    <div class="box actor-box">
+      <a href="/actors/A1JK" title="美月アンジェリア"><strong>美月アンジェリア</strong></a>
+    </div>
+    <div class="box actor-box">
+      <a href="/actors/RGp8" title="美月アンジェリア"><strong>美月アンジェリア</strong></a>
+    </div>
+  </div>
+</body>
+</html>`))
+	if err != nil {
+		t.Fatalf("parse html: %v", err)
+	}
+
+	got := findJavDBActorSearchResultURLs(doc, "美月アンジェリア", "https://javdb.com/search?q=x&f=actor")
+	want := []string{"https://javdb.com/actors/A1JK", "https://javdb.com/actors/RGp8"}
+	if len(got) != len(want) {
+		t.Fatalf("unexpected actor url count: got %#v want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("unexpected actor url at %d: got %q want %q", i, got[i], want[i])
+		}
+	}
+}
+
 func TestParseJavDBSeriesURL(t *testing.T) {
 	doc, err := html.Parse(strings.NewReader(`
 <!doctype html>
