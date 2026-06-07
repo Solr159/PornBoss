@@ -240,13 +240,64 @@ func TestParseJavDBActressURLByName(t *testing.T) {
 	}
 
 	got = parseJavDBActressURLByName(doc, "吉村卓", "https://javdb.com/v/kKdRm")
-	if got != "" {
-		t.Fatalf("male actor url should be ignored, got %q", got)
+	if got != "https://javdb.com/actors/QNen" {
+		t.Fatalf("single actress url should be used as alias, got %q", got)
+	}
+}
+
+func TestParseJavDBActressURLByNameRequiresMatchForMultipleActresses(t *testing.T) {
+	doc, err := html.Parse(strings.NewReader(`
+<!doctype html>
+<html>
+<body>
+  <nav class="panel movie-panel-info">
+    <div class="panel-block">
+      <strong>演員:</strong>
+      <span class="value">
+        <a href="/actors/first">第一女優</a><strong class="symbol female">♀</strong>
+        <a href="/actors/second">第二女優</a><strong class="symbol female">♀</strong>
+      </span>
+    </div>
+  </nav>
+</body>
+</html>`))
+	if err != nil {
+		t.Fatalf("parse html: %v", err)
 	}
 
-	got = parseJavDBActressURLByName(doc, "別の女優", "https://javdb.com/v/kKdRm")
+	got := parseJavDBActressURLByName(doc, "別の女優", "https://javdb.com/v/kKdRm")
 	if got != "" {
 		t.Fatalf("unexpected unmatched actress url: %q", got)
+	}
+
+	got = parseJavDBActressURLByName(doc, "第二女優", "https://javdb.com/v/kKdRm")
+	if got != "https://javdb.com/actors/second" {
+		t.Fatalf("unexpected matched actress url: %q", got)
+	}
+}
+
+func TestParseJavDBActressURLByNameUsesSingleActressAsAlias(t *testing.T) {
+	doc, err := html.Parse(strings.NewReader(`
+<!doctype html>
+<html>
+<body>
+  <nav class="panel movie-panel-info">
+    <div class="panel-block">
+      <strong>演員:</strong>
+      <span class="value">
+        <a href="/actors/A1JK">別名の女優</a><strong class="symbol female">♀</strong>
+      </span>
+    </div>
+  </nav>
+</body>
+</html>`))
+	if err != nil {
+		t.Fatalf("parse html: %v", err)
+	}
+
+	got := parseJavDBActressURLByName(doc, "美月アンジェリア", "https://javdb.com/v/56Kdp")
+	if got != "https://javdb.com/actors/A1JK" {
+		t.Fatalf("unexpected actress url: %q", got)
 	}
 }
 
@@ -276,6 +327,31 @@ func TestFindJavDBActorSearchResultURLsExactName(t *testing.T) {
 
 	got := findJavDBActorSearchResultURLs(doc, "美月アンジェリア", "https://javdb.com/search?q=x&f=actor")
 	if len(got) != 1 || got[0] != "https://javdb.com/actors/A1JK" {
+		t.Fatalf("unexpected actor urls: %#v", got)
+	}
+}
+
+func TestFindJavDBActorSearchResultURLsMatchesTitleAliasList(t *testing.T) {
+	doc, err := html.Parse(strings.NewReader(`
+<!doctype html>
+<html>
+<body>
+  <div id="actors" class="actors">
+    <div class="box actor-box">
+      <a href="/actors/7qzR" title="満月ひかり, 初芽里奈, 桃井りん, 葵かな, 新見リナ, 桃居りん, 初芽里菜, 初咲里奈">
+        <figure class="image"></figure>
+        <strong>満月ひかり</strong>
+      </a>
+    </div>
+  </div>
+</body>
+</html>`))
+	if err != nil {
+		t.Fatalf("parse html: %v", err)
+	}
+
+	got := findJavDBActorSearchResultURLs(doc, "初芽里奈", "https://javdb.com/search?q=x&f=actor")
+	if len(got) != 1 || got[0] != "https://javdb.com/actors/7qzR" {
 		t.Fatalf("unexpected actor urls: %#v", got)
 	}
 }

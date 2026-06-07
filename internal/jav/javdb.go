@@ -647,22 +647,51 @@ func collectJavDBActorTexts(root *html.Node) []string {
 
 func parseJavDBActressURLByName(root *html.Node, name, pageURL string) string {
 	name = strings.TrimSpace(name)
-	if root == nil || name == "" {
+	if root == nil {
 		return ""
 	}
 
-	var actressURL string
+	actors := collectJavDBActressLinks(root, pageURL)
+	if len(actors) == 1 {
+		return actors[0].href
+	}
+	if name == "" {
+		return ""
+	}
+	for _, actor := range actors {
+		if actor.text == name {
+			return actor.href
+		}
+	}
+	return ""
+}
+
+type javDBActressLink struct {
+	text string
+	href string
+}
+
+func collectJavDBActressLinks(root *html.Node, pageURL string) []javDBActressLink {
+	if root == nil {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	var links []javDBActressLink
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
-		if actressURL != "" {
-			return
-		}
 		if n.Type == html.ElementNode && n.Data == "a" && !isJavDBMaleActorLink(n) {
 			text := strings.TrimSpace(flattenText(n))
 			href := strings.TrimSpace(attrValue(n, "href"))
-			if text == name && href != "" && isJavDBActorURL(href) {
-				actressURL = resolveURL(pageURL, href)
-				return
+			if text != "" && href != "" && isJavDBActorURL(href) {
+				actorURL := resolveURL(pageURL, href)
+				if actorURL != "" {
+					key := text + "\x00" + actorURL
+					if _, ok := seen[key]; !ok {
+						seen[key] = struct{}{}
+						links = append(links, javDBActressLink{text: text, href: actorURL})
+					}
+				}
 			}
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
@@ -670,7 +699,7 @@ func parseJavDBActressURLByName(root *html.Node, name, pageURL string) string {
 		}
 	}
 	walk(root)
-	return actressURL
+	return links
 }
 
 func findJavDBActorSearchResultURLs(root *html.Node, name, pageURL string) []string {
@@ -760,10 +789,26 @@ func javDBActorAnchorMatchesName(anchor *html.Node, name string) bool {
 	if anchor == nil || name == "" {
 		return false
 	}
-	if strings.TrimSpace(attrValue(anchor, "title")) == name {
+	if javDBActorTitleHasName(attrValue(anchor, "title"), name) {
 		return true
 	}
 	return strings.TrimSpace(firstDescendantTextByTag(anchor, "strong")) == name
+}
+
+func javDBActorTitleHasName(title, name string) bool {
+	name = strings.TrimSpace(name)
+	title = strings.TrimSpace(title)
+	if title == "" || name == "" {
+		return false
+	}
+	for _, alias := range strings.FieldsFunc(title, func(r rune) bool {
+		return r == ',' || r == '，' || r == '、'
+	}) {
+		if strings.TrimSpace(alias) == name {
+			return true
+		}
+	}
+	return false
 }
 
 func parseJavDBSeriesURL(root *html.Node, pageURL string) string {

@@ -124,7 +124,7 @@ func TestLookupCacheKeyVersionIsProviderSpecific(t *testing.T) {
 			provider: ProviderJavDB,
 			method:   "lookup_actress_url_code_name",
 			input:    "HEYZO-1867|美月アンジェリア",
-			want:     "v2:jav:javdb:lookup_actress_url_code_name:HEYZO-1867|美月アンジェリア",
+			want:     "v3:jav:javdb:lookup_actress_url_code_name:HEYZO-1867|美月アンジェリア",
 		},
 	}
 
