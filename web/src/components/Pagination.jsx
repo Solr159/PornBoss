@@ -15,6 +15,7 @@ export default function Pagination({
   onLast,
   waterfallMode = false,
   onWaterfallModeChange,
+  totalItems = null,
 }) {
   const isModifiedClick = (e) =>
     e && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0)
@@ -32,6 +33,11 @@ export default function Pagination({
   const [jumpAnchorEl, setJumpAnchorEl] = useState(null)
   const jumpColumnCount = Math.min(6, totalPages)
   const jumpPanelWidth = Math.min(560, Math.max(180, jumpColumnCount * 56 + 24))
+  const normalizedTotalItems = Number(totalItems)
+  const totalItemsLabel =
+    Number.isFinite(normalizedTotalItems) && normalizedTotalItems >= 0
+      ? zh(`${normalizedTotalItems} 项`, `${normalizedTotalItems} items`)
+      : ''
   const pages = []
   for (let p = start; p <= end; p++) pages.push(p)
 
@@ -65,6 +71,9 @@ export default function Pagination({
             onChange={(event) => onWaterfallModeChange(event.target.checked)}
             inputProps={{ 'aria-label': zh('切换瀑布流模式', 'Toggle waterfall mode') }}
           />
+          {totalItemsLabel ? (
+            <span className="ml-1 whitespace-nowrap text-gray-500">{totalItemsLabel}</span>
+          ) : null}
         </label>
       ) : null}
       <div className="flex flex-wrap items-center justify-center gap-1.5">

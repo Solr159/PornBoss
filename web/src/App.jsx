@@ -2560,6 +2560,7 @@ export default function App() {
             idol={{
               page: idolPage,
               lastPage: idolLastPage,
+              totalItems: idolTotal,
               hasPrev: idolHasPrev,
               hasNext: idolHasNext,
               loading: idolLoading,
@@ -2588,6 +2589,7 @@ export default function App() {
             studio={{
               page: studioPage,
               lastPage: studioLastPage,
+              totalItems: studioTotal,
               hasPrev: studioHasPrev,
               hasNext: studioHasNext,
               loading: studioLoading,
@@ -2607,6 +2609,7 @@ export default function App() {
             series={{
               page: seriesPage,
               lastPage: seriesLastPage,
+              totalItems: seriesTotal,
               hasPrev: seriesHasPrev,
               hasNext: seriesHasNext,
               loading: seriesLoading,
@@ -2635,6 +2638,7 @@ export default function App() {
               setJavPage,
               setJavTempSort,
               javItems,
+              javTotal,
               javGridColumns,
               javTitleMaxRows,
               javIdolTagMaxRows,
@@ -2672,6 +2676,7 @@ export default function App() {
             setSelectionOpsOpen={setSelectionOpsOpen}
             page={page}
             lastPage={lastPage}
+            totalItems={total}
             canPrev={canPrev}
             canNext={canNext}
             loading={loading}

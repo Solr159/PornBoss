@@ -30,12 +30,14 @@ function JavIdolRoute({
   onWaterfallModeChange,
   page,
   selectedFavoriteGroupId,
+  totalItems,
   waterfallMode,
 }) {
   return (
     <JavIdolView
       page={page}
       lastPage={lastPage}
+      totalItems={totalItems}
       hasPrev={hasPrev}
       hasNext={hasNext}
       loading={loading}
@@ -96,12 +98,14 @@ function JavStudioRoute({
   onSelectStudio,
   onWaterfallModeChange,
   page,
+  totalItems,
   waterfallMode,
 }) {
   return (
     <JavStudioView
       page={page}
       lastPage={lastPage}
+      totalItems={totalItems}
       hasPrev={hasPrev}
       hasNext={hasNext}
       loading={loading}
@@ -153,12 +157,14 @@ function JavSeriesRoute({
   onSelectStudio,
   onWaterfallModeChange,
   page,
+  totalItems,
   waterfallMode,
 }) {
   return (
     <JavSeriesView
       page={page}
       lastPage={lastPage}
+      totalItems={totalItems}
       hasPrev={hasPrev}
       hasNext={hasNext}
       loading={loading}
@@ -210,6 +216,7 @@ function JavListRoute({
   javTagMaxRows,
   javTempSort,
   javTitleMaxRows,
+  javTotal,
   loadingMore,
   onIdolClick,
   onLoadMore,
@@ -239,6 +246,7 @@ function JavListRoute({
     <JavView
       javPage={javPage}
       javLastPage={javLastPage}
+      javTotal={javTotal}
       javHasPrev={javHasPrev}
       javHasNext={javHasNext}
       javLoading={activeJavLoading}

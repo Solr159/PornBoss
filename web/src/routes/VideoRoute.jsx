@@ -8,6 +8,7 @@ export default function VideoRoute({
   clearSelection,
   goToLastPage,
   lastPage,
+  totalItems,
   loading,
   onDeleteVideo,
   onOpenScreenshots,
@@ -43,6 +44,7 @@ export default function VideoRoute({
       setSelectionOpsOpen={setSelectionOpsOpen}
       page={page}
       lastPage={lastPage}
+      totalItems={totalItems}
       canPrev={canPrev}
       canNext={canNext}
       loading={loading}

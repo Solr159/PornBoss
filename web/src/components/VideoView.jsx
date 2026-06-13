@@ -31,6 +31,7 @@ export default function VideoView({
   setSelectionOpsOpen,
   page,
   lastPage,
+  totalItems,
   canPrev,
   canNext,
   loading,
@@ -92,6 +93,7 @@ export default function VideoView({
               <Pagination
                 page={page}
                 lastPage={lastPage}
+                totalItems={totalItems}
                 hasPrev={canPrev}
                 hasNext={canNext}
                 loading={loading}

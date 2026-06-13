@@ -22,6 +22,7 @@ function SortText({ option, value, className = '' }) {
 export default function JavView({
   javPage,
   javLastPage,
+  javTotal,
   javHasPrev,
   javHasNext,
   javLoading,
@@ -88,6 +89,7 @@ export default function JavView({
             <Pagination
               page={javPage}
               lastPage={javLastPage}
+              totalItems={javTotal}
               hasPrev={javHasPrev}
               hasNext={javHasNext}
               loading={javLoading}
