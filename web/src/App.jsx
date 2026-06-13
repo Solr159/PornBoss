@@ -270,6 +270,7 @@ export default function App() {
   const [selectionTagsOpen, setSelectionTagsOpen] = useState(false)
   const [selectionTagAction, setSelectionTagAction] = useState('add')
   const [selectionTagChoices, setSelectionTagChoices] = useState([])
+  const [selectionDeleting, setSelectionDeleting] = useState(false)
   const [videoPageSizeInput, setVideoPageSizeInput] = useState(pageSize)
   const [videoSortInput, setVideoSortInput] = useState(sortOrder)
   const [videoHideJavInput, setVideoHideJavInput] = useState(videoHideJav)
@@ -1267,10 +1268,16 @@ export default function App() {
       const v = videos.find((item) => videoSelectionKey(item) === String(key))
       const meta = selectedVideoMeta?.[key]
       const labelFromMeta = meta && typeof meta === 'object' ? meta.label : meta
+      const videoId = Number(meta && typeof meta === 'object' ? meta.video_id : v?.id)
+      const locationId = Number(
+        meta && typeof meta === 'object' ? meta.location_id : v?.location_id
+      )
       return {
         id: key,
         label: labelFromMeta || v?.filename || v?.path || `#${key}`,
         video: v,
+        video_id: Number.isFinite(videoId) && videoId > 0 ? videoId : null,
+        location_id: Number.isFinite(locationId) && locationId > 0 ? locationId : null,
       }
     })
   }, [selectedVideoIds, videos, selectedVideoMeta])
@@ -1718,6 +1725,106 @@ export default function App() {
     setSelectionTagAction('add')
     setSelectionTagChoices([])
   }, [selectedCount])
+
+  const handleDeleteSelection = useCallback(async () => {
+    if (selectionDeleting) return
+    const targets = selectedList
+      .map((item) => {
+        const videoId = Number(item?.video_id || item?.video?.id)
+        const locationId = Number(item?.location_id || item?.video?.location_id)
+        if (
+          !Number.isFinite(videoId) ||
+          videoId <= 0 ||
+          !Number.isFinite(locationId) ||
+          locationId <= 0
+        ) {
+          return null
+        }
+        return {
+          key: item.id,
+          label: item.label || `#${videoId}`,
+          videoId,
+          locationId,
+        }
+      })
+      .filter(Boolean)
+    const skipped = Math.max(0, selectedList.length - targets.length)
+    if (targets.length === 0) {
+      showToast(
+        zh('无法删除：所选视频缺少文件位置', 'Cannot delete: selected videos have no file location')
+      )
+      return
+    }
+    const confirmMessage =
+      skipped > 0
+        ? zh(
+            `确定删除 ${targets.length} 个可删除视频文件吗？${skipped} 项缺少文件位置，将跳过。`,
+            `Delete ${targets.length} deletable video files? ${skipped} selected items have no file location and will be skipped.`
+          )
+        : zh(
+            `确定删除所选 ${targets.length} 个视频文件吗？`,
+            `Delete the selected ${targets.length} video files?`
+          )
+    if (!window.confirm(confirmMessage)) return
+
+    setSelectionDeleting(true)
+    const deletedKeys = []
+    const failed = []
+    try {
+      for (const target of targets) {
+        try {
+          await deleteVideoLocation(target.videoId, target.locationId)
+          deletedKeys.push(target.key)
+        } catch (err) {
+          failed.push({ target, err })
+        }
+      }
+
+      if (deletedKeys.length > 0) {
+        const deletedSet = new Set(deletedKeys)
+        useStore.setState((state) => {
+          const nextIds = new Set(state.selectedVideoIds || [])
+          const nextMeta = { ...(state.selectedVideoMeta || {}) }
+          deletedSet.forEach((key) => {
+            nextIds.delete(key)
+            delete nextMeta[key]
+          })
+          const nextVideos = Array.isArray(state.videos)
+            ? state.videos.filter((item) => !deletedSet.has(videoSelectionKey(item)))
+            : state.videos
+          return {
+            videos: nextVideos,
+            selectedVideoIds: nextIds,
+            selectedVideoMeta: nextMeta,
+            total: Math.max(0, Number(state.total || 0) - deletedKeys.length),
+          }
+        })
+        await loadVideos({ force: true })
+      }
+
+      if (failed.length > 0) {
+        console.error('batch delete videos failed', failed)
+        showToast(
+          zh(
+            `已删除 ${deletedKeys.length} 个视频，${failed.length} 个失败`,
+            `Deleted ${deletedKeys.length} videos, ${failed.length} failed`
+          )
+        )
+      } else if (skipped > 0) {
+        showToast(
+          zh(
+            `已删除 ${deletedKeys.length} 个视频，跳过 ${skipped} 项`,
+            `Deleted ${deletedKeys.length} videos, skipped ${skipped} items`
+          )
+        )
+      } else {
+        setSelectionOpsOpen(false)
+        showToast(zh(`已删除 ${deletedKeys.length} 个视频`, `Deleted ${deletedKeys.length} videos`))
+      }
+    } finally {
+      setSelectionDeleting(false)
+    }
+  }, [loadVideos, selectedList, selectionDeleting, showToast])
 
   const openTagEditor = useCallback(
     (videoId) => {
@@ -2735,6 +2842,7 @@ export default function App() {
         onClose={() => setSelectionOpsOpen(false)}
         selectedList={selectedList}
         selectedCount={selectedCount}
+        deleting={selectionDeleting}
         onOpenTags={() => {
           loadTags()
           setSelectionTagAction('add')
@@ -2749,6 +2857,7 @@ export default function App() {
           setSelectionOpsOpen(false)
           setSelectionTagsOpen(true)
         }}
+        onDeleteSelected={handleDeleteSelection}
       />
 
       <SelectionTagsModal
