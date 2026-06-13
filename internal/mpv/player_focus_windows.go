@@ -32,7 +32,6 @@ var (
 	procEnumWindows            = moduser32.NewProc("EnumWindows")
 	procGetForegroundWindow    = moduser32.NewProc("GetForegroundWindow")
 	procGetWindow              = moduser32.NewProc("GetWindow")
-	procGetWindowRect          = moduser32.NewProc("GetWindowRect")
 	procGetWindowThreadProcess = moduser32.NewProc("GetWindowThreadProcessId")
 	procIsWindowVisible        = moduser32.NewProc("IsWindowVisible")
 	procSendMessage            = moduser32.NewProc("SendMessageW")
@@ -42,13 +41,6 @@ var (
 	procShowWindow             = moduser32.NewProc("ShowWindow")
 	procGetCurrentThreadID     = modkernel32.NewProc("GetCurrentThreadId")
 )
-
-type windowRect struct {
-	Left   int32
-	Top    int32
-	Right  int32
-	Bottom int32
-}
 
 func focusStartedProcessWindow(pid int, label string) {
 	if pid <= 0 {
@@ -101,11 +93,7 @@ func isUsableTopLevelWindow(hwnd windows.Handle) bool {
 		return false
 	}
 	owner, _, _ := procGetWindow.Call(uintptr(hwnd), gwOwner)
-	if owner != 0 {
-		return false
-	}
-	rect, ok := getWindowRect(hwnd)
-	return ok && rect.Right > rect.Left && rect.Bottom > rect.Top
+	return owner == 0
 }
 
 func windowProcessID(hwnd windows.Handle) uint32 {
@@ -146,12 +134,6 @@ func activateWindow(hwnd windows.Handle) bool {
 	ret, _, _ := procSetForegroundWindow.Call(uintptr(hwnd))
 	syncWindowActivation(hwnd)
 	return ret != 0 || getForegroundWindow() == hwnd
-}
-
-func getWindowRect(hwnd windows.Handle) (windowRect, bool) {
-	var rect windowRect
-	ret, _, _ := procGetWindowRect.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&rect)))
-	return rect, ret != 0
 }
 
 func syncWindowActivation(hwnd windows.Handle) {
