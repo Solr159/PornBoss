@@ -8,6 +8,7 @@ import { zh } from '@/utils/i18n'
 export default function JavIdolView({
   page,
   lastPage,
+  totalItems,
   hasPrev,
   hasNext,
   loading,
@@ -45,6 +46,7 @@ export default function JavIdolView({
             <Pagination
               page={page}
               lastPage={lastPage}
+              totalItems={totalItems}
               hasPrev={hasPrev}
               hasNext={hasNext}
               loading={loading}

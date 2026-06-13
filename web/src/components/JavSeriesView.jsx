@@ -10,6 +10,7 @@ import { zh } from '@/utils/i18n'
 export default function JavSeriesView({
   page,
   lastPage,
+  totalItems,
   hasPrev,
   hasNext,
   loading,
@@ -35,6 +36,7 @@ export default function JavSeriesView({
         <Pagination
           page={page}
           lastPage={lastPage}
+          totalItems={totalItems}
           hasPrev={hasPrev}
           hasNext={hasNext}
           loading={loading}

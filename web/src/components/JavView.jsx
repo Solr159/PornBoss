@@ -22,6 +22,7 @@ function SortText({ option, value, className = '' }) {
 export default function JavView({
   javPage,
   javLastPage,
+  javTotal,
   javHasPrev,
   javHasNext,
   javLoading,
@@ -46,6 +47,15 @@ export default function JavView({
   openFileLabel,
   onRevealFile,
   onOpenScreenshots,
+  onManageVideoPlay,
+  onManageVideoOpenFile,
+  onManageVideoRevealFile,
+  onManageVideoOpenTagPicker,
+  onManageVideoOpenScreenshots,
+  onManageVideoOpenScrapeSettings,
+  onManageVideoRename,
+  onManageVideoDelete,
+  onManageVideoTagClick,
   waterfallMode,
   onWaterfallModeChange,
   onLoadMore,
@@ -79,6 +89,7 @@ export default function JavView({
             <Pagination
               page={javPage}
               lastPage={javLastPage}
+              totalItems={javTotal}
               hasPrev={javHasPrev}
               hasNext={javHasNext}
               loading={javLoading}
@@ -193,6 +204,15 @@ export default function JavView({
             openFileLabel={openFileLabel}
             onRevealFile={onRevealFile}
             onOpenScreenshots={onOpenScreenshots}
+            onManageVideoPlay={onManageVideoPlay}
+            onManageVideoOpenFile={onManageVideoOpenFile}
+            onManageVideoRevealFile={onManageVideoRevealFile}
+            onManageVideoOpenTagPicker={onManageVideoOpenTagPicker}
+            onManageVideoOpenScreenshots={onManageVideoOpenScreenshots}
+            onManageVideoOpenScrapeSettings={onManageVideoOpenScrapeSettings}
+            onManageVideoRename={onManageVideoRename}
+            onManageVideoDelete={onManageVideoDelete}
+            onManageVideoTagClick={onManageVideoTagClick}
           />
         </div>
       )}

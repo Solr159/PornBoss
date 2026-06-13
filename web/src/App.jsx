@@ -10,6 +10,7 @@ import {
   playVideoFile,
   openVideoFile,
   revealVideoLocation,
+  updateVideoJavScrapeSettings,
   createJavTag,
   renameJavTag,
   deleteJavTag,
@@ -37,6 +38,7 @@ import TagPickerModal from '@/components/TagPickerModal'
 import Toast from '@/components/Toast'
 import TopBar from '@/components/TopBar'
 import VideoSettingsModal from '@/components/VideoSettingsModal'
+import VideoScrapeSettingsModal from '@/components/VideoScrapeSettingsModal'
 import VideoScreenshotsModal from '@/components/VideoScreenshotsModal'
 import VideoTagModal from '@/components/VideoTagModal'
 import { normalizeIdolSort, normalizeJavSort } from '@/constants/jav'
@@ -49,6 +51,7 @@ import { isChineseLocale, zh } from '@/utils/i18n'
 import { directoryQueryIds, useStore, videoSelectionKey } from '@/store'
 
 const JAV_STUDIO_PAGE_SIZE = 24
+const JAV_SCRAPE_OVERRIDE_SKIP = ':skip'
 
 const normalizeDefaultPlayer = (value) =>
   String(value || '')
@@ -63,6 +66,26 @@ const normalizeInitialViewMode = (value) =>
     .toLowerCase() === 'jav'
     ? 'jav'
     : 'video'
+
+function applyScrapeOverrideToVideo(video, override) {
+  const nextOverride = String(override || '').trim()
+  const next = { ...video, jav_scrape_override: nextOverride }
+  if (!nextOverride) return next
+  const linkedCode = String(video?.jav?.code || video?.locations?.[0]?.jav?.code || '')
+    .trim()
+    .toUpperCase()
+  if (nextOverride !== JAV_SCRAPE_OVERRIDE_SKIP && linkedCode === nextOverride.toUpperCase()) {
+    return next
+  }
+  return {
+    ...next,
+    jav_id: null,
+    jav: null,
+    locations: Array.isArray(video?.locations)
+      ? video.locations.map((location) => ({ ...location, jav_id: null, jav: null }))
+      : video?.locations,
+  }
+}
 
 export default function App() {
   const pendingVideoTagIdsRef = useRef(null)
@@ -198,6 +221,8 @@ export default function App() {
   const [locationPickerChoices, setLocationPickerChoices] = useState([])
   const [locationPickerAction, setLocationPickerAction] = useState('play')
   const [screenshotsVideo, setScreenshotsVideo] = useState(null)
+  const [scrapeSettingsVideo, setScrapeSettingsVideo] = useState(null)
+  const [scrapeSettingsSaving, setScrapeSettingsSaving] = useState(false)
   const [searchInput, setSearchInput] = useState('')
   const [javSearchInput, setJavSearchInput] = useState('')
   const [waterfallModes, setWaterfallModes] = useState({
@@ -245,6 +270,7 @@ export default function App() {
   const [selectionTagsOpen, setSelectionTagsOpen] = useState(false)
   const [selectionTagAction, setSelectionTagAction] = useState('add')
   const [selectionTagChoices, setSelectionTagChoices] = useState([])
+  const [selectionDeleting, setSelectionDeleting] = useState(false)
   const [videoPageSizeInput, setVideoPageSizeInput] = useState(pageSize)
   const [videoSortInput, setVideoSortInput] = useState(sortOrder)
   const [videoHideJavInput, setVideoHideJavInput] = useState(videoHideJav)
@@ -530,6 +556,47 @@ export default function App() {
       }
     },
     [loadVideos, showToast]
+  )
+
+  const handleOpenScrapeSettings = useCallback((video) => {
+    setScrapeSettingsVideo(video)
+  }, [])
+
+  const handleSaveScrapeSettings = useCallback(
+    async ({ mode, code }) => {
+      const video = scrapeSettingsVideo
+      if (!video?.id) return
+      setScrapeSettingsSaving(true)
+      try {
+        const updated = await updateVideoJavScrapeSettings(video.id, { mode, code })
+        let override = ''
+        if (typeof updated?.jav_scrape_override === 'string') {
+          override = updated.jav_scrape_override
+        } else if (mode === 'skip') {
+          override = JAV_SCRAPE_OVERRIDE_SKIP
+        } else if (mode === 'code') {
+          override = String(code || '')
+            .trim()
+            .toUpperCase()
+        }
+        useStore.setState((state) => ({
+          videos: Array.isArray(state.videos)
+            ? state.videos.map((item) =>
+                item?.id === video.id ? applyScrapeOverrideToVideo(item, override) : item
+              )
+            : state.videos,
+        }))
+        setScrapeSettingsVideo(null)
+        await loadVideos({ force: true })
+        showToast(zh('刮削设置已保存', 'Scrape settings saved'))
+      } catch (err) {
+        console.error(zh('保存刮削设置失败', 'Failed to save scrape settings'), err)
+        showToast(err?.message || zh('保存刮削设置失败', 'Failed to save scrape settings'))
+      } finally {
+        setScrapeSettingsSaving(false)
+      }
+    },
+    [loadVideos, scrapeSettingsVideo, showToast]
   )
 
   const closeJavVideoPicker = useCallback(() => {
@@ -1201,10 +1268,16 @@ export default function App() {
       const v = videos.find((item) => videoSelectionKey(item) === String(key))
       const meta = selectedVideoMeta?.[key]
       const labelFromMeta = meta && typeof meta === 'object' ? meta.label : meta
+      const videoId = Number(meta && typeof meta === 'object' ? meta.video_id : v?.id)
+      const locationId = Number(
+        meta && typeof meta === 'object' ? meta.location_id : v?.location_id
+      )
       return {
         id: key,
         label: labelFromMeta || v?.filename || v?.path || `#${key}`,
         video: v,
+        video_id: Number.isFinite(videoId) && videoId > 0 ? videoId : null,
+        location_id: Number.isFinite(locationId) && locationId > 0 ? locationId : null,
       }
     })
   }, [selectedVideoIds, videos, selectedVideoMeta])
@@ -1652,6 +1725,106 @@ export default function App() {
     setSelectionTagAction('add')
     setSelectionTagChoices([])
   }, [selectedCount])
+
+  const handleDeleteSelection = useCallback(async () => {
+    if (selectionDeleting) return
+    const targets = selectedList
+      .map((item) => {
+        const videoId = Number(item?.video_id || item?.video?.id)
+        const locationId = Number(item?.location_id || item?.video?.location_id)
+        if (
+          !Number.isFinite(videoId) ||
+          videoId <= 0 ||
+          !Number.isFinite(locationId) ||
+          locationId <= 0
+        ) {
+          return null
+        }
+        return {
+          key: item.id,
+          label: item.label || `#${videoId}`,
+          videoId,
+          locationId,
+        }
+      })
+      .filter(Boolean)
+    const skipped = Math.max(0, selectedList.length - targets.length)
+    if (targets.length === 0) {
+      showToast(
+        zh('无法删除：所选视频缺少文件位置', 'Cannot delete: selected videos have no file location')
+      )
+      return
+    }
+    const confirmMessage =
+      skipped > 0
+        ? zh(
+            `确定删除 ${targets.length} 个可删除视频文件吗？${skipped} 项缺少文件位置，将跳过。`,
+            `Delete ${targets.length} deletable video files? ${skipped} selected items have no file location and will be skipped.`
+          )
+        : zh(
+            `确定删除所选 ${targets.length} 个视频文件吗？`,
+            `Delete the selected ${targets.length} video files?`
+          )
+    if (!window.confirm(confirmMessage)) return
+
+    setSelectionDeleting(true)
+    const deletedKeys = []
+    const failed = []
+    try {
+      for (const target of targets) {
+        try {
+          await deleteVideoLocation(target.videoId, target.locationId)
+          deletedKeys.push(target.key)
+        } catch (err) {
+          failed.push({ target, err })
+        }
+      }
+
+      if (deletedKeys.length > 0) {
+        const deletedSet = new Set(deletedKeys)
+        useStore.setState((state) => {
+          const nextIds = new Set(state.selectedVideoIds || [])
+          const nextMeta = { ...(state.selectedVideoMeta || {}) }
+          deletedSet.forEach((key) => {
+            nextIds.delete(key)
+            delete nextMeta[key]
+          })
+          const nextVideos = Array.isArray(state.videos)
+            ? state.videos.filter((item) => !deletedSet.has(videoSelectionKey(item)))
+            : state.videos
+          return {
+            videos: nextVideos,
+            selectedVideoIds: nextIds,
+            selectedVideoMeta: nextMeta,
+            total: Math.max(0, Number(state.total || 0) - deletedKeys.length),
+          }
+        })
+        await loadVideos({ force: true })
+      }
+
+      if (failed.length > 0) {
+        console.error('batch delete videos failed', failed)
+        showToast(
+          zh(
+            `已删除 ${deletedKeys.length} 个视频，${failed.length} 个失败`,
+            `Deleted ${deletedKeys.length} videos, ${failed.length} failed`
+          )
+        )
+      } else if (skipped > 0) {
+        showToast(
+          zh(
+            `已删除 ${deletedKeys.length} 个视频，跳过 ${skipped} 项`,
+            `Deleted ${deletedKeys.length} videos, skipped ${skipped} items`
+          )
+        )
+      } else {
+        setSelectionOpsOpen(false)
+        showToast(zh(`已删除 ${deletedKeys.length} 个视频`, `Deleted ${deletedKeys.length} videos`))
+      }
+    } finally {
+      setSelectionDeleting(false)
+    }
+  }, [loadVideos, selectedList, selectionDeleting, showToast])
 
   const openTagEditor = useCallback(
     (videoId) => {
@@ -2387,6 +2560,7 @@ export default function App() {
             idol={{
               page: idolPage,
               lastPage: idolLastPage,
+              totalItems: idolTotal,
               hasPrev: idolHasPrev,
               hasNext: idolHasNext,
               loading: idolLoading,
@@ -2415,6 +2589,7 @@ export default function App() {
             studio={{
               page: studioPage,
               lastPage: studioLastPage,
+              totalItems: studioTotal,
               hasPrev: studioHasPrev,
               hasNext: studioHasNext,
               loading: studioLoading,
@@ -2434,6 +2609,7 @@ export default function App() {
             series={{
               page: seriesPage,
               lastPage: seriesLastPage,
+              totalItems: seriesTotal,
               hasPrev: seriesHasPrev,
               hasNext: seriesHasNext,
               loading: seriesLoading,
@@ -2462,6 +2638,7 @@ export default function App() {
               setJavPage,
               setJavTempSort,
               javItems,
+              javTotal,
               javGridColumns,
               javTitleMaxRows,
               javIdolTagMaxRows,
@@ -2471,6 +2648,15 @@ export default function App() {
               alternatePlayerLabel,
               onRevealFile: handleJavRevealFile,
               onOpenScreenshots: handleJavOpenScreenshots,
+              onManageVideoPlay: handleOpenPlayer,
+              onManageVideoOpenFile: handleOpenAlternatePlayer,
+              onManageVideoRevealFile: handleRevealVideoFile,
+              onManageVideoOpenTagPicker: openTagEditor,
+              onManageVideoOpenScreenshots: setScreenshotsVideo,
+              onManageVideoOpenScrapeSettings: handleOpenScrapeSettings,
+              onManageVideoRename: handleRenameVideo,
+              onManageVideoDelete: handleDeleteVideo,
+              onManageVideoTagClick: handleVideoTagClick,
               onIdolClick: handleJavIdolClick,
               onOpenFavorites: handleOpenIdolFavoriteModal,
               onStudioClick: handleSelectStudio,
@@ -2490,6 +2676,7 @@ export default function App() {
             setSelectionOpsOpen={setSelectionOpsOpen}
             page={page}
             lastPage={lastPage}
+            totalItems={total}
             canPrev={canPrev}
             canNext={canNext}
             loading={loading}
@@ -2510,6 +2697,7 @@ export default function App() {
             alternatePlayerLabel={alternatePlayerLabel}
             setTagPickerFor={openTagEditor}
             onOpenScreenshots={setScreenshotsVideo}
+            onOpenScrapeSettings={handleOpenScrapeSettings}
             onRenameVideo={handleRenameVideo}
             onDeleteVideo={handleDeleteVideo}
             onTagClick={handleVideoTagClick}
@@ -2555,6 +2743,16 @@ export default function App() {
         playerHotkeys={config?.player_hotkeys}
         onClose={() => setScreenshotsVideo(null)}
         onPlayAtTime={playVideoFromTime}
+      />
+
+      <VideoScrapeSettingsModal
+        open={Boolean(scrapeSettingsVideo)}
+        video={scrapeSettingsVideo}
+        saving={scrapeSettingsSaving}
+        onClose={() => {
+          if (!scrapeSettingsSaving) setScrapeSettingsVideo(null)
+        }}
+        onSave={handleSaveScrapeSettings}
       />
 
       <JavSettingsModal
@@ -2649,6 +2847,7 @@ export default function App() {
         onClose={() => setSelectionOpsOpen(false)}
         selectedList={selectedList}
         selectedCount={selectedCount}
+        deleting={selectionDeleting}
         onOpenTags={() => {
           loadTags()
           setSelectionTagAction('add')
@@ -2663,6 +2862,7 @@ export default function App() {
           setSelectionOpsOpen(false)
           setSelectionTagsOpen(true)
         }}
+        onDeleteSelected={handleDeleteSelection}
       />
 
       <SelectionTagsModal

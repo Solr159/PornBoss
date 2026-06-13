@@ -9,6 +9,7 @@ import { zh } from '@/utils/i18n'
 export default function JavStudioView({
   page,
   lastPage,
+  totalItems,
   hasPrev,
   hasNext,
   loading,
@@ -33,6 +34,7 @@ export default function JavStudioView({
         <Pagination
           page={page}
           lastPage={lastPage}
+          totalItems={totalItems}
           hasPrev={hasPrev}
           hasNext={hasNext}
           loading={loading}

@@ -8,9 +8,11 @@ export default function VideoRoute({
   clearSelection,
   goToLastPage,
   lastPage,
+  totalItems,
   loading,
   onDeleteVideo,
   onOpenScreenshots,
+  onOpenScrapeSettings,
   onRenameVideo,
   onTagClick,
   onToggleSelectPage,
@@ -42,6 +44,7 @@ export default function VideoRoute({
       setSelectionOpsOpen={setSelectionOpsOpen}
       page={page}
       lastPage={lastPage}
+      totalItems={totalItems}
       canPrev={canPrev}
       canNext={canNext}
       loading={loading}
@@ -62,6 +65,7 @@ export default function VideoRoute({
       alternatePlayerLabel={alternatePlayerLabel}
       setTagPickerFor={setTagPickerFor}
       onOpenScreenshots={onOpenScreenshots}
+      onOpenScrapeSettings={onOpenScrapeSettings}
       onRenameVideo={onRenameVideo}
       onDeleteVideo={onDeleteVideo}
       onTagClick={onTagClick}

@@ -5,6 +5,7 @@ import DriveFileRenameOutlineIcon from '@mui/icons-material/DriveFileRenameOutli
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
+import ManageSearchIcon from '@mui/icons-material/ManageSearch'
 import { revealVideoLocation } from '@/api'
 import { formatBytes, getVideoDisplayName, parseVideoFingerprint } from '@/utils/display'
 import { zh } from '@/utils/i18n'
@@ -15,12 +16,15 @@ export default function VideoCard({
   video,
   checked,
   onToggle,
+  showSelection = true,
   onPlay,
   onOpenFile,
   onRevealFile,
   openFileLabel,
   onOpenTagPicker,
+  showTagEditor = true,
   onOpenScreenshots,
+  onOpenScrapeSettings,
   onRenameVideo,
   onDeleteVideo,
   onTagClick,
@@ -42,6 +46,8 @@ export default function VideoCard({
   const videoPath = video?.path || ''
   const canOpen = Boolean(directoryPath && videoPath)
   const inputId = `check-${video?.location_id || video.id}`
+  const javCode = String(video?.jav?.code || video?.locations?.[0]?.jav?.code || '').trim()
+  const hasScrapeOverride = Boolean(String(video?.jav_scrape_override || '').trim())
 
   const handleOpenFile = async (event) => {
     event.stopPropagation()
@@ -72,6 +78,11 @@ export default function VideoCard({
     onOpenScreenshots?.(video)
   }
 
+  const handleOpenScrapeSettings = (event) => {
+    event.stopPropagation()
+    onOpenScrapeSettings?.(video)
+  }
+
   const openEditMenu = (event) => {
     event.stopPropagation()
     setEditAnchorEl(event.currentTarget)
@@ -99,20 +110,22 @@ export default function VideoCard({
         checked ? 'border-sky-400 ring-2 ring-sky-200' : 'border-gray-200 hover:border-gray-300'
       }`}
     >
-      <div className={`video-card-select ${checked ? 'is-visible' : ''}`}>
-        <input
-          id={inputId}
-          type="checkbox"
-          checked={checked}
-          onChange={onToggle}
-          className="video-select-check"
-          onClick={(e) => e.stopPropagation()}
-          onPointerUp={(e) => {
-            e.currentTarget.blur()
-          }}
-          aria-label={zh(`选择 ${displayName}`, `Select ${displayName}`)}
-        />
-      </div>
+      {showSelection ? (
+        <div className={`video-card-select ${checked ? 'is-visible' : ''}`}>
+          <input
+            id={inputId}
+            type="checkbox"
+            checked={checked}
+            onChange={onToggle}
+            className="video-select-check"
+            onClick={(e) => e.stopPropagation()}
+            onPointerUp={(e) => {
+              e.currentTarget.blur()
+            }}
+            aria-label={zh(`选择 ${displayName}`, `Select ${displayName}`)}
+          />
+        </div>
+      ) : null}
       <div className="relative aspect-video w-full overflow-hidden bg-gray-200">
         <img
           src={`/videos/${video.id}/thumbnail`}
@@ -123,6 +136,14 @@ export default function VideoCard({
             e.currentTarget.style.display = 'none'
           }}
         />
+        {javCode ? (
+          <div
+            className="absolute right-2 top-2 z-10 max-w-[calc(100%-1rem)] truncate rounded bg-black/70 px-2 py-1 text-xs text-white"
+            title={zh(`已刮削：${javCode}`, `Scraped: ${javCode}`)}
+          >
+            {zh(`已刮削 ${javCode}`, `Scraped ${javCode}`)}
+          </div>
+        ) : null}
         <div className="absolute bottom-2 left-2 z-10 opacity-0 transition-opacity group-hover:opacity-100">
           <button
             type="button"
@@ -178,19 +199,21 @@ export default function VideoCard({
                 </button>
               ))
             : null}
-          <Tooltip title={zh('修改标签', 'Edit tags')}>
-            <IconButton
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation()
-                onOpenTagPicker()
-              }}
-              aria-label={zh('修改标签', 'Edit tags')}
-              className="h-6 w-6"
-            >
-              <LocalOfferOutlinedIcon fontSize="inherit" />
-            </IconButton>
-          </Tooltip>
+          {showTagEditor ? (
+            <Tooltip title={zh('修改标签', 'Edit tags')}>
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onOpenTagPicker()
+                }}
+                aria-label={zh('修改标签', 'Edit tags')}
+                className="h-6 w-6"
+              >
+                <LocalOfferOutlinedIcon fontSize="inherit" />
+              </IconButton>
+            </Tooltip>
+          ) : null}
           <Tooltip title={openFileLabel || zh('用默认程序打开', 'Open with default app')}>
             <IconButton
               size="small"
@@ -221,6 +244,16 @@ export default function VideoCard({
               className="h-6 w-6"
             >
               <MovieEdit fontSize="inherit" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={zh('刮削设置', 'Scrape settings')}>
+            <IconButton
+              size="small"
+              onClick={handleOpenScrapeSettings}
+              aria-label={zh('刮削设置', 'Scrape settings')}
+              className={`h-6 w-6 ${hasScrapeOverride ? 'text-blue-700' : ''}`}
+            >
+              <ManageSearchIcon fontSize="inherit" />
             </IconButton>
           </Tooltip>
           <Popover
@@ -257,7 +290,11 @@ export default function VideoCard({
         <button
           onClick={(e) => {
             e.stopPropagation()
+            e.currentTarget.blur()
             onPlay(video)
+          }}
+          onPointerUp={(e) => {
+            e.currentTarget.blur()
           }}
           className="pointer-events-auto rounded-full bg-black/60 p-3 hover:bg-black/80"
           aria-label={zh('播放', 'Play')}

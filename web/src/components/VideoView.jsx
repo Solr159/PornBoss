@@ -31,6 +31,7 @@ export default function VideoView({
   setSelectionOpsOpen,
   page,
   lastPage,
+  totalItems,
   canPrev,
   canNext,
   loading,
@@ -51,6 +52,7 @@ export default function VideoView({
   alternatePlayerLabel,
   setTagPickerFor,
   onOpenScreenshots,
+  onOpenScrapeSettings,
   onRenameVideo,
   onDeleteVideo,
   onTagClick,
@@ -91,6 +93,7 @@ export default function VideoView({
               <Pagination
                 page={page}
                 lastPage={lastPage}
+                totalItems={totalItems}
                 hasPrev={canPrev}
                 hasNext={canNext}
                 loading={loading}
@@ -235,6 +238,7 @@ export default function VideoView({
           openFileLabel={alternatePlayerLabel}
           onOpenTagPicker={(vid) => setTagPickerFor(vid)}
           onOpenScreenshots={onOpenScreenshots}
+          onOpenScrapeSettings={onOpenScrapeSettings}
           onRenameVideo={onRenameVideo}
           onDeleteVideo={onDeleteVideo}
           onTagClick={onTagClick}
