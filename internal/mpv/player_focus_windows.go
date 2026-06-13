@@ -3,6 +3,7 @@
 package mpv
 
 import (
+	"runtime"
 	"time"
 	"unsafe"
 
@@ -15,8 +16,11 @@ const (
 	focusWindowPollInterval = 50 * time.Millisecond
 	focusWindowTimeout      = 3 * time.Second
 
-	gwOwner   = 4
-	swRestore = 9
+	gwOwner      = 4
+	swRestore    = 9
+	waActive     = 1
+	wmActivate   = 0x0006
+	wmNCActivate = 0x0086
 )
 
 var (
@@ -28,14 +32,23 @@ var (
 	procEnumWindows            = moduser32.NewProc("EnumWindows")
 	procGetForegroundWindow    = moduser32.NewProc("GetForegroundWindow")
 	procGetWindow              = moduser32.NewProc("GetWindow")
+	procGetWindowRect          = moduser32.NewProc("GetWindowRect")
 	procGetWindowThreadProcess = moduser32.NewProc("GetWindowThreadProcessId")
 	procIsWindowVisible        = moduser32.NewProc("IsWindowVisible")
+	procSendMessage            = moduser32.NewProc("SendMessageW")
 	procSetActiveWindow        = moduser32.NewProc("SetActiveWindow")
 	procSetFocus               = moduser32.NewProc("SetFocus")
 	procSetForegroundWindow    = moduser32.NewProc("SetForegroundWindow")
 	procShowWindow             = moduser32.NewProc("ShowWindow")
 	procGetCurrentThreadID     = modkernel32.NewProc("GetCurrentThreadId")
 )
+
+type windowRect struct {
+	Left   int32
+	Top    int32
+	Right  int32
+	Bottom int32
+}
 
 func focusStartedProcessWindow(pid int, label string) {
 	if pid <= 0 {
@@ -88,7 +101,11 @@ func isUsableTopLevelWindow(hwnd windows.Handle) bool {
 		return false
 	}
 	owner, _, _ := procGetWindow.Call(uintptr(hwnd), gwOwner)
-	return owner == 0
+	if owner != 0 {
+		return false
+	}
+	rect, ok := getWindowRect(hwnd)
+	return ok && rect.Right > rect.Left && rect.Bottom > rect.Top
 }
 
 func windowProcessID(hwnd windows.Handle) uint32 {
@@ -103,6 +120,9 @@ func windowThreadID(hwnd windows.Handle) uint32 {
 }
 
 func activateWindow(hwnd windows.Handle) bool {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	procShowWindow.Call(uintptr(hwnd), swRestore)
 
 	currentThreadID := getCurrentThreadID()
@@ -124,7 +144,19 @@ func activateWindow(hwnd windows.Handle) bool {
 	procSetActiveWindow.Call(uintptr(hwnd))
 	procSetFocus.Call(uintptr(hwnd))
 	ret, _, _ := procSetForegroundWindow.Call(uintptr(hwnd))
+	syncWindowActivation(hwnd)
 	return ret != 0 || getForegroundWindow() == hwnd
+}
+
+func getWindowRect(hwnd windows.Handle) (windowRect, bool) {
+	var rect windowRect
+	ret, _, _ := procGetWindowRect.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&rect)))
+	return rect, ret != 0
+}
+
+func syncWindowActivation(hwnd windows.Handle) {
+	procSendMessage.Call(uintptr(hwnd), wmNCActivate, 1, 0)
+	procSendMessage.Call(uintptr(hwnd), wmActivate, waActive, 0)
 }
 
 func getForegroundWindow() windows.Handle {
