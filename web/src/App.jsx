@@ -11,6 +11,8 @@ import {
   openVideoFile,
   revealVideoLocation,
   updateVideoJavScrapeSettings,
+  lookupVideoJavScrapeJavDB,
+  manualVideoJavScrape,
   createJavTag,
   renameJavTag,
   deleteJavTag,
@@ -592,6 +594,48 @@ export default function App() {
       } catch (err) {
         console.error(zh('保存刮削设置失败', 'Failed to save scrape settings'), err)
         showToast(err?.message || zh('保存刮削设置失败', 'Failed to save scrape settings'))
+      } finally {
+        setScrapeSettingsSaving(false)
+      }
+    },
+    [loadVideos, scrapeSettingsVideo, showToast]
+  )
+
+  const handleLookupScrapeJavDB = useCallback(
+    async (code) => {
+      const video = scrapeSettingsVideo
+      if (!video?.id) throw new Error(zh('缺少视频 ID', 'Missing video ID'))
+      return lookupVideoJavScrapeJavDB(video.id, code)
+    },
+    [scrapeSettingsVideo]
+  )
+
+  const handleManualScrape = useCallback(
+    async (info) => {
+      const video = scrapeSettingsVideo
+      if (!video?.id) return
+      const locationId = Number(video?.location_id || video?.locations?.[0]?.id || 0)
+      if (!Number.isFinite(locationId) || locationId <= 0) {
+        showToast(zh('缺少视频位置 ID', 'Missing video location ID'))
+        return
+      }
+      setScrapeSettingsSaving(true)
+      try {
+        const updated = await manualVideoJavScrape(video.id, locationId, info)
+        const targetKey = videoSelectionKey(video)
+        useStore.setState((state) => ({
+          videos: Array.isArray(state.videos)
+            ? state.videos.map((item) =>
+                videoSelectionKey(item) === targetKey && updated ? updated : item
+              )
+            : state.videos,
+        }))
+        setScrapeSettingsVideo(null)
+        await loadVideos({ force: true })
+        showToast(zh('手动刮削已保存', 'Manual scrape saved'))
+      } catch (err) {
+        console.error(zh('手动刮削失败', 'Manual scrape failed'), err)
+        showToast(err?.message || zh('手动刮削失败', 'Manual scrape failed'))
       } finally {
         setScrapeSettingsSaving(false)
       }
@@ -2753,6 +2797,8 @@ export default function App() {
           if (!scrapeSettingsSaving) setScrapeSettingsVideo(null)
         }}
         onSave={handleSaveScrapeSettings}
+        onLookupJavDB={handleLookupScrapeJavDB}
+        onManualScrape={handleManualScrape}
       />
 
       <JavSettingsModal

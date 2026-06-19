@@ -20,6 +20,8 @@ func RegisterRoutes(router *gin.Engine) {
 	router.GET("/videos/:id/screenshots", listVideoScreenshots)
 	router.GET("/videos/:id/screenshots/:name", getVideoScreenshot)
 	router.PATCH("/videos/:id/jav-scrape", updateVideoJavScrapeSettings)
+	router.GET("/videos/:id/jav-scrape/javdb", lookupVideoJavScrapeJavDB)
+	router.POST("/videos/:id/jav-scrape/manual", manualVideoJavScrape)
 	router.DELETE("/videos/:id/screenshots/:name", deleteVideoScreenshot)
 	router.PATCH("/videos/:id/locations/:location_id", renameVideoLocation)
 	router.DELETE("/videos/:id/locations/:location_id", deleteVideoLocation)
