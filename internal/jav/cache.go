@@ -21,7 +21,7 @@ var lookupJavCacheKeyVersionByProvider = map[Provider]string{
 	ProviderJavBus:      "v3",
 	ProviderJavDatabase: "v3",
 	ProviderJavDB:       "v3",
-	ProviderAvmoo:       "v3",
+	ProviderAvmoo:       "v4",
 	ProviderAvsox:       "v2",
 }
 
