@@ -121,6 +121,10 @@ func TestExtractCodeFromName(t *testing.T) {
 			expected: []string{"LLDV-044", "LLDV-44"},
 		},
 		{
+			input:    "t28-502.mp4",
+			expected: []string{"T28-502", "T28"},
+		},
+		{
 			input:    "javcn_MCB3DBD-42-H265.mp4",
 			expected: []string{"DBD-042", "MCB3DBD-42", "H265"},
 		},

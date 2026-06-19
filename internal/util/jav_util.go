@@ -13,6 +13,7 @@ var CodeRe = regexp.MustCompile(`(?i)([a-z]{2,6})[-_ ]?(\d{2,5})([a-z]{0,2})`)
 var (
 	alphaNumericUncensoredRe    = regexp.MustCompile(`(?i)(^|[^a-z0-9])([a-z]+)(?:\s*([-_ ])\s*)?(\d{2,})([^a-z0-9]|$)`)
 	mixedPrefixUncensoredRe     = regexp.MustCompile(`(?i)(^|[^a-z0-9])([a-z0-9]*[a-z][a-z0-9]*\d[a-z0-9]*[a-z][a-z0-9]*)[-_ ](\d{2,})([^a-z0-9]|$)`)
+	mixedPrefixCensoredRe       = regexp.MustCompile(`(?i)(^|[^a-z0-9])([a-z][a-z0-9]{1,5})[-_ ](\d{2,5})([a-z]{0,2})([^a-z0-9]|$)`)
 	pureNumericUncensoredCodeRe = regexp.MustCompile(`(^|[^0-9])(\d{4,}[-_]\d{2,})([^0-9]|$)`)
 	explicitShortCodeRe         = regexp.MustCompile(`(?i)(^|[^a-z0-9])([a-z]{2,6})[-_ ](\d{2})([a-z]{0,2})([^a-z0-9]|$)`)
 )
@@ -105,6 +106,18 @@ func extractCensoredCodesFromName(base string) []string {
 		suffix := strings.ToUpper(strings.TrimSpace(m[3]))
 		number := normalizeNumber(m[2])
 		base := fmt.Sprintf("%s-%s", strings.ToUpper(m[1]), number)
+		appendUniqueCode(&out, seen, base)
+		if suffix != "" {
+			appendUniqueCode(&out, seen, base+suffix)
+		}
+	}
+	for _, m := range mixedPrefixCensoredRe.FindAllStringSubmatch(base, -1) {
+		if len(m) < 5 {
+			continue
+		}
+		suffix := strings.ToUpper(strings.TrimSpace(m[4]))
+		number := normalizeNumber(m[3])
+		base := fmt.Sprintf("%s-%s", strings.ToUpper(m[2]), number)
 		appendUniqueCode(&out, seen, base)
 		if suffix != "" {
 			appendUniqueCode(&out, seen, base+suffix)
