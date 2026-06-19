@@ -1,7 +1,7 @@
 import { zh } from '@/utils/i18n'
 
 const jsonHeaders = { 'Content-Type': 'application/json' }
-const apiTokenStorageKey = 'pornboss_api_token'
+const apiTokenStorageKey = 'javboss_api_token'
 const javIdolResolveInFlight = new Map()
 
 function loadAPIToken() {
@@ -32,7 +32,7 @@ function apiFetch(input, init = {}) {
     return fetch(input, init)
   }
   const headers = new Headers(init.headers || {})
-  headers.set('X-Pornboss-Token', apiToken)
+  headers.set('X-JavBoss-Token', apiToken)
   return fetch(input, { ...init, headers })
 }
 

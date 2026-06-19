@@ -14,7 +14,8 @@ type Config struct {
 }
 
 const (
-	defaultDatabasePath  = "data/pornboss.db"
+	defaultDatabasePath  = "data/javboss.db"
+	legacyDatabaseName   = "pornboss.db"
 	defaultThumbnailsDir = "data/thumbnails"
 	defaultJavCoverDir   = "data/cover"
 )
@@ -90,4 +91,63 @@ func LoadWithBaseDir(baseDir string) (*Config, error) {
 	cfg.JavCoverDir = absCovers
 
 	return &cfg, nil
+}
+
+// MigrateLegacyDatabase moves the pre-rename SQLite database into the current
+// default filename when the current database does not exist yet.
+func MigrateLegacyDatabase(cfg *Config) error {
+	if cfg == nil {
+		return fmt.Errorf("migrate legacy database: missing config")
+	}
+	if cfg.DatabasePath == "" {
+		return fmt.Errorf("migrate legacy database: empty database path")
+	}
+	legacyPath := filepath.Join(filepath.Dir(cfg.DatabasePath), legacyDatabaseName)
+	if filepath.Clean(legacyPath) == filepath.Clean(cfg.DatabasePath) {
+		return nil
+	}
+	_, err := migrateLegacySQLiteFiles(legacyPath, cfg.DatabasePath)
+	return err
+}
+
+func migrateLegacySQLiteFiles(legacyPath, currentPath string) (bool, error) {
+	if _, err := os.Stat(currentPath); err == nil {
+		return false, nil
+	} else if !os.IsNotExist(err) {
+		return false, fmt.Errorf("inspect current database: %w", err)
+	}
+
+	if _, err := os.Stat(legacyPath); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("inspect legacy database: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(currentPath), 0o755); err != nil {
+		return false, fmt.Errorf("create database directory: %w", err)
+	}
+
+	for _, suffix := range []string{"-wal", "-shm"} {
+		if err := migrateLegacyFile(legacyPath+suffix, currentPath+suffix); err != nil {
+			return false, err
+		}
+	}
+	if err := migrateLegacyFile(legacyPath, currentPath); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func migrateLegacyFile(legacyPath, currentPath string) error {
+	if _, err := os.Stat(legacyPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("inspect legacy file: %w", err)
+	}
+	if err := os.Rename(legacyPath, currentPath); err != nil {
+		return fmt.Errorf("migrate legacy file: %w", err)
+	}
+	return nil
 }

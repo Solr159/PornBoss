@@ -20,17 +20,17 @@ import (
 	"syscall"
 	"time"
 
-	"pornboss/internal/cache"
-	"pornboss/internal/common"
-	"pornboss/internal/common/logging"
-	"pornboss/internal/db"
-	"pornboss/internal/jav"
-	"pornboss/internal/models"
-	"pornboss/internal/server"
-	"pornboss/internal/service"
-	"pornboss/internal/util"
+	"javboss/internal/cache"
+	"javboss/internal/common"
+	"javboss/internal/common/logging"
+	"javboss/internal/db"
+	"javboss/internal/jav"
+	"javboss/internal/models"
+	"javboss/internal/server"
+	"javboss/internal/service"
+	"javboss/internal/util"
 
-	"pornboss/internal/manager"
+	"javboss/internal/manager"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pelletier/go-toml/v2"
@@ -45,7 +45,7 @@ func main() {
 	staticDir := flag.String("static", "web/dist", "Path to built frontend assets")
 	flag.Parse()
 
-	_ = os.Setenv("PORNBOSS_BUILD_MODE", buildMode)
+	_ = os.Setenv("JAVBOSS_BUILD_MODE", buildMode)
 
 	if buildMode == "release" && os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.ReleaseMode)
@@ -73,21 +73,28 @@ func main() {
 	logging.SetColorEnabled(false)
 
 	if buildMode == "release" {
-		lockPath := filepath.Join(filepath.Dir(cfg.DatabasePath), "pornboss.lock")
-		lock, err := util.AcquireFileLock(lockPath)
-		if err != nil {
-			if errors.Is(err, util.ErrLockHeld) {
-				fmt.Println("Pornboss 已在运行，无法重复启动。")
-				waitForUserExit()
-				return
-			}
-			logger.Fatalf("acquire lock: %v", err)
+		dataDir := filepath.Dir(cfg.DatabasePath)
+		lockPath := filepath.Join(dataDir, "javboss.lock")
+		lock, ok := acquireSingleInstanceLock(lockPath, logger)
+		if !ok {
+			return
 		}
-		defer func() {
-			if err := lock.Release(); err != nil {
-				logger.Printf("release lock failed: %v", err)
-			}
-		}()
+		defer releaseFileLock(lock, lockPath, false, logger)
+
+		// If a pre-rename lock file is still present, honor it during migration and
+		// clean it up on normal exit. Do not recreate it once it has been removed.
+		legacyLockPath := filepath.Join(dataDir, "pornboss.lock")
+		legacyLock, ok := acquireExistingSingleInstanceLock(legacyLockPath, logger)
+		if !ok {
+			return
+		}
+		if legacyLock != nil {
+			defer releaseFileLock(legacyLock, legacyLockPath, true, logger)
+		}
+	}
+
+	if err := common.MigrateLegacyDatabase(cfg); err != nil {
+		logger.Fatalf("migrate legacy database: %v", err)
 	}
 
 	database, err := db.Open(cfg.DatabasePath)
@@ -224,7 +231,7 @@ func buildLogger(baseDir string) (*log.Logger, func(), error) {
 	}
 
 	rotator := &lumberjack.Logger{
-		Filename:   filepath.Join(logsDir, "pornboss.log"),
+		Filename:   filepath.Join(logsDir, "javboss.log"),
 		MaxSize:    20, // megabytes
 		MaxBackups: 7,
 		MaxAge:     14, // days
@@ -285,11 +292,11 @@ func releaseConfigPort(baseDir string) (int, bool, error) {
 
 func printReleaseStartupHint(url string) {
 	if util.SystemPrefersChinese() {
-		fmt.Printf("Pornboss启动成功，浏览器访问地址：%s\n", url)
+		fmt.Printf("JavBoss 启动成功，浏览器访问地址：%s\n", url)
 		fmt.Println("按 1 打开新页面，按 2 或者关闭此窗口退出应用。")
 		return
 	}
-	fmt.Printf("Pornboss started successfully. Browser URL: %s\n", url)
+	fmt.Printf("JavBoss started successfully. Browser URL: %s\n", url)
 	fmt.Println("Press 1 to open a new page. Press 2 or close this window to exit the app.")
 }
 
@@ -382,6 +389,46 @@ func waitForUserExit() {
 	reader := bufio.NewReader(os.Stdin)
 	if _, err := reader.ReadString('\n'); err != nil {
 		select {}
+	}
+}
+
+func acquireSingleInstanceLock(path string, logger *log.Logger) (*util.FileLock, bool) {
+	lock, err := util.AcquireFileLock(path)
+	if err != nil {
+		if errors.Is(err, util.ErrLockHeld) {
+			fmt.Println("JavBoss 已在运行，无法重复启动。")
+			waitForUserExit()
+			return nil, false
+		}
+		logger.Fatalf("acquire lock %s: %v", path, err)
+	}
+	return lock, true
+}
+
+func acquireExistingSingleInstanceLock(path string, logger *log.Logger) (*util.FileLock, bool) {
+	lock, err := util.AcquireExistingFileLock(path)
+	if err != nil {
+		if errors.Is(err, util.ErrLockMissing) {
+			return nil, true
+		}
+		if errors.Is(err, util.ErrLockHeld) {
+			fmt.Println("PornBoss 已在运行，无法重复启动。")
+			waitForUserExit()
+			return nil, false
+		}
+		logger.Fatalf("acquire lock %s: %v", path, err)
+	}
+	return lock, true
+}
+
+func releaseFileLock(lock *util.FileLock, path string, removeOnRelease bool, logger *log.Logger) {
+	if err := lock.Release(); err != nil {
+		logger.Printf("release lock failed: %v", err)
+	}
+	if removeOnRelease {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			logger.Printf("remove legacy lock failed: %v", err)
+		}
 	}
 }
 
