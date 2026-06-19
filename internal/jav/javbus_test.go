@@ -73,6 +73,30 @@ func TestParseJavBusCoverURL(t *testing.T) {
 	}
 }
 
+func TestParseJavBusMovieInfoIncludesCoverURL(t *testing.T) {
+	doc, err := html.Parse(strings.NewReader(`
+		<html>
+			<head>
+				<meta property="og:image" content="https://www.javbus.com/pics/cover/c85j_b.jpg">
+			</head>
+			<body>
+				<h3>ABC-001 Test Title</h3>
+				<p><span>識別碼:</span><span>ABC-001</span></p>
+			</body>
+		</html>`))
+	if err != nil {
+		t.Fatalf("parse fixture: %v", err)
+	}
+
+	info := parseDocument(doc)
+	if info == nil {
+		t.Fatal("expected info, got nil")
+	}
+	if info.CoverURL != "https://www.javbus.com/pics/cover/c85j_b.jpg" {
+		t.Fatalf("unexpected cover url: %q", info.CoverURL)
+	}
+}
+
 func TestParseJavBusUncensoredFromFixture(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "temp", "javbus-uncensor.html"))
 	if err != nil {

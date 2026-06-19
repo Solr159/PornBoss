@@ -170,6 +170,7 @@ type JavInfo struct {
 	DurationMin  int
 	Tags         []string
 	Actors       []string
+	CoverURL     string
 	IsUncensored *bool `json:",omitempty"`
 	Provider     Provider
 }

@@ -144,7 +144,7 @@ func (javDB) LookupJavByCode(code string) (*JavInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	doc, _, err := fetchJavDBDetailByCode(ctx, code)
+	doc, detailURL, err := fetchJavDBDetailByCode(ctx, code)
 	if err != nil {
 		return nil, err
 	}
@@ -156,6 +156,7 @@ func (javDB) LookupJavByCode(code string) (*JavInfo, error) {
 	if info.Code == "" {
 		info.Code = code
 	}
+	info.CoverURL = parseJavDBCoverURL(doc, detailURL)
 	return info, nil
 }
 
@@ -479,13 +480,16 @@ func parseJavDBMovieInfo(root *html.Node) *JavInfo {
 	info := &JavInfo{
 		Title:       title,
 		Code:        strings.TrimSpace(fields.Code),
+		Studio:      strings.TrimSpace(fields.Maker),
+		Series:      strings.TrimSpace(fields.Series),
 		ReleaseUnix: parseDateUnix(fields.ReleaseDate),
 		DurationMin: parseRuntimeMinutes(fields.Runtime),
 		Tags:        dedupeNonEmpty(fields.Tags),
 		Actors:      dedupeNonEmpty(fields.Actors),
+		CoverURL:    parseJavDBCoverURL(root, ""),
 		Provider:    ProviderJavDB,
 	}
-	if info.Title == "" && info.Code == "" && info.ReleaseUnix == 0 && info.DurationMin == 0 && len(info.Tags) == 0 && len(info.Actors) == 0 {
+	if info.Title == "" && info.Code == "" && info.Studio == "" && info.Series == "" && info.ReleaseUnix == 0 && info.DurationMin == 0 && len(info.Tags) == 0 && len(info.Actors) == 0 {
 		return nil
 	}
 	return info

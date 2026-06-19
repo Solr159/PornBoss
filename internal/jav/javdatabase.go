@@ -120,6 +120,7 @@ func (javDatabase) LookupJavByCode(code string) (*JavInfo, error) {
 	if info.Code == "" {
 		info.Code = code
 	}
+	info.CoverURL = parseJavDatabaseCoverURL(doc, movieURL)
 	return info, nil
 }
 
@@ -556,6 +557,7 @@ func parseJavDatabaseMovieInfo(root *html.Node) *JavInfo {
 		DurationMin: parseRuntimeMinutes(fields.Runtime),
 		Tags:        dedupeNonEmpty(fields.Tags),
 		Actors:      dedupeNonEmpty(fields.Actors),
+		CoverURL:    parseJavDatabaseCoverURL(root, ""),
 		Provider:    ProviderJavDatabase,
 	}
 	if info.Title == "" && info.Code == "" && info.Studio == "" && info.Series == "" && info.ReleaseUnix == 0 && info.DurationMin == 0 && len(info.Tags) == 0 && len(info.Actors) == 0 {
