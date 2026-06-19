@@ -10,10 +10,12 @@ func TestMigrateLegacyDatabaseMovesSQLiteFiles(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &Config{DatabasePath: filepath.Join(dataDir, "javboss.db")}
 	legacyPath := filepath.Join(dataDir, "pornboss.db")
+	legacyLockPath := filepath.Join(dataDir, "pornboss.lock")
 
 	writeFile(t, legacyPath, "main")
 	writeFile(t, legacyPath+"-wal", "wal")
 	writeFile(t, legacyPath+"-shm", "shm")
+	writeFile(t, legacyLockPath, "lock")
 
 	if err := MigrateLegacyDatabase(cfg); err != nil {
 		t.Fatalf("migrate legacy database: %v", err)
@@ -25,15 +27,18 @@ func TestMigrateLegacyDatabaseMovesSQLiteFiles(t *testing.T) {
 	assertMissing(t, legacyPath)
 	assertMissing(t, legacyPath+"-wal")
 	assertMissing(t, legacyPath+"-shm")
+	assertMissing(t, legacyLockPath)
 }
 
 func TestMigrateLegacyDatabaseDoesNotOverwriteCurrentDatabase(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &Config{DatabasePath: filepath.Join(dataDir, "javboss.db")}
 	legacyPath := filepath.Join(dataDir, "pornboss.db")
+	legacyLockPath := filepath.Join(dataDir, "pornboss.lock")
 
 	writeFile(t, cfg.DatabasePath, "current")
 	writeFile(t, legacyPath, "legacy")
+	writeFile(t, legacyLockPath, "lock")
 
 	if err := MigrateLegacyDatabase(cfg); err != nil {
 		t.Fatalf("migrate legacy database: %v", err)
@@ -41,6 +46,7 @@ func TestMigrateLegacyDatabaseDoesNotOverwriteCurrentDatabase(t *testing.T) {
 
 	assertFileContent(t, cfg.DatabasePath, "current")
 	assertFileContent(t, legacyPath, "legacy")
+	assertFileContent(t, legacyLockPath, "lock")
 }
 
 func writeFile(t *testing.T, path string, content string) {

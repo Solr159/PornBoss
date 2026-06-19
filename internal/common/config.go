@@ -16,6 +16,7 @@ type Config struct {
 const (
 	defaultDatabasePath  = "data/javboss.db"
 	legacyDatabaseName   = "pornboss.db"
+	legacyLockName       = "pornboss.lock"
 	defaultThumbnailsDir = "data/thumbnails"
 	defaultJavCoverDir   = "data/cover"
 )
@@ -106,33 +107,43 @@ func MigrateLegacyDatabase(cfg *Config) error {
 	if filepath.Clean(legacyPath) == filepath.Clean(cfg.DatabasePath) {
 		return nil
 	}
-	return migrateLegacySQLiteFiles(legacyPath, cfg.DatabasePath)
+	migrated, err := migrateLegacySQLiteFiles(legacyPath, cfg.DatabasePath)
+	if err != nil {
+		return err
+	}
+	if migrated {
+		removeLegacyLock(filepath.Join(filepath.Dir(cfg.DatabasePath), legacyLockName))
+	}
+	return nil
 }
 
-func migrateLegacySQLiteFiles(legacyPath, currentPath string) error {
+func migrateLegacySQLiteFiles(legacyPath, currentPath string) (bool, error) {
 	if _, err := os.Stat(currentPath); err == nil {
-		return nil
+		return false, nil
 	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("inspect current database: %w", err)
+		return false, fmt.Errorf("inspect current database: %w", err)
 	}
 
 	if _, err := os.Stat(legacyPath); err != nil {
 		if os.IsNotExist(err) {
-			return nil
+			return false, nil
 		}
-		return fmt.Errorf("inspect legacy database: %w", err)
+		return false, fmt.Errorf("inspect legacy database: %w", err)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(currentPath), 0o755); err != nil {
-		return fmt.Errorf("create database directory: %w", err)
+		return false, fmt.Errorf("create database directory: %w", err)
 	}
 
 	for _, suffix := range []string{"-wal", "-shm"} {
 		if err := migrateLegacyFile(legacyPath+suffix, currentPath+suffix); err != nil {
-			return err
+			return false, err
 		}
 	}
-	return migrateLegacyFile(legacyPath, currentPath)
+	if err := migrateLegacyFile(legacyPath, currentPath); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func migrateLegacyFile(legacyPath, currentPath string) error {
@@ -146,4 +157,8 @@ func migrateLegacyFile(legacyPath, currentPath string) error {
 		return fmt.Errorf("migrate legacy file: %w", err)
 	}
 	return nil
+}
+
+func removeLegacyLock(path string) {
+	_ = os.Remove(path)
 }
