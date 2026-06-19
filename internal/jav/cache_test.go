@@ -117,7 +117,14 @@ func TestLookupCacheKeyVersionIsProviderSpecific(t *testing.T) {
 			provider: ProviderAvsox,
 			method:   "lookup_jav",
 			input:    "030919_047",
-			want:     "v2:jav:avsox:lookup_jav:030919_047",
+			want:     "v3:jav:avsox:lookup_jav:030919_047",
+		},
+		{
+			name:     "avsox cover uses provider version",
+			provider: ProviderAvsox,
+			method:   "lookup_cover",
+			input:    "030919_047",
+			want:     "v2:jav:avsox:lookup_cover:030919_047",
 		},
 		{
 			name:     "javdatabase cover keeps default version",
