@@ -20,7 +20,10 @@ func TestParseJavDatabaseMovieInfo(t *testing.T) {
 	doc, err := html.Parse(strings.NewReader(`
 <!doctype html>
 <html>
-<head><title>IPX-004 - Tsumugi Akari - JAV Database</title></head>
+<head>
+  <title>IPX-004 - Tsumugi Akari - JAV Database</title>
+  <meta property="og:image" content="https://www.javdatabase.com/covers/ipx-004.jpg">
+</head>
 <body>
   <div class="movietable" style="padding-top: 5px;">
     <div class="row">
@@ -59,6 +62,9 @@ func TestParseJavDatabaseMovieInfo(t *testing.T) {
 	}
 	if info.Series != "Beautiful Girl Series" {
 		t.Fatalf("unexpected series: %q", info.Series)
+	}
+	if info.CoverURL != "https://www.javdatabase.com/covers/ipx-004.jpg" {
+		t.Fatalf("unexpected cover url: %q", info.CoverURL)
 	}
 
 	wantRelease := time.Date(2017, 9, 9, 0, 0, 0, 0, time.UTC).Unix()

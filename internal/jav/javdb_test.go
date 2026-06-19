@@ -109,6 +109,7 @@ func TestParseJavDBMovieInfo(t *testing.T) {
 <html>
 <head><title> IPX-228 Fallback | JavDB 成人影片數據庫 </title></head>
 <body>
+  <img src="https://c0.jdbstatic.com/covers/kk/kKdRm.jpg" class="video-cover">
   <div class="video-detail">
     <h2 class="title is-4">
       <strong>IPX-228 </strong>
@@ -178,6 +179,15 @@ func TestParseJavDBMovieInfo(t *testing.T) {
 	}
 	if info.Title != "中年オヤジと制服美少女の汗だく唾液みどろ特濃ベロキス性交 岬ななみ" {
 		t.Fatalf("unexpected title: %q", info.Title)
+	}
+	if info.CoverURL != "https://c0.jdbstatic.com/covers/kk/kKdRm.jpg" {
+		t.Fatalf("unexpected cover url: %q", info.CoverURL)
+	}
+	if info.Studio != "IDEA POCKET" {
+		t.Fatalf("unexpected studio: %q", info.Studio)
+	}
+	if info.Series != "中年オヤジ" {
+		t.Fatalf("unexpected series: %q", info.Series)
 	}
 
 	wantRelease := time.Date(2018, 11, 13, 0, 0, 0, 0, time.UTC).Unix()

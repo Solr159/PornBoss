@@ -17,6 +17,7 @@ import (
 	"pornboss/internal/common"
 	"pornboss/internal/common/logging"
 	dbpkg "pornboss/internal/db"
+	"pornboss/internal/jav"
 	"pornboss/internal/manager"
 	"pornboss/internal/models"
 	"pornboss/internal/mpv"
@@ -123,6 +124,39 @@ type renameVideoLocationRequest struct {
 type videoJavScrapeSettingsRequest struct {
 	Mode string `json:"mode"`
 	Code string `json:"code"`
+}
+
+type videoJavManualScrapeRequest struct {
+	LocationID   int64    `json:"location_id"`
+	Code         string   `json:"code"`
+	Title        string   `json:"title"`
+	Studio       string   `json:"studio"`
+	Series       string   `json:"series"`
+	ReleaseDate  string   `json:"release_date"`
+	DurationMin  *int     `json:"duration_min"`
+	Tags         []string `json:"tags"`
+	Actors       []string `json:"actors"`
+	CoverURL     string   `json:"cover_url"`
+	IsUncensored *bool    `json:"is_uncensored"`
+}
+
+type videoJavScrapeInfoResponse struct {
+	Code         string   `json:"code"`
+	Title        string   `json:"title"`
+	Studio       string   `json:"studio"`
+	Series       string   `json:"series"`
+	ReleaseDate  string   `json:"release_date"`
+	ReleaseUnix  int64    `json:"release_unix"`
+	DurationMin  int      `json:"duration_min"`
+	Tags         []string `json:"tags"`
+	Actors       []string `json:"actors"`
+	CoverURL     string   `json:"cover_url"`
+	IsUncensored *bool    `json:"is_uncensored"`
+}
+
+type videoJavPossibleCodesResponse struct {
+	Filename      string   `json:"filename"`
+	PossibleCodes []string `json:"possible_codes"`
 }
 
 func getVideoStreams(c *gin.Context) {
@@ -503,6 +537,221 @@ func updateVideoJavScrapeSettings(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, video)
+}
+
+func getVideoJavScrapePossibleCodes(c *gin.Context) {
+	id, ok := parsePositiveVideoID(c)
+	if !ok {
+		return
+	}
+
+	video, err := dbpkg.GetVideo(c.Request.Context(), id)
+	if err != nil {
+		logging.Error("load video for jav scrape possible codes error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	if video == nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	filename := filepath.Base(filepath.FromSlash(video.Filename))
+	c.JSON(http.StatusOK, videoJavPossibleCodesResponse{
+		Filename:      filename,
+		PossibleCodes: util.ExtractCodeFromName(filename),
+	})
+}
+
+func lookupVideoJavScrapeJavDB(c *gin.Context) {
+	if _, ok := parsePositiveVideoID(c); !ok {
+		return
+	}
+	code := strings.TrimSpace(c.Query("code"))
+	if code == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "code is required"})
+		return
+	}
+
+	info, err := jav.LookupJavByCode(code, jav.ProviderJavDB)
+	if err != nil {
+		if errors.Is(err, jav.ResourceNotFonud) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "javdb metadata not found"})
+			return
+		}
+		logging.Error("lookup javdb metadata code=%s: %v", code, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	if info == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "javdb metadata not found"})
+		return
+	}
+	c.JSON(http.StatusOK, javInfoToVideoScrapeResponse(info))
+}
+
+func manualVideoJavScrape(c *gin.Context) {
+	id, ok := parsePositiveVideoID(c)
+	if !ok {
+		return
+	}
+
+	var req videoJavManualScrapeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+	info, err := manualScrapeRequestToJavInfo(req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if req.LocationID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "location_id is required"})
+		return
+	}
+
+	loc, err := dbpkg.GetActiveVideoLocation(c.Request.Context(), id, req.LocationID)
+	if err != nil {
+		logging.Error("load video location for manual jav scrape video=%d location=%d: %v", id, req.LocationID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	if loc == nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	javRec, err := dbpkg.SaveJavInfoAndLinkVideoLocations(c.Request.Context(), info, id)
+	if err != nil {
+		logging.Error("manual jav scrape save failed video=%d code=%s: %v", id, info.Code, err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if javRec == nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	manualOverride := models.JavScrapeOverrideManualPrefix + info.Code
+	if _, err := dbpkg.UpdateVideoJavScrapeOverride(c.Request.Context(), id, manualOverride); err != nil {
+		logging.Error("manual jav scrape update override failed video=%d code=%s: %v", id, info.Code, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	video, err := dbpkg.GetVideoForLocation(c.Request.Context(), id, loc.ID)
+	if err != nil {
+		logging.Error("manual jav scrape reload failed video=%d location=%d code=%s: %v", id, loc.ID, info.Code, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	if video == nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	downloadManualJavCover(c.Request.Context(), info)
+	c.JSON(http.StatusOK, video)
+}
+
+func parsePositiveVideoID(c *gin.Context) (int64, bool) {
+	id, err := strconv.ParseInt(strings.TrimSpace(c.Param("id")), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return 0, false
+	}
+	return id, true
+}
+
+func manualScrapeRequestToJavInfo(req videoJavManualScrapeRequest) (*jav.JavInfo, error) {
+	code := strings.ToUpper(strings.TrimSpace(req.Code))
+	if code == "" {
+		return nil, errors.New("code is required")
+	}
+	releaseUnix, err := parseJavEditReleaseUnix(req.ReleaseDate)
+	if err != nil {
+		return nil, err
+	}
+	durationMin := 0
+	if req.DurationMin != nil {
+		durationMin = *req.DurationMin
+		if durationMin < 0 {
+			return nil, errors.New("duration_min must be non-negative")
+		}
+	}
+	info := &jav.JavInfo{
+		Code:         code,
+		Title:        strings.TrimSpace(req.Title),
+		Studio:       strings.TrimSpace(req.Studio),
+		Series:       strings.TrimSpace(req.Series),
+		ReleaseUnix:  releaseUnix,
+		DurationMin:  durationMin,
+		Tags:         normalizeTextList(req.Tags),
+		Actors:       normalizeTextList(req.Actors),
+		CoverURL:     strings.TrimSpace(req.CoverURL),
+		IsUncensored: req.IsUncensored,
+		Provider:     jav.ProviderJavDB,
+	}
+	return info, nil
+}
+
+func normalizeTextList(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
+func javInfoToVideoScrapeResponse(info *jav.JavInfo) videoJavScrapeInfoResponse {
+	if info == nil {
+		return videoJavScrapeInfoResponse{}
+	}
+	return videoJavScrapeInfoResponse{
+		Code:         info.Code,
+		Title:        info.Title,
+		Studio:       info.Studio,
+		Series:       info.Series,
+		ReleaseDate:  formatUnixDate(info.ReleaseUnix),
+		ReleaseUnix:  info.ReleaseUnix,
+		DurationMin:  info.DurationMin,
+		Tags:         append([]string(nil), info.Tags...),
+		Actors:       append([]string(nil), info.Actors...),
+		CoverURL:     info.CoverURL,
+		IsUncensored: info.IsUncensored,
+	}
+}
+
+func formatUnixDate(unix int64) string {
+	if unix <= 0 {
+		return ""
+	}
+	return time.Unix(unix, 0).UTC().Format("2006-01-02")
+}
+
+func downloadManualJavCover(ctx context.Context, info *jav.JavInfo) {
+	if info == nil || strings.TrimSpace(info.Code) == "" || strings.TrimSpace(info.CoverURL) == "" {
+		return
+	}
+	cfg := common.AppConfig
+	if cfg == nil || strings.TrimSpace(cfg.JavCoverDir) == "" {
+		return
+	}
+	coverCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	defer cancel()
+	if err := manager.DownloadCoverFromURL(coverCtx, cfg.JavCoverDir, info.Code, info.CoverURL); err != nil {
+		logging.Error("manual jav cover download failed code=%s: %v", info.Code, err)
+	}
 }
 
 func normalizeVideoJavScrapeOverride(req videoJavScrapeSettingsRequest) (string, bool) {

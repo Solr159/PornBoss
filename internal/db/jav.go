@@ -38,6 +38,7 @@ type JavScanVideo struct {
 
 // JavUpdateInput contains user-editable JAV metadata fields.
 type JavUpdateInput struct {
+	Title       *string
 	StudioID    *int64
 	SeriesID    *int64
 	IdolIDs     *[]int64
@@ -282,6 +283,13 @@ func UpdateJav(ctx context.Context, javID int64, input JavUpdateInput, directory
 		}
 
 		updates := map[string]any{}
+		if input.Title != nil {
+			titleColumn := "title"
+			if isEnglish {
+				titleColumn = "title_en"
+			}
+			updates[titleColumn] = strings.TrimSpace(*input.Title)
+		}
 		if input.ReleaseUnix != nil {
 			releaseUnix := *input.ReleaseUnix
 			if releaseUnix < 0 {
@@ -1565,6 +1573,41 @@ func SaveJavInfoAndLinkLocationForVideo(ctx context.Context, info *jav.JavInfo, 
 		return nil
 	})
 	if err != nil {
+		return nil, err
+	}
+	return javRec, nil
+}
+
+// SaveJavInfoAndLinkVideoLocations upserts jav metadata and associates every location for a video.
+func SaveJavInfoAndLinkVideoLocations(ctx context.Context, info *jav.JavInfo, videoID int64) (*models.Jav, error) {
+	if info == nil {
+		return nil, errors.New("jav info is nil")
+	}
+	if videoID <= 0 {
+		return nil, errors.New("video id cannot be zero")
+	}
+	var javRec *models.Jav
+	err := common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		rec, err := saveJavInfoTx(tx, info)
+		if err != nil {
+			return err
+		}
+		res := tx.Model(&models.VideoLocation{}).
+			Where("video_id = ?", videoID).
+			UpdateColumn("jav_id", rec.ID)
+		if res.Error != nil {
+			return fmt.Errorf("link video locations to jav: %w", res.Error)
+		}
+		if res.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		javRec = rec
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return javRec, nil

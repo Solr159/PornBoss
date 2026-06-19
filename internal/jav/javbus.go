@@ -111,6 +111,7 @@ func fetchInfo(ctx context.Context, code string) (*JavInfo, error) {
 		logging.Info("javbus: parseDocument returned nil")
 		return nil, ResourceNotFonud
 	}
+	info.CoverURL = parseJavBusCoverURL(doc, url)
 	if info.Code == "" || info.Title == "" {
 		logging.Info("javbus: parsed title/code empty (title=%q code=%q)", info.Title, info.Code)
 		return nil, ResourceNotFonud
@@ -224,6 +225,7 @@ func parseDocument(doc *html.Node) *JavInfo {
 	tags := collectGenres(doc)
 	actors := collectActors(doc)
 	isUncensored := parseJavBusIsUncensored(doc)
+	coverURL := parseJavBusCoverURL(doc, "")
 
 	if title == "" && len(tags) == 0 && len(actors) == 0 {
 		return nil
@@ -235,6 +237,7 @@ func parseDocument(doc *html.Node) *JavInfo {
 		DurationMin:  duration,
 		Tags:         tags,
 		Actors:       actors,
+		CoverURL:     coverURL,
 		IsUncensored: &isUncensored,
 		Provider:     ProviderJavBus,
 	}

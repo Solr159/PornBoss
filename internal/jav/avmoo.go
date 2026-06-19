@@ -90,7 +90,7 @@ func (avmoo) LookupJavByCode(code string) (*JavInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	doc, _, err := fetchAvmooDetailByCode(ctx, code)
+	doc, detailURL, err := fetchAvmooDetailByCode(ctx, code)
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +102,7 @@ func (avmoo) LookupJavByCode(code string) (*JavInfo, error) {
 	if info.Code == "" {
 		info.Code = code
 	}
+	info.CoverURL = parseAvmooCoverURL(doc, detailURL)
 	return info, nil
 }
 
@@ -287,6 +288,7 @@ func parseAvmooMovieInfo(root *html.Node) *JavInfo {
 		DurationMin: parseRuntimeMinutes(fields.Runtime),
 		Tags:        dedupeNonEmpty(fields.Tags),
 		Actors:      dedupeNonEmpty(fields.Actors),
+		CoverURL:    parseAvmooCoverURL(root, ""),
 		Provider:    ProviderAvmoo,
 	}
 	if info.Title == "" && info.Code == "" && info.Series == "" && info.ReleaseUnix == 0 && info.DurationMin == 0 && len(info.Tags) == 0 && len(info.Actors) == 0 {

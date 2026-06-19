@@ -18,9 +18,10 @@ const (
 )
 
 var lookupJavCacheKeyVersionByProvider = map[Provider]string{
-	ProviderJavBus:      "v2",
-	ProviderJavDatabase: "v2",
-	ProviderAvmoo:       "v2",
+	ProviderJavBus:      "v3",
+	ProviderJavDatabase: "v3",
+	ProviderJavDB:       "v3",
+	ProviderAvmoo:       "v3",
 	ProviderAvsox:       "v2",
 }
 
