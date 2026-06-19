@@ -40,6 +40,7 @@ func TestProviderLanguageHelpers(t *testing.T) {
 		{ProviderJavDB, MetadataLanguageChinese, false},
 		{ProviderAvmoo, MetadataLanguageChinese, false},
 		{ProviderAvsox, MetadataLanguageChinese, false},
+		{ProviderJavMenu, MetadataLanguageChinese, false},
 		{ProviderJavDatabase, MetadataLanguageEnglish, true},
 		{ProviderThePornDB, MetadataLanguageEnglish, true},
 		{ProviderUser, MetadataLanguageChinese, false},
@@ -63,6 +64,7 @@ func TestLookupProvidersByProviderIncludesMetadataProviders(t *testing.T) {
 		ProviderJavDB,
 		ProviderAvmoo,
 		ProviderAvsox,
+		ProviderJavMenu,
 		ProviderThePornDB,
 		ProviderJavModel,
 	}

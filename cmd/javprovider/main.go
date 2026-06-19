@@ -49,6 +49,10 @@ func main() {
 			provider: jav.ProviderAvsox,
 		},
 		{
+			name:     "javmenu",
+			provider: jav.ProviderJavMenu,
+		},
+		{
 			name:     "javmodel",
 			provider: jav.ProviderJavModel,
 		},

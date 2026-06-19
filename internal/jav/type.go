@@ -22,6 +22,7 @@ const (
 	ProviderThePornDB
 	ProviderJavModel
 	ProviderAvsox
+	ProviderJavMenu
 )
 
 func (p Provider) String() string {
@@ -42,6 +43,8 @@ func (p Provider) String() string {
 		return "javmodel"
 	case ProviderAvsox:
 		return "avsox"
+	case ProviderJavMenu:
+		return "javmenu"
 	default:
 		return "unknown"
 	}
@@ -51,7 +54,7 @@ func (p Provider) String() string {
 func ParseProvider(value int) Provider {
 	p := Provider(value)
 	switch p {
-	case ProviderJavBus, ProviderJavDatabase, ProviderUser, ProviderJavDB, ProviderAvmoo, ProviderThePornDB, ProviderJavModel, ProviderAvsox:
+	case ProviderJavBus, ProviderJavDatabase, ProviderUser, ProviderJavDB, ProviderAvmoo, ProviderThePornDB, ProviderJavModel, ProviderAvsox, ProviderJavMenu:
 		return p
 	default:
 		return ProviderUnknown
@@ -81,6 +84,7 @@ var lookupProvidersByProvider = map[Provider]lookupProvider{
 	ProviderThePornDB:   thePornDBProvider,
 	ProviderJavModel:    javModelProvider,
 	ProviderAvsox:       avsoxProvider,
+	ProviderJavMenu:     javMenuProvider,
 }
 
 var metadataLanguageByProvider = map[Provider]MetadataLanguage{
@@ -88,6 +92,7 @@ var metadataLanguageByProvider = map[Provider]MetadataLanguage{
 	ProviderJavDB:       MetadataLanguageChinese,
 	ProviderAvmoo:       MetadataLanguageChinese,
 	ProviderAvsox:       MetadataLanguageChinese,
+	ProviderJavMenu:     MetadataLanguageChinese,
 	ProviderJavDatabase: MetadataLanguageEnglish,
 	ProviderThePornDB:   MetadataLanguageEnglish,
 }
