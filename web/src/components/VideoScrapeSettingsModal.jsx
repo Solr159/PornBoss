@@ -37,12 +37,6 @@ function initialState(video) {
   return { mode: 'auto', code: '', codeScrapeMode: CODE_SCRAPE_AUTO }
 }
 
-function dateFromUnix(value) {
-  const unix = Number(value || 0)
-  if (!Number.isFinite(unix) || unix <= 0) return ''
-  return new Date(unix * 1000).toISOString().slice(0, 10)
-}
-
 function listToText(values) {
   if (!Array.isArray(values)) return ''
   return values
@@ -60,22 +54,12 @@ function textToList(value) {
 
 function initialManualInfo(video) {
   const state = initialState(video)
-  const item = video?.jav || video?.locations?.[0]?.jav || null
-  const code = String(state.code || item?.code || '')
+  const code = String(state.code || '')
     .trim()
     .toUpperCase()
   return {
     ...emptyManualInfo,
     code,
-    title: String(item?.title || item?.title_en || '').trim(),
-    studio: String(item?.studio?.name || '').trim(),
-    series: String(item?.series?.name || item?.series_en?.name || '').trim(),
-    release_date: dateFromUnix(item?.release_unix),
-    duration_min: item?.duration_min ? String(item.duration_min) : '',
-    tags_text: listToText(item?.tags),
-    actors_text: listToText(item?.idols),
-    is_uncensored:
-      typeof item?.is_uncensored === 'boolean' ? (item.is_uncensored ? 'true' : 'false') : '',
   }
 }
 
@@ -241,27 +225,29 @@ export default function VideoScrapeSettingsModal({
             <span>{zh('不刮削此视频', 'Do not scrape this video')}</span>
           </label>
           <div className="flex flex-col gap-2 rounded border px-3 py-2 text-sm text-gray-700 hover:border-blue-500">
-            <label className="flex cursor-pointer items-center gap-2 font-medium">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <label className="flex flex-1 cursor-pointer items-center gap-2 font-medium">
+                <input
+                  type="radio"
+                  name="video-scrape-mode"
+                  value="code"
+                  checked={mode === 'code'}
+                  onChange={() => setMode('code')}
+                  disabled={saving || lookupLoading}
+                />
+                <span>{zh('指定刮削番号', 'Force scrape code')}</span>
+              </label>
               <input
-                type="radio"
-                name="video-scrape-mode"
-                value="code"
-                checked={mode === 'code'}
-                onChange={() => setMode('code')}
-                disabled={saving || lookupLoading}
+                type="text"
+                value={code}
+                onFocus={() => setMode('code')}
+                onChange={(event) => updateCode(event.target.value)}
+                disabled={saving || lookupLoading || mode !== 'code'}
+                placeholder="ABC-001"
+                aria-label={zh('指定刮削番号', 'Force scrape code')}
+                className="w-full rounded border px-3 py-1.5 text-sm uppercase focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50 sm:w-44"
               />
-              <span>{zh('指定刮削番号', 'Force scrape code')}</span>
-            </label>
-            <input
-              type="text"
-              value={code}
-              onFocus={() => setMode('code')}
-              onChange={(event) => updateCode(event.target.value)}
-              disabled={saving || lookupLoading || mode !== 'code'}
-              placeholder="ABC-001"
-              aria-label={zh('指定刮削番号', 'Force scrape code')}
-              className="w-full rounded border px-3 py-1.5 text-sm uppercase focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
-            />
+            </div>
             {mode === 'code' ? (
               <div className="space-y-3">
                 <div className="grid gap-2 md:grid-cols-2">
@@ -295,7 +281,7 @@ export default function VideoScrapeSettingsModal({
                   </label>
                 </div>
                 {codeScrapeMode === CODE_SCRAPE_MANUAL ? (
-                  <div className="grid gap-3 md:grid-cols-2">
+                  <div className="grid gap-3 rounded border border-gray-300 bg-gray-50 p-3 md:grid-cols-2">
                     <div className="md:col-span-2">
                       <button
                         type="button"
@@ -332,6 +318,7 @@ export default function VideoScrapeSettingsModal({
                         value={manualInfo.studio}
                         onChange={(event) => updateManual({ studio: event.target.value })}
                         disabled={saving || lookupLoading}
+                        placeholder={zh('优先填写英文名称', 'English name preferred')}
                         className="w-full rounded border px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
                       />
                     </div>
@@ -374,13 +361,17 @@ export default function VideoScrapeSettingsModal({
                     </div>
                     <div>
                       <label className="mb-1 block text-xs font-medium text-gray-500">
-                        {zh('类别', 'Tags')}
+                        {zh('标签', 'Tags')}
                       </label>
                       <textarea
                         rows={4}
                         value={manualInfo.tags_text}
                         onChange={(event) => updateManual({ tags_text: event.target.value })}
                         disabled={saving || lookupLoading}
+                        placeholder={zh(
+                          '每行一个，不要有多余空格',
+                          'One per line, no extra spaces'
+                        )}
                         className="w-full resize-y rounded border px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
                       />
                     </div>
@@ -393,6 +384,10 @@ export default function VideoScrapeSettingsModal({
                         value={manualInfo.actors_text}
                         onChange={(event) => updateManual({ actors_text: event.target.value })}
                         disabled={saving || lookupLoading}
+                        placeholder={zh(
+                          '每行一个，不要有多余空格',
+                          'One per line, no extra spaces'
+                        )}
                         className="w-full resize-y rounded border px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
                       />
                     </div>
