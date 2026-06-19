@@ -5,6 +5,7 @@ const SKIP_OVERRIDE = ':skip'
 const MANUAL_OVERRIDE_PREFIX = ':manual:'
 const CODE_SCRAPE_AUTO = 'auto'
 const CODE_SCRAPE_MANUAL = 'manual'
+const CODE_PATTERN = /^[A-Z0-9_-]+$/
 
 const emptyManualInfo = {
   code: '',
@@ -132,7 +133,11 @@ export default function VideoScrapeSettingsModal({
   if (!open) return null
 
   const displayName = String(video?.filename || video?.path || `#${video?.id || ''}`).trim()
-  const normalizedCode = code.trim().toUpperCase()
+  const rawCode = code.toUpperCase()
+  const normalizedCode = rawCode.trim()
+  const codeInvalid =
+    rawCode.length > 0 && (rawCode !== normalizedCode || !CODE_PATTERN.test(rawCode))
+  const codeValid = normalizedCode.length > 0 && !codeInvalid
   const manualDuration = String(manualInfo.duration_min || '').trim()
   const manualDurationValid =
     manualDuration === '' ||
@@ -142,7 +147,7 @@ export default function VideoScrapeSettingsModal({
     !saving &&
     !lookupLoading &&
     (mode !== 'code' ||
-      (normalizedCode.length > 0 && (codeScrapeMode !== CODE_SCRAPE_MANUAL || manualDurationValid)))
+      (codeValid && (codeScrapeMode !== CODE_SCRAPE_MANUAL || manualDurationValid)))
 
   const updateManual = (patch) => setManualInfo((current) => ({ ...current, ...patch }))
 
@@ -153,7 +158,7 @@ export default function VideoScrapeSettingsModal({
   }
 
   const lookupJavDB = async () => {
-    if (!normalizedCode || lookupLoading || saving) return
+    if (!codeValid || lookupLoading || saving) return
     setLookupLoading(true)
     setLookupError('')
     try {
@@ -247,10 +252,24 @@ export default function VideoScrapeSettingsModal({
                   onChange={(event) => updateCode(event.target.value)}
                   disabled={saving || lookupLoading || mode !== 'code'}
                   placeholder="ABC-001"
+                  pattern="[A-Z0-9_-]+"
                   aria-label={zh('指定刮削番号', 'Force scrape code')}
-                  className="w-full rounded border px-3 py-1.5 text-sm uppercase focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50 sm:w-44"
+                  aria-invalid={mode === 'code' && codeInvalid}
+                  className={`w-full rounded border px-3 py-1.5 text-sm uppercase focus:outline-none focus:ring-1 disabled:bg-gray-50 sm:w-44 ${
+                    mode === 'code' && codeInvalid
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                      : 'focus:border-blue-500 focus:ring-blue-500'
+                  }`}
                 />
               </div>
+              {mode === 'code' && codeInvalid ? (
+                <div className="text-xs text-red-600">
+                  {zh(
+                    '番号只能包含大写字母、数字、_、-',
+                    'Code can only contain uppercase letters, numbers, _, and -'
+                  )}
+                </div>
+              ) : null}
               {mode === 'code' ? (
                 <div className="space-y-3">
                   <div className="grid gap-2 md:grid-cols-2">
@@ -284,12 +303,12 @@ export default function VideoScrapeSettingsModal({
                     </label>
                   </div>
                   {codeScrapeMode === CODE_SCRAPE_MANUAL ? (
-                    <div className="grid gap-3 rounded border border-gray-300 bg-gray-50 p-3 md:grid-cols-2">
+                    <div className="grid gap-3 rounded border border-gray-300 bg-white p-3 md:grid-cols-2">
                       <div className="md:col-span-2">
                         <button
                           type="button"
                           onClick={lookupJavDB}
-                          disabled={!normalizedCode || saving || lookupLoading}
+                          disabled={!codeValid || saving || lookupLoading}
                           className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
                         >
                           {lookupLoading
