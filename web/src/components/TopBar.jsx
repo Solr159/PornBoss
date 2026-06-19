@@ -156,7 +156,7 @@ export default function TopBar({
               onClick={onHome}
               className="cursor-pointer select-none rounded text-left text-xl font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
-              Pornboss
+              JavBoss
             </button>
 
             <div className="flex min-w-0 flex-1 items-center gap-2">

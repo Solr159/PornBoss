@@ -77,7 +77,7 @@ func main() {
 		lock, err := util.AcquireFileLock(lockPath)
 		if err != nil {
 			if errors.Is(err, util.ErrLockHeld) {
-				fmt.Println("Pornboss 已在运行，无法重复启动。")
+				fmt.Println("JavBoss 已在运行，无法重复启动。")
 				waitForUserExit()
 				return
 			}
@@ -285,11 +285,11 @@ func releaseConfigPort(baseDir string) (int, bool, error) {
 
 func printReleaseStartupHint(url string) {
 	if util.SystemPrefersChinese() {
-		fmt.Printf("Pornboss启动成功，浏览器访问地址：%s\n", url)
+		fmt.Printf("JavBoss 启动成功，浏览器访问地址：%s\n", url)
 		fmt.Println("按 1 打开新页面，按 2 或者关闭此窗口退出应用。")
 		return
 	}
-	fmt.Printf("Pornboss started successfully. Browser URL: %s\n", url)
+	fmt.Printf("JavBoss started successfully. Browser URL: %s\n", url)
 	fmt.Println("Press 1 to open a new page. Press 2 or close this window to exit the app.")
 }
 

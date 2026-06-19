@@ -467,7 +467,7 @@ async function createMacCommandLauncher(outDir) {
     "status=$?",
     'if [ "$status" -ne 0 ]; then',
     '  echo',
-    '  echo "Pornboss exited with status $status."',
+    '  echo "JavBoss exited with status $status."',
     '  read -r -p "Press Enter to close..." _',
     "fi",
     'exit "$status"',
@@ -481,7 +481,7 @@ async function createMacCommandLauncher(outDir) {
 async function createReleaseConfig(outDir) {
   const configPath = path.join(outDir, "config.toml");
   const configContent = [
-    "# Pornboss release config",
+    "# JavBoss release config",
     "# This file uses TOML format.",
     "# Set port to 0 to use a random startup port.",
     "# Example: port = 17654",

@@ -32,7 +32,7 @@ function apiFetch(input, init = {}) {
     return fetch(input, init)
   }
   const headers = new Headers(init.headers || {})
-  headers.set('X-Pornboss-Token', apiToken)
+  headers.set('X-JavBoss-Token', apiToken)
   return fetch(input, { ...init, headers })
 }
 

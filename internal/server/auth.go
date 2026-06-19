@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const apiTokenHeader = "X-Pornboss-Token"
+const apiTokenHeader = "X-JavBoss-Token"
 
 func apiTokenMiddleware(token string) gin.HandlerFunc {
 	return func(c *gin.Context) {
