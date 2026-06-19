@@ -73,21 +73,24 @@ func main() {
 	logging.SetColorEnabled(false)
 
 	if buildMode == "release" {
-		lockPath := filepath.Join(filepath.Dir(cfg.DatabasePath), "javboss.lock")
-		lock, err := util.AcquireFileLock(lockPath)
-		if err != nil {
-			if errors.Is(err, util.ErrLockHeld) {
-				fmt.Println("JavBoss 已在运行，无法重复启动。")
-				waitForUserExit()
-				return
-			}
-			logger.Fatalf("acquire lock: %v", err)
+		dataDir := filepath.Dir(cfg.DatabasePath)
+		lockPath := filepath.Join(dataDir, "javboss.lock")
+		lock, ok := acquireSingleInstanceLock(lockPath, logger)
+		if !ok {
+			return
 		}
-		defer func() {
-			if err := lock.Release(); err != nil {
-				logger.Printf("release lock failed: %v", err)
-			}
-		}()
+		defer releaseFileLock(lock, lockPath, false, logger)
+
+		// If a pre-rename lock file is still present, honor it during migration and
+		// clean it up on normal exit. Do not recreate it once it has been removed.
+		legacyLockPath := filepath.Join(dataDir, "pornboss.lock")
+		legacyLock, ok := acquireExistingSingleInstanceLock(legacyLockPath, logger)
+		if !ok {
+			return
+		}
+		if legacyLock != nil {
+			defer releaseFileLock(legacyLock, legacyLockPath, true, logger)
+		}
 	}
 
 	if err := common.MigrateLegacyDatabase(cfg); err != nil {
@@ -386,6 +389,46 @@ func waitForUserExit() {
 	reader := bufio.NewReader(os.Stdin)
 	if _, err := reader.ReadString('\n'); err != nil {
 		select {}
+	}
+}
+
+func acquireSingleInstanceLock(path string, logger *log.Logger) (*util.FileLock, bool) {
+	lock, err := util.AcquireFileLock(path)
+	if err != nil {
+		if errors.Is(err, util.ErrLockHeld) {
+			fmt.Println("JavBoss/PornBoss 已在运行，无法重复启动。")
+			waitForUserExit()
+			return nil, false
+		}
+		logger.Fatalf("acquire lock %s: %v", path, err)
+	}
+	return lock, true
+}
+
+func acquireExistingSingleInstanceLock(path string, logger *log.Logger) (*util.FileLock, bool) {
+	lock, err := util.AcquireExistingFileLock(path)
+	if err != nil {
+		if errors.Is(err, util.ErrLockMissing) {
+			return nil, true
+		}
+		if errors.Is(err, util.ErrLockHeld) {
+			fmt.Println("PornBoss 已在运行，无法重复启动。")
+			waitForUserExit()
+			return nil, false
+		}
+		logger.Fatalf("acquire lock %s: %v", path, err)
+	}
+	return lock, true
+}
+
+func releaseFileLock(lock *util.FileLock, path string, removeOnRelease bool, logger *log.Logger) {
+	if err := lock.Release(); err != nil {
+		logger.Printf("release lock failed: %v", err)
+	}
+	if removeOnRelease {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			logger.Printf("remove legacy lock failed: %v", err)
+		}
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 )
 
 var ErrLockHeld = errors.New("lock already held")
+var ErrLockMissing = errors.New("lock file missing")
 
 type FileLock struct {
 	file *os.File

@@ -16,7 +16,6 @@ type Config struct {
 const (
 	defaultDatabasePath  = "data/javboss.db"
 	legacyDatabaseName   = "pornboss.db"
-	legacyLockName       = "pornboss.lock"
 	defaultThumbnailsDir = "data/thumbnails"
 	defaultJavCoverDir   = "data/cover"
 )
@@ -107,14 +106,8 @@ func MigrateLegacyDatabase(cfg *Config) error {
 	if filepath.Clean(legacyPath) == filepath.Clean(cfg.DatabasePath) {
 		return nil
 	}
-	migrated, err := migrateLegacySQLiteFiles(legacyPath, cfg.DatabasePath)
-	if err != nil {
-		return err
-	}
-	if migrated {
-		removeLegacyLock(filepath.Join(filepath.Dir(cfg.DatabasePath), legacyLockName))
-	}
-	return nil
+	_, err := migrateLegacySQLiteFiles(legacyPath, cfg.DatabasePath)
+	return err
 }
 
 func migrateLegacySQLiteFiles(legacyPath, currentPath string) (bool, error) {
@@ -157,8 +150,4 @@ func migrateLegacyFile(legacyPath, currentPath string) error {
 		return fmt.Errorf("migrate legacy file: %w", err)
 	}
 	return nil
-}
-
-func removeLegacyLock(path string) {
-	_ = os.Remove(path)
 }

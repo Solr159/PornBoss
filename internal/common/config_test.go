@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestMigrateLegacyDatabaseMovesSQLiteFiles(t *testing.T) {
+func TestMigrateLegacyDatabaseMovesSQLiteFilesAndKeepsLegacyLock(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &Config{DatabasePath: filepath.Join(dataDir, "javboss.db")}
 	legacyPath := filepath.Join(dataDir, "pornboss.db")
@@ -27,7 +27,7 @@ func TestMigrateLegacyDatabaseMovesSQLiteFiles(t *testing.T) {
 	assertMissing(t, legacyPath)
 	assertMissing(t, legacyPath+"-wal")
 	assertMissing(t, legacyPath+"-shm")
-	assertMissing(t, legacyLockPath)
+	assertFileContent(t, legacyLockPath, "lock")
 }
 
 func TestMigrateLegacyDatabaseDoesNotOverwriteCurrentDatabase(t *testing.T) {
