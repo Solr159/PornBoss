@@ -622,11 +622,16 @@ export default function App() {
       setScrapeSettingsSaving(true)
       try {
         const updated = await manualVideoJavScrape(video.id, locationId, info)
+        const override = String(updated?.jav_scrape_override || info?.code || '')
+          .trim()
+          .toUpperCase()
         const targetKey = videoSelectionKey(video)
         useStore.setState((state) => ({
           videos: Array.isArray(state.videos)
             ? state.videos.map((item) =>
-                videoSelectionKey(item) === targetKey && updated ? updated : item
+                videoSelectionKey(item) === targetKey && updated
+                  ? { ...updated, jav_scrape_override: override }
+                  : item
               )
             : state.videos,
         }))

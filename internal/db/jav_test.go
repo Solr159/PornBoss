@@ -813,6 +813,67 @@ func TestAppendJavIdolsIfMissingForProvider(t *testing.T) {
 	})
 }
 
+func TestSaveJavInfoAndLinkVideoLocationsLinksAllLocations(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+
+	dirA := models.Directory{Path: "/tmp/media-a"}
+	dirB := models.Directory{Path: "/tmp/media-b"}
+	if err := gdb.Create(&[]models.Directory{dirA, dirB}).Error; err != nil {
+		t.Fatalf("create directories: %v", err)
+	}
+	var dirs []models.Directory
+	if err := gdb.Order("path").Find(&dirs).Error; err != nil {
+		t.Fatalf("load dirs: %v", err)
+	}
+	video := models.Video{Fingerprint: "manual-link-all-locations", DurationSec: 1800}
+	if err := gdb.Create(&video).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	locA, err := UpsertVideoLocation(ctx, video.ID, dirs[0].ID, "a/MAN-001.mp4", now)
+	if err != nil {
+		t.Fatalf("upsert loc a: %v", err)
+	}
+	locB, err := UpsertVideoLocation(ctx, video.ID, dirs[1].ID, "b/MAN-001.mp4", now)
+	if err != nil {
+		t.Fatalf("upsert loc b: %v", err)
+	}
+
+	rec, err := SaveJavInfoAndLinkVideoLocations(ctx, &jav.JavInfo{
+		Code:     "MAN-001",
+		Title:    "Manual Title",
+		Provider: jav.ProviderJavDB,
+	}, video.ID)
+	if err != nil {
+		t.Fatalf("SaveJavInfoAndLinkVideoLocations: %v", err)
+	}
+	if rec == nil || rec.ID == 0 {
+		t.Fatalf("missing jav record: %#v", rec)
+	}
+
+	var locations []models.VideoLocation
+	if err := gdb.Where("id IN ?", []int64{locA.ID, locB.ID}).Order("id").Find(&locations).Error; err != nil {
+		t.Fatalf("load locations: %v", err)
+	}
+	if len(locations) != 2 {
+		t.Fatalf("locations length = %d, want 2", len(locations))
+	}
+	for _, loc := range locations {
+		if loc.JavID == nil || *loc.JavID != rec.ID {
+			t.Fatalf("location %d jav_id = %#v, want %d", loc.ID, loc.JavID, rec.ID)
+		}
+	}
+
+	videoForLocation, err := GetVideoForLocation(ctx, video.ID, locA.ID)
+	if err != nil {
+		t.Fatalf("GetVideoForLocation: %v", err)
+	}
+	if videoForLocation == nil || videoForLocation.Jav == nil || videoForLocation.Jav.Code != "MAN-001" {
+		t.Fatalf("expected hydrated jav on video location, got %#v", videoForLocation)
+	}
+}
+
 func TestSaveJavInfoPersistsUncensoredState(t *testing.T) {
 	gdb := openTestDB(t)
 	ctx := context.Background()

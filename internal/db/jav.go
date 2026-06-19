@@ -1570,6 +1570,41 @@ func SaveJavInfoAndLinkLocationForVideo(ctx context.Context, info *jav.JavInfo, 
 	return javRec, nil
 }
 
+// SaveJavInfoAndLinkVideoLocations upserts jav metadata and associates every location for a video.
+func SaveJavInfoAndLinkVideoLocations(ctx context.Context, info *jav.JavInfo, videoID int64) (*models.Jav, error) {
+	if info == nil {
+		return nil, errors.New("jav info is nil")
+	}
+	if videoID <= 0 {
+		return nil, errors.New("video id cannot be zero")
+	}
+	var javRec *models.Jav
+	err := common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		rec, err := saveJavInfoTx(tx, info)
+		if err != nil {
+			return err
+		}
+		res := tx.Model(&models.VideoLocation{}).
+			Where("video_id = ?", videoID).
+			UpdateColumn("jav_id", rec.ID)
+		if res.Error != nil {
+			return fmt.Errorf("link video locations to jav: %w", res.Error)
+		}
+		if res.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		javRec = rec
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return javRec, nil
+}
+
 // SaveJavInfo upserts jav metadata without linking it to a video location.
 func SaveJavInfo(ctx context.Context, info *jav.JavInfo) (*models.Jav, error) {
 	if info == nil {

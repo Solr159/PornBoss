@@ -365,7 +365,11 @@ func GetVideoForLocation(ctx context.Context, videoID, locationID int64) (*model
 		First(loc).Error; err != nil {
 		return nil, fmt.Errorf("get video for location: %w", err)
 	}
-	video := videoFromLocation(*loc)
+	locs := []models.VideoLocation{*loc}
+	if err := hydrateLocationJavs(ctx, locs); err != nil {
+		return nil, err
+	}
+	video := videoFromLocation(locs[0])
 	return &video, nil
 }
 

@@ -594,9 +594,20 @@ func manualVideoJavScrape(c *gin.Context) {
 		return
 	}
 
-	if _, err := dbpkg.SaveJavInfoAndLinkLocationForVideo(c.Request.Context(), info, loc.ID, id, loc.UpdatedAt); err != nil {
+	javRec, err := dbpkg.SaveJavInfoAndLinkVideoLocations(c.Request.Context(), info, id)
+	if err != nil {
 		logging.Error("manual jav scrape save failed video=%d code=%s: %v", id, info.Code, err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if javRec == nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	if _, err := dbpkg.UpdateVideoJavScrapeOverride(c.Request.Context(), id, info.Code); err != nil {
+		logging.Error("manual jav scrape update override failed video=%d code=%s: %v", id, info.Code, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 	video, err := dbpkg.GetVideoForLocation(c.Request.Context(), id, loc.ID)
