@@ -295,6 +295,15 @@ export async function lookupVideoJavScrapeJavDB(videoId, code) {
   return res.json()
 }
 
+export async function fetchVideoJavScrapePossibleCodes(videoId) {
+  const res = await apiFetch(`/videos/${videoId}/jav-scrape/possible-codes`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('提取番号失败', 'Failed to extract codes'))
+  }
+  return res.json()
+}
+
 export async function manualVideoJavScrape(videoId, locationId, info) {
   const res = await apiFetch(`/videos/${videoId}/jav-scrape/manual`, {
     method: 'POST',

@@ -154,6 +154,11 @@ type videoJavScrapeInfoResponse struct {
 	IsUncensored *bool    `json:"is_uncensored"`
 }
 
+type videoJavPossibleCodesResponse struct {
+	Filename      string   `json:"filename"`
+	PossibleCodes []string `json:"possible_codes"`
+}
+
 func getVideoStreams(c *gin.Context) {
 	video, fullPath, err := resolveVideoStreamTarget(c)
 	if err != nil {
@@ -532,6 +537,30 @@ func updateVideoJavScrapeSettings(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, video)
+}
+
+func getVideoJavScrapePossibleCodes(c *gin.Context) {
+	id, ok := parsePositiveVideoID(c)
+	if !ok {
+		return
+	}
+
+	video, err := dbpkg.GetVideo(c.Request.Context(), id)
+	if err != nil {
+		logging.Error("load video for jav scrape possible codes error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	if video == nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	filename := filepath.Base(filepath.FromSlash(video.Filename))
+	c.JSON(http.StatusOK, videoJavPossibleCodesResponse{
+		Filename:      filename,
+		PossibleCodes: util.ExtractCodeFromName(filename),
+	})
 }
 
 func lookupVideoJavScrapeJavDB(c *gin.Context) {

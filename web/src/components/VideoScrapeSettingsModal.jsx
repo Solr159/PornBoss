@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import SearchIcon from '@mui/icons-material/Search'
 import { zh } from '@/utils/i18n'
 
 const SKIP_OVERRIDE = ':skip'
@@ -109,6 +110,7 @@ export default function VideoScrapeSettingsModal({
   saving = false,
   onClose,
   onSave,
+  onFetchPossibleCodes,
   onLookupJavDB,
   onManualScrape,
 }) {
@@ -118,6 +120,10 @@ export default function VideoScrapeSettingsModal({
   const [manualInfo, setManualInfo] = useState(emptyManualInfo)
   const [lookupLoading, setLookupLoading] = useState(false)
   const [lookupError, setLookupError] = useState('')
+  const [possibleCodesOpen, setPossibleCodesOpen] = useState(false)
+  const [possibleCodesLoading, setPossibleCodesLoading] = useState(false)
+  const [possibleCodesError, setPossibleCodesError] = useState('')
+  const [possibleCodesResult, setPossibleCodesResult] = useState(null)
 
   useEffect(() => {
     if (!open) return
@@ -128,6 +134,10 @@ export default function VideoScrapeSettingsModal({
     setManualInfo(initialManualInfo(video))
     setLookupLoading(false)
     setLookupError('')
+    setPossibleCodesOpen(false)
+    setPossibleCodesLoading(false)
+    setPossibleCodesError('')
+    setPossibleCodesResult(null)
   }, [open, video])
 
   if (!open) return null
@@ -155,6 +165,22 @@ export default function VideoScrapeSettingsModal({
     const nextCode = value.toUpperCase()
     setCode(nextCode)
     setManualInfo((current) => ({ ...current, code: nextCode }))
+  }
+
+  const testPossibleCodes = async () => {
+    if (possibleCodesLoading || saving) return
+    setPossibleCodesOpen(true)
+    setPossibleCodesLoading(true)
+    setPossibleCodesError('')
+    setPossibleCodesResult(null)
+    try {
+      const data = await onFetchPossibleCodes?.()
+      setPossibleCodesResult(data || {})
+    } catch (err) {
+      setPossibleCodesError(err?.message || zh('提取番号失败', 'Failed to extract codes'))
+    } finally {
+      setPossibleCodesLoading(false)
+    }
   }
 
   const lookupJavDB = async () => {
@@ -210,17 +236,35 @@ export default function VideoScrapeSettingsModal({
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3">
           <div className="space-y-2">
-            <label className="flex cursor-pointer items-center gap-2 rounded border px-3 py-2 text-sm font-medium text-gray-700 hover:border-blue-500">
-              <input
-                type="radio"
-                name="video-scrape-mode"
-                value="auto"
-                checked={mode === 'auto'}
-                onChange={() => setMode('auto')}
-                disabled={saving || lookupLoading}
-              />
-              <span>{zh('自动刮削（根据文件名）', 'Automatic scraping (by filename)')}</span>
-            </label>
+            <div className="flex items-center gap-2 rounded border px-3 py-2 text-sm text-gray-700 hover:border-blue-500">
+              <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 font-medium">
+                <input
+                  type="radio"
+                  name="video-scrape-mode"
+                  value="auto"
+                  checked={mode === 'auto'}
+                  onChange={() => setMode('auto')}
+                  disabled={saving || lookupLoading}
+                />
+                <span className="min-w-0 flex-1 truncate">
+                  {zh('自动刮削（根据文件名）', 'Automatic scraping (by filename)')}
+                </span>
+              </label>
+              <button
+                type="button"
+                onClick={testPossibleCodes}
+                disabled={saving || lookupLoading || possibleCodesLoading}
+                className="inline-flex shrink-0 items-center gap-1 rounded border px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                title={zh('提取番号测试', 'Test code extraction')}
+              >
+                <SearchIcon fontSize="inherit" />
+                <span>
+                  {possibleCodesLoading
+                    ? zh('提取中…', 'Extracting...')
+                    : zh('提取番号测试', 'Test')}
+                </span>
+              </button>
+            </div>
             <label className="flex cursor-pointer items-center gap-2 rounded border px-3 py-2 text-sm font-medium text-gray-700 hover:border-blue-500">
               <input
                 type="radio"
@@ -472,6 +516,70 @@ export default function VideoScrapeSettingsModal({
           </div>
         </div>
       </div>
+      {possibleCodesOpen ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 px-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-xl">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="min-w-0 truncate text-base font-semibold">
+                {zh('提取番号测试', 'Code Extraction Test')}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setPossibleCodesOpen(false)}
+                className="rounded px-2 py-1 text-gray-500 hover:bg-gray-100"
+                aria-label={zh('关闭', 'Close')}
+              >
+                ✕
+              </button>
+            </div>
+            <p className="mb-3 text-sm leading-6 text-gray-600">
+              {zh(
+                '自动刮削会依次尝试以下番号进行刮削。如果结果不符合预期，可以修改文件名，或在刮削设置中指定/跳过番号。',
+                'Automatic scraping will try the following codes in order. If the result is not expected, rename the file or adjust the scrape settings.'
+              )}
+            </p>
+            {possibleCodesResult?.filename ? (
+              <div
+                className="mb-3 truncate rounded bg-gray-50 px-2 py-1 text-xs text-gray-500"
+                title={possibleCodesResult.filename}
+              >
+                {possibleCodesResult.filename}
+              </div>
+            ) : null}
+            {possibleCodesLoading ? (
+              <div className="rounded border border-dashed px-3 py-6 text-center text-sm text-gray-500">
+                {zh('正在提取…', 'Extracting...')}
+              </div>
+            ) : possibleCodesError ? (
+              <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {possibleCodesError}
+              </div>
+            ) : Array.isArray(possibleCodesResult?.possible_codes) &&
+              possibleCodesResult.possible_codes.length > 0 ? (
+              <ol className="max-h-64 list-decimal space-y-1 overflow-y-auto rounded border bg-gray-50 px-8 py-3 text-sm text-gray-800">
+                {possibleCodesResult.possible_codes.map((item) => (
+                  <li key={item} className="font-mono">
+                    {item}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <div className="rounded border border-dashed px-3 py-6 text-center text-sm text-gray-500">
+                {zh('没有提取到番号', 'No codes extracted')}
+              </div>
+            )}
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setPossibleCodesOpen(false)}
+                className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
+              >
+                {zh('知道了', 'OK')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
