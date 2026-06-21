@@ -267,10 +267,9 @@ export default function TopBar({
           </Button>
         </div>
       ) : null}
-      <div className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1536px)_minmax(0,1fr)] py-2">
-        <div className="col-start-2 row-start-1 flex min-w-0 flex-wrap items-start gap-3 px-6">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
-            <div className="relative flex min-w-0 items-center gap-1.5">
+      <div className="flex w-full flex-wrap items-start gap-3 py-2 pl-[6.5rem] pr-[18rem]">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <div className="relative flex min-w-0 items-center gap-3">
               <button
                 type="button"
                 onClick={onHome}
@@ -467,10 +466,7 @@ export default function TopBar({
               ) : null}
             </div>
           </div>
-        </div>
-
-        <div className="pointer-events-none col-span-full row-start-1 flex justify-end px-6">
-          <div className="pointer-events-auto mt-0.5 flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
+        <div className="absolute right-6 top-1/2 z-10 flex -translate-y-1/2 flex-shrink-0 flex-wrap items-center justify-end gap-2">
             {showDirectorySetupHint ? (
               <div
                 className="directory-setup-hint flex max-w-full items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 shadow-sm"
@@ -617,7 +613,6 @@ export default function TopBar({
                 {isJavMode ? zh('视频', 'Video') : 'JAV'}
               </Button>
             </Tooltip>
-          </div>
         </div>
       </div>
     </header>
