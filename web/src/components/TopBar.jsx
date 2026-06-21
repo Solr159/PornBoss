@@ -229,7 +229,48 @@ export default function TopBar({
       <div className="mx-auto flex max-w-screen-2xl flex-col gap-2 px-6 py-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
-            <div className="flex min-w-0 items-center gap-1.5">
+            <div className="relative flex min-w-0 items-center gap-1.5">
+              {!showDirectorySetupHint ? (
+                <div className="absolute right-full top-1/2 mr-2 flex -translate-y-1/2 items-center overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm">
+                  <Button
+                    type="button"
+                    variant="text"
+                    onClick={onBrowserBack}
+                    disabled={!canGoBack}
+                    title={zh('浏览器后退', 'Browser back')}
+                    aria-label={zh('浏览器后退', 'Browser back')}
+                    sx={{
+                      minWidth: 36,
+                      width: 36,
+                      height: 36,
+                      p: 0,
+                      borderRadius: 0,
+                      color: 'text.secondary',
+                    }}
+                  >
+                    <ArrowBackRoundedIcon fontSize="small" />
+                  </Button>
+                  <span className="h-5 w-px bg-gray-200" aria-hidden="true" />
+                  <Button
+                    type="button"
+                    variant="text"
+                    onClick={onBrowserForward}
+                    disabled={!canGoForward}
+                    title={zh('浏览器前进', 'Browser forward')}
+                    aria-label={zh('浏览器前进', 'Browser forward')}
+                    sx={{
+                      minWidth: 36,
+                      width: 36,
+                      height: 36,
+                      p: 0,
+                      borderRadius: 0,
+                      color: 'text.secondary',
+                    }}
+                  >
+                    <ArrowForwardRoundedIcon fontSize="small" />
+                  </Button>
+                </div>
+              ) : null}
               <button
                 type="button"
                 onClick={onHome}
@@ -428,42 +469,6 @@ export default function TopBar({
           </div>
 
           <div className="mt-0.5 flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
-            {!showDirectorySetupHint ? (
-              <>
-                <Button
-                  type="button"
-                  variant="outlined"
-                  onClick={onBrowserBack}
-                  disabled={!canGoBack}
-                  title={zh('浏览器后退', 'Browser back')}
-                  aria-label={zh('浏览器后退', 'Browser back')}
-                  sx={{
-                    minWidth: 36,
-                    width: 36,
-                    height: 36,
-                    p: 0,
-                  }}
-                >
-                  <ArrowBackRoundedIcon fontSize="small" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outlined"
-                  onClick={onBrowserForward}
-                  disabled={!canGoForward}
-                  title={zh('浏览器前进', 'Browser forward')}
-                  aria-label={zh('浏览器前进', 'Browser forward')}
-                  sx={{
-                    minWidth: 36,
-                    width: 36,
-                    height: 36,
-                    p: 0,
-                  }}
-                >
-                  <ArrowForwardRoundedIcon fontSize="small" />
-                </Button>
-              </>
-            ) : null}
             {showDirectorySetupHint ? (
               <div
                 className="directory-setup-hint flex max-w-full items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 shadow-sm"
