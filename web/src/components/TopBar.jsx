@@ -598,14 +598,26 @@ export default function TopBar({
                 </div>
               ) : null}
             </div>
-            <Button
-              variant="contained"
-              color={isJavMode ? 'secondary' : 'primary'}
-              startIcon={<SwapHorizOutlinedIcon fontSize="small" />}
-              onClick={onToggleMode}
+            <Tooltip
+              title={
+                isJavMode ? zh('切换到视频', 'Switch to Video') : zh('切换到 JAV', 'Switch to JAV')
+              }
+              arrow
             >
-              {isJavMode ? zh('切换到视频', 'To Video') : zh('切换到 JAV', 'To JAV')}
-            </Button>
+              <Button
+                variant="contained"
+                color={isJavMode ? 'secondary' : 'primary'}
+                startIcon={<SwapHorizOutlinedIcon fontSize="small" />}
+                onClick={onToggleMode}
+                aria-label={
+                  isJavMode
+                    ? zh('切换到视频', 'Switch to Video')
+                    : zh('切换到 JAV', 'Switch to JAV')
+                }
+              >
+                {isJavMode ? zh('视频', 'Video') : 'JAV'}
+              </Button>
+            </Tooltip>
           </div>
         </div>
       </div>
