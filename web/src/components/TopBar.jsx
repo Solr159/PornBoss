@@ -267,9 +267,9 @@ export default function TopBar({
           </Button>
         </div>
       ) : null}
-      <div className="flex w-full flex-wrap items-start gap-3 py-2 pl-[7rem] pr-[18rem]">
+      <div className="flex w-full flex-wrap items-start gap-3 py-2 pl-[6.5rem] pr-[18rem]">
         <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <div className="relative flex min-w-0 items-center gap-1.5">
+            <div className="relative flex min-w-0 items-center gap-3">
               <button
                 type="button"
                 onClick={onHome}
