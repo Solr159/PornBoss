@@ -18,7 +18,7 @@ body {
 
 .sticky-pagination {
   position: sticky;
-  top: calc(var(--topbar-height) - 1px);
+  top: var(--topbar-height);
   z-index: 30;
   width: 100vw;
   margin-left: calc(50% - 50vw);
