@@ -226,8 +226,8 @@ export default function TopBar({
 
   return (
     <header ref={headerRef} className={headerClassName}>
-      <div className="mx-auto flex max-w-screen-2xl flex-col gap-2 px-6 py-2">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1536px)_minmax(0,1fr)] py-2">
+        <div className="col-start-2 row-start-1 flex min-w-0 flex-wrap items-start gap-3 px-6">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
             <div className="relative flex min-w-0 items-center gap-1.5">
               {!showDirectorySetupHint ? (
@@ -467,8 +467,10 @@ export default function TopBar({
               ) : null}
             </div>
           </div>
+        </div>
 
-          <div className="mt-0.5 flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
+        <div className="pointer-events-none col-span-full row-start-1 flex justify-end px-6">
+          <div className="pointer-events-auto mt-0.5 flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
             {showDirectorySetupHint ? (
               <div
                 className="directory-setup-hint flex max-w-full items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 shadow-sm"
