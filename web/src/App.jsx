@@ -2638,9 +2638,7 @@ export default function App() {
         idolFavoriteGroupsLoading={idolFavoriteGroupsLoading}
         idolFavoriteGroupsError={idolFavoriteGroupsError}
         idolSelectedFavoriteGroupId={idolFavoriteGroupId}
-        idolFavoriteEditorOpen={
-          idolFavoriteManageOpen && Boolean(Number(idolFavoriteManageEditGroupId) > 0)
-        }
+        idolFavoriteEditorOpen={idolFavoriteManageOpen}
         buildIdolFavoriteGroupUrl={(groupId) =>
           buildJavUrl({ page: 1, tab: 'idol', favoriteGroupId: groupId || null })
         }

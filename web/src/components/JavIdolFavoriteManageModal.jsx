@@ -107,8 +107,8 @@ export default function JavIdolFavoriteManageModal({
   return (
     <>
       {!directEditMode ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4">
-          <div className="flex max-h-[82vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl">
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="pointer-events-auto flex max-h-[82vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl">
             <div className="flex items-center justify-between border-b px-4 py-3">
               <h2 className="text-base font-semibold text-gray-950">
                 {zh('管理女优收藏夹', 'Manage idol favorites')}
