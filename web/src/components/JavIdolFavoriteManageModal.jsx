@@ -10,6 +10,7 @@ export default function JavIdolFavoriteManageModal({
   open,
   groups,
   selectedGroupId,
+  initialEditGroupId = null,
   loading,
   onClose,
   onCreateGroup,
@@ -27,6 +28,10 @@ export default function JavIdolFavoriteManageModal({
   const [creating, setCreating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const directEditMode = (() => {
+    const id = Number(initialEditGroupId)
+    return Number.isFinite(id) && id > 0
+  })()
 
   useEffect(() => {
     if (!open) {
@@ -39,8 +44,13 @@ export default function JavIdolFavoriteManageModal({
       setError('')
       return
     }
-    setLocalGroups(normalizeGroups(groups))
-  }, [groups, open])
+    const nextGroups = normalizeGroups(groups)
+    setLocalGroups(nextGroups)
+    const editId = Number(initialEditGroupId)
+    if (Number.isFinite(editId) && editId > 0) {
+      setEditingGroup(nextGroups.find((group) => Number(group?.id) === editId) || null)
+    }
+  }, [groups, initialEditGroupId, open])
 
   if (!open) return null
 
@@ -68,6 +78,7 @@ export default function JavIdolFavoriteManageModal({
     await onDeleteGroup?.(groupId)
     setLocalGroups((current) => current.filter((group) => Number(group.id) !== Number(groupId)))
     setEditingGroup(null)
+    if (directEditMode) onClose?.()
   }
 
   const handleCreate = async (event) => {
@@ -95,54 +106,57 @@ export default function JavIdolFavoriteManageModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4">
-        <div className="flex max-h-[82vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl">
-          <div className="flex items-center justify-between border-b px-4 py-3">
-            <h2 className="text-base font-semibold text-gray-950">
-              {zh('管理女优收藏夹', 'Manage idol favorites')}
-            </h2>
-            <IconButton
-              type="button"
-              size="small"
-              onClick={onClose}
-              disabled={saving}
-              aria-label={zh('关闭收藏夹管理', 'Close favorite manager')}
-            >
-              <CloseRoundedIcon fontSize="small" />
-            </IconButton>
-          </div>
+      {!directEditMode ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4">
+          <div className="flex max-h-[82vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <h2 className="text-base font-semibold text-gray-950">
+                {zh('管理女优收藏夹', 'Manage idol favorites')}
+              </h2>
+              <IconButton
+                type="button"
+                size="small"
+                onClick={onClose}
+                disabled={saving}
+                aria-label={zh('关闭收藏夹管理', 'Close favorite manager')}
+              >
+                <CloseRoundedIcon fontSize="small" />
+              </IconButton>
+            </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">
-            {error ? (
-              <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {error}
-              </div>
-            ) : null}
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              {error ? (
+                <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {error}
+                </div>
+              ) : null}
 
-            <GroupOrderList
-              groups={localGroups}
-              selectedGroupId={selectedGroupId}
-              emptyText={loading ? zh('加载中…', 'Loading...') : zh('暂无收藏夹', 'No favorites')}
-              onReorder={setLocalGroups}
-              onReorderCommit={commitGroupOrder}
-              onEdit={(group) => setEditingGroup(group)}
-            />
-          </div>
+              <GroupOrderList
+                groups={localGroups}
+                selectedGroupId={selectedGroupId}
+                emptyText={loading ? zh('加载中…', 'Loading...') : zh('暂无收藏夹', 'No favorites')}
+                onReorder={setLocalGroups}
+                onReorderCommit={commitGroupOrder}
+                onEdit={(group) => setEditingGroup(group)}
+              />
+            </div>
 
-          <div className="flex justify-end gap-2 border-t px-4 py-3">
-            <Button variant="outlined" onClick={() => setCreatingOpen(true)} disabled={saving}>
-              {zh('新增收藏夹', 'Add favorite')}
-            </Button>
-            <Button variant="outlined" onClick={onClose} disabled={saving}>
-              {zh('关闭', 'Close')}
-            </Button>
+            <div className="flex justify-end gap-2 border-t px-4 py-3">
+              <Button variant="outlined" onClick={() => setCreatingOpen(true)} disabled={saving}>
+                {zh('新增收藏夹', 'Add favorite')}
+              </Button>
+              <Button variant="outlined" onClick={onClose} disabled={saving}>
+                {zh('关闭', 'Close')}
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
 
       <FavoriteGroupEditModal
         group={editingGroup}
-        onClose={() => setEditingGroup(null)}
+        directMode={directEditMode}
+        onClose={directEditMode ? onClose : () => setEditingGroup(null)}
         onRename={handleRename}
         onDelete={handleDelete}
         onLoadGroupIdols={onLoadGroupIdols}
@@ -249,6 +263,7 @@ function GroupOrderList({
 
 function FavoriteGroupEditModal({
   group,
+  directMode = false,
   onClose,
   onRename,
   onDelete,
@@ -383,8 +398,12 @@ function FavoriteGroupEditModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
-      <div className="flex max-h-[86vh] w-full max-w-xl flex-col rounded-lg bg-white shadow-xl">
+    <div
+      className={`fixed inset-0 z-[60] flex items-center justify-center px-4 ${
+        directMode ? 'pointer-events-none' : 'bg-black/40'
+      }`}
+    >
+      <div className="pointer-events-auto flex max-h-[86vh] w-full max-w-xl flex-col rounded-lg bg-white shadow-xl">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h2 className="min-w-0 truncate text-base font-semibold text-gray-950">
             {zh('编辑收藏夹', 'Edit favorite')}

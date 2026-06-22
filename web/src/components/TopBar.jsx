@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, IconButton, Tooltip } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
+import EditRoundedIcon from '@mui/icons-material/EditRounded'
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
 import ShuffleOutlinedIcon from '@mui/icons-material/ShuffleOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
@@ -52,6 +53,7 @@ export default function TopBar({
   idolFavoriteGroupsLoading = false,
   idolFavoriteGroupsError = null,
   idolSelectedFavoriteGroupId = null,
+  idolFavoriteEditorOpen = false,
   buildIdolFavoriteGroupUrl,
   onOpenIdolFavoriteGroups,
   onIdolFavoriteGroupSelect,
@@ -148,6 +150,7 @@ export default function TopBar({
     if (!idolFavoriteMenuOpen) return
 
     const handlePointerDown = (event) => {
+      if (idolFavoriteEditorOpen) return
       if (idolFavoriteMenuRef.current?.contains(event.target)) return
       setIdolFavoriteMenuOpen(false)
     }
@@ -163,7 +166,7 @@ export default function TopBar({
       document.removeEventListener('mousedown', handlePointerDown)
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [idolFavoriteMenuOpen])
+  }, [idolFavoriteEditorOpen, idolFavoriteMenuOpen])
 
   const handleSettingsClick = () => {
     if (isJavMode) {
@@ -430,9 +433,9 @@ export default function TopBar({
                             onIdolFavoriteGroupSelect?.(groupId)
                             setIdolFavoriteMenuOpen(false)
                           }}
-                          onOpenManager={() => {
-                            setIdolFavoriteMenuOpen(false)
-                            onOpenIdolFavoriteManager?.()
+                          onOpenManager={(group) => {
+                            if (!group) setIdolFavoriteMenuOpen(false)
+                            onOpenIdolFavoriteManager?.(group)
                           }}
                         />
                       ) : null}
@@ -727,8 +730,16 @@ function IdolFavoriteGroupMenu({
     <div
       role="dialog"
       aria-label={zh('女优收藏夹', 'Idol favorites')}
-      className="absolute left-1/2 top-full z-50 mt-2 flex max-h-[70vh] w-[34rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-col overflow-hidden rounded border border-gray-200 bg-white text-left shadow-xl"
+      className="absolute left-1/2 top-full z-50 mt-2 flex max-h-[70vh] w-[34rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-col overflow-visible rounded border border-gray-200 bg-white text-left shadow-xl"
     >
+      <span
+        className="absolute left-1/2 top-0 h-0 w-0 -translate-x-1/2 -translate-y-full border-x-[10px] border-b-[10px] border-x-transparent border-b-gray-200"
+        aria-hidden="true"
+      />
+      <span
+        className="absolute left-1/2 top-px h-0 w-0 -translate-x-1/2 -translate-y-full border-x-[9px] border-b-[9px] border-x-transparent border-b-white"
+        aria-hidden="true"
+      />
       <div className="flex items-center justify-between gap-2 border-b bg-gray-50 px-3 py-2">
         <div className="min-w-0">
           <div className="text-xs font-semibold text-gray-700">
@@ -744,7 +755,7 @@ function IdolFavoriteGroupMenu({
           <IconButton
             type="button"
             size="small"
-            onClick={onOpenManager}
+            onClick={() => onOpenManager?.()}
             aria-label={zh('管理女优收藏夹', 'Manage idol favorites')}
             sx={{ width: 30, height: 30 }}
           >
@@ -774,9 +785,11 @@ function IdolFavoriteGroupMenu({
                 key={id}
                 active={selected === id}
                 href={buildGroupUrl?.(id)}
+                group={group}
                 label={group?.name || zh('未命名收藏夹', 'Untitled favorite group')}
                 count={Number.isFinite(count) ? count : 0}
                 onClick={() => onSelect?.(id)}
+                onEdit={() => onOpenManager?.(group)}
               />
             )
           })}
@@ -791,65 +804,68 @@ function IdolFavoriteGroupMenu({
   )
 }
 
-function FavoriteGroupTile({ active, href, label, count, onClick }) {
+function FavoriteGroupTile({ active, href, group = null, label, count, onClick, onEdit }) {
   return (
-    <a
-      href={href || '#'}
-      onClick={(event) => {
-        if (
-          event.metaKey ||
-          event.ctrlKey ||
-          event.shiftKey ||
-          event.altKey ||
-          event.button !== 0
-        ) {
-          return
-        }
-        event.preventDefault()
-        onClick?.()
-      }}
-      className={`group relative block aspect-square overflow-hidden rounded-lg border transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+    <div
+      className={`group relative block aspect-square overflow-hidden rounded-lg border focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
         active ? 'border-blue-300 shadow-md' : 'border-amber-200/80 shadow-sm'
       }`}
-      title={label}
     >
-      <span
-        className={`absolute left-2 top-1.5 h-3 w-10 rounded-t-md border border-b-0 ${
-          active
-            ? 'border-blue-300 bg-gradient-to-b from-blue-200 to-blue-300'
-            : 'border-amber-200 bg-gradient-to-b from-amber-100 to-amber-200'
-        }`}
-        aria-hidden="true"
-      />
-      <span
-        className={`absolute inset-x-1.5 bottom-1.5 top-3.5 rounded-md border shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_6px_10px_rgba(15,23,42,0.11)] ${
-          active
-            ? 'border-blue-300 bg-gradient-to-br from-blue-100 via-blue-200 to-blue-300'
-            : 'border-amber-200 bg-gradient-to-br from-amber-50 via-amber-100 to-amber-200'
-        }`}
-        aria-hidden="true"
-      />
-      <span
-        className={`absolute inset-x-2 bottom-0.5 h-1.5 rounded-b-md ${
-          active ? 'bg-blue-400/40' : 'bg-amber-300/45'
-        }`}
-        aria-hidden="true"
-      />
-      <span className="relative flex h-full px-2 pt-5">
-        <span className="flex items-start gap-1">
-          <FolderRoundedIcon
-            sx={{ fontSize: 14 }}
-            className={active ? 'shrink-0 text-blue-700' : 'shrink-0 text-amber-700'}
-          />
-          <span
-            className={`min-w-0 flex-1 truncate text-[11px] font-semibold leading-4 ${
-              active ? 'text-blue-950' : 'text-amber-950'
-            }`}
-          >
-            {label}
+      <a
+        href={href || '#'}
+        onClick={(event) => {
+          if (
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey ||
+            event.button !== 0
+          ) {
+            return
+          }
+          event.preventDefault()
+          onClick?.()
+        }}
+        className="relative block h-full focus:outline-none"
+      >
+        <span
+          className={`absolute left-2 top-1.5 h-3 w-10 rounded-t-md border border-b-0 ${
+            active
+              ? 'border-blue-300 bg-gradient-to-b from-blue-200 to-blue-300'
+              : 'border-amber-200 bg-gradient-to-b from-amber-100 to-amber-200'
+          }`}
+          aria-hidden="true"
+        />
+        <span
+          className={`absolute inset-x-1.5 bottom-1.5 top-3.5 rounded-md border shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_6px_10px_rgba(15,23,42,0.11)] ${
+            active
+              ? 'border-blue-300 bg-gradient-to-br from-blue-100 via-blue-200 to-blue-300'
+              : 'border-amber-200 bg-gradient-to-br from-amber-50 via-amber-100 to-amber-200'
+          }`}
+          aria-hidden="true"
+        />
+        <span
+          className={`absolute inset-x-2 bottom-0.5 h-1.5 rounded-b-md ${
+            active ? 'bg-blue-400/40' : 'bg-amber-300/45'
+          }`}
+          aria-hidden="true"
+        />
+        <span className="relative flex h-full px-2 pt-5">
+          <span className="flex items-start gap-1">
+            <FolderRoundedIcon
+              sx={{ fontSize: 14 }}
+              className={active ? 'shrink-0 text-blue-700' : 'shrink-0 text-amber-700'}
+            />
+            <span
+              className={`min-w-0 flex-1 truncate text-[11px] font-semibold leading-4 ${
+                active ? 'text-blue-950' : 'text-amber-950'
+              }`}
+            >
+              {label}
+            </span>
           </span>
         </span>
-      </span>
+      </a>
       {Number.isFinite(count) ? (
         <span
           className={`absolute right-1.5 top-1.5 rounded-full border px-1.5 text-[10px] leading-4 shadow-sm ${
@@ -861,6 +877,24 @@ function FavoriteGroupTile({ active, href, label, count, onClick }) {
           {count}
         </span>
       ) : null}
-    </a>
+      {group ? (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            onEdit?.()
+          }}
+          className={`absolute bottom-1.5 right-1.5 inline-flex h-5 w-5 items-center justify-center rounded border bg-white/85 shadow-sm backdrop-blur-sm transition-colors ${
+            active
+              ? 'border-blue-200 text-blue-700 hover:bg-blue-50'
+              : 'border-amber-200 text-amber-800 hover:bg-amber-50'
+          }`}
+          aria-label={zh(`编辑收藏夹 ${label}`, `Edit favorite ${label}`)}
+        >
+          <EditRoundedIcon sx={{ fontSize: 14 }} />
+        </button>
+      ) : null}
+    </div>
   )
 }
