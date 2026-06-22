@@ -7,6 +7,7 @@ import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import BookmarksOutlinedIcon from '@mui/icons-material/BookmarksOutlined'
 import SwapHorizOutlinedIcon from '@mui/icons-material/SwapHorizOutlined'
 import DisplaySettingsIcon from '@mui/icons-material/DisplaySettings'
+import FolderRoundedIcon from '@mui/icons-material/FolderRounded'
 import FolderOpenOutlinedIcon from '@mui/icons-material/FolderOpenOutlined'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded'
@@ -726,7 +727,7 @@ function IdolFavoriteGroupMenu({
     <div
       role="dialog"
       aria-label={zh('女优收藏夹', 'Idol favorites')}
-      className="absolute left-0 top-full z-50 mt-2 flex max-h-[65vh] w-80 flex-col overflow-hidden rounded border border-gray-200 bg-white text-left shadow-lg"
+      className="absolute left-0 top-full z-50 mt-2 flex max-h-[70vh] w-[24rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded border border-gray-200 bg-white text-left shadow-xl"
     >
       <div className="flex items-center justify-between gap-2 border-b bg-gray-50 px-3 py-2">
         <div className="min-w-0">
@@ -751,33 +752,35 @@ function IdolFavoriteGroupMenu({
           </IconButton>
         </Tooltip>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto py-1">
+      <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/80 p-2">
         {error ? (
-          <div className="mx-2 my-2 rounded border border-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-700">
+          <div className="mb-2 rounded border border-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-700">
             {String(error)}
           </div>
         ) : null}
-        <FavoriteGroupMenuItem
-          active={!selected}
-          href={buildGroupUrl?.(null)}
-          label={zh('全部女优', 'All idols')}
-          onClick={() => onSelect?.(null)}
-        />
-        {list.map((group) => {
-          const id = Number(group?.id)
-          if (!Number.isFinite(id) || id <= 0) return null
-          const count = Number(group?.count)
-          return (
-            <FavoriteGroupMenuItem
-              key={id}
-              active={selected === id}
-              href={buildGroupUrl?.(id)}
-              label={group?.name || zh('未命名收藏夹', 'Untitled favorite group')}
-              count={Number.isFinite(count) ? count : 0}
-              onClick={() => onSelect?.(id)}
-            />
-          )
-        })}
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(6.75rem,1fr))] gap-2">
+          <FavoriteGroupTile
+            active={!selected}
+            href={buildGroupUrl?.(null)}
+            label={zh('全部女优', 'All idols')}
+            onClick={() => onSelect?.(null)}
+          />
+          {list.map((group) => {
+            const id = Number(group?.id)
+            if (!Number.isFinite(id) || id <= 0) return null
+            const count = Number(group?.count)
+            return (
+              <FavoriteGroupTile
+                key={id}
+                active={selected === id}
+                href={buildGroupUrl?.(id)}
+                label={group?.name || zh('未命名收藏夹', 'Untitled favorite group')}
+                count={Number.isFinite(count) ? count : 0}
+                onClick={() => onSelect?.(id)}
+              />
+            )
+          })}
+        </div>
         {!loading && !error && list.length === 0 ? (
           <div className="px-3 py-4 text-center text-sm text-gray-500">
             {zh('暂无收藏夹', 'No favorites')}
@@ -788,7 +791,7 @@ function IdolFavoriteGroupMenu({
   )
 }
 
-function FavoriteGroupMenuItem({ active, href, label, count, onClick }) {
+function FavoriteGroupTile({ active, href, label, count, onClick }) {
   return (
     <a
       href={href || '#'}
@@ -805,16 +808,57 @@ function FavoriteGroupMenuItem({ active, href, label, count, onClick }) {
         event.preventDefault()
         onClick?.()
       }}
-      className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
-        active ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
+      className={`group relative block aspect-square overflow-hidden rounded-lg border transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+        active ? 'border-blue-300 shadow-md' : 'border-amber-200/80 shadow-sm'
       }`}
       title={label}
     >
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span
+        className={`absolute left-2.5 top-2 h-3.5 w-12 rounded-t-md border border-b-0 ${
+          active
+            ? 'border-blue-300 bg-gradient-to-b from-blue-200 to-blue-300'
+            : 'border-amber-200 bg-gradient-to-b from-amber-100 to-amber-200'
+        }`}
+        aria-hidden="true"
+      />
+      <span
+        className={`absolute inset-x-1.5 bottom-2 top-[1.125rem] rounded-md border shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_7px_12px_rgba(15,23,42,0.12)] ${
+          active
+            ? 'border-blue-300 bg-gradient-to-br from-blue-100 via-blue-200 to-blue-300'
+            : 'border-amber-200 bg-gradient-to-br from-amber-50 via-amber-100 to-amber-200'
+        }`}
+        aria-hidden="true"
+      />
+      <span
+        className={`absolute inset-x-2.5 bottom-1 h-1.5 rounded-b-md ${
+          active ? 'bg-blue-400/40' : 'bg-amber-300/45'
+        }`}
+        aria-hidden="true"
+      />
+      <span className="relative flex h-full flex-col justify-between p-2.5 pt-6">
+        <span className="flex items-start gap-1">
+          <FolderRoundedIcon
+            sx={{ fontSize: 15 }}
+            className={active ? 'shrink-0 text-blue-700' : 'shrink-0 text-amber-700'}
+          />
+          <span
+            className={`min-w-0 flex-1 truncate text-xs font-semibold ${
+              active ? 'text-blue-950' : 'text-amber-950'
+            }`}
+          >
+            {label}
+          </span>
+        </span>
+        <span className={`truncate text-xs ${active ? 'text-blue-800/80' : 'text-amber-900/75'}`}>
+          {Number.isFinite(count) ? zh(`${count} 位女优`, `${count} idols`) : zh('全部', 'All')}
+        </span>
+      </span>
       {Number.isFinite(count) ? (
         <span
-          className={`shrink-0 rounded-full px-1.5 text-[11px] leading-5 ${
-            active ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+          className={`absolute right-2 top-2 rounded-full border px-1.5 text-[10px] leading-4 shadow-sm ${
+            active
+              ? 'border-blue-200 bg-white/80 text-blue-700'
+              : 'border-amber-200 bg-white/80 text-amber-800'
           }`}
         >
           {count}
