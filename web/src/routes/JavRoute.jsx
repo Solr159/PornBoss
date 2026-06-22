@@ -7,9 +7,6 @@ function JavIdolRoute({
   buildJavUrl,
   config,
   directoryIds,
-  favoriteGroups,
-  favoriteGroupsError,
-  favoriteGroupsLoading,
   hasMore,
   hasNext,
   hasPrev,
@@ -17,19 +14,16 @@ function JavIdolRoute({
   lastPage,
   loading,
   loadingMore,
-  onFavoriteGroupSelect,
   onFirst,
   onGoToPage,
   onLast,
   onLoadMore,
   onNext,
-  onOpenFavoriteManager,
   onOpenFavorites,
   onPrev,
   onSelectIdol,
   onWaterfallModeChange,
   page,
-  selectedFavoriteGroupId,
   totalItems,
   waterfallMode,
 }) {
@@ -42,9 +36,6 @@ function JavIdolRoute({
       hasNext={hasNext}
       loading={loading}
       buildPageUrl={({ page: targetPage }) => buildJavUrl({ page: targetPage, tab: 'idol' })}
-      buildGroupUrl={(groupId) =>
-        buildJavUrl({ page: 1, tab: 'idol', favoriteGroupId: groupId || null })
-      }
       buildIdolUrl={(idol) =>
         buildJavUrl({
           page: 1,
@@ -61,16 +52,10 @@ function JavIdolRoute({
       onNext={onNext}
       onLast={onLast}
       items={items}
-      favoriteGroups={favoriteGroups}
-      selectedFavoriteGroupId={selectedFavoriteGroupId}
-      favoriteGroupsLoading={favoriteGroupsLoading}
-      favoriteGroupsError={favoriteGroupsError}
       directoryIds={directoryIds}
       javMetadataLanguage={config?.jav_metadata_language === 'en' ? 'en' : 'zh'}
       onSelectIdol={onSelectIdol}
-      onFavoriteGroupSelect={onFavoriteGroupSelect}
       onOpenFavorites={onOpenFavorites}
-      onOpenFavoriteManager={onOpenFavoriteManager}
       waterfallMode={waterfallMode}
       onWaterfallModeChange={onWaterfallModeChange}
       onLoadMore={onLoadMore}

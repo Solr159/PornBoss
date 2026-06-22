@@ -224,6 +224,7 @@ export default function App() {
   const [idolFavoriteModalSaving, setIdolFavoriteModalSaving] = useState(false)
   const [idolFavoriteModalError, setIdolFavoriteModalError] = useState('')
   const [idolFavoriteManageOpen, setIdolFavoriteManageOpen] = useState(false)
+  const [idolFavoriteManageEditGroupId, setIdolFavoriteManageEditGroupId] = useState(null)
   const [locationPickerOpen, setLocationPickerOpen] = useState(false)
   const [locationPickerVideo, setLocationPickerVideo] = useState(null)
   const [locationPickerChoices, setLocationPickerChoices] = useState([])
@@ -2633,6 +2634,21 @@ export default function App() {
         isModifiedClick={isModifiedClick}
         javTab={javTab}
         onSwitchJavTab={handleSwitchJavTab}
+        idolFavoriteGroups={idolFavoriteGroups}
+        idolFavoriteGroupsLoading={idolFavoriteGroupsLoading}
+        idolFavoriteGroupsError={idolFavoriteGroupsError}
+        idolSelectedFavoriteGroupId={idolFavoriteGroupId}
+        idolFavoriteEditorOpen={idolFavoriteManageOpen}
+        buildIdolFavoriteGroupUrl={(groupId) =>
+          buildJavUrl({ page: 1, tab: 'idol', favoriteGroupId: groupId || null })
+        }
+        onOpenIdolFavoriteGroups={() => loadJavIdolFavoriteGroups({ force: true })}
+        onIdolFavoriteGroupSelect={(groupId) => setIdolFavoriteGroupId(groupId)}
+        onOpenIdolFavoriteManager={(group) => {
+          const id = Number(group?.id)
+          setIdolFavoriteManageEditGroupId(Number.isFinite(id) && id > 0 ? id : null)
+          setIdolFavoriteManageOpen(true)
+        }}
         filterSummary={filterSummary}
         onOpenJavQueryEditor={() => {
           setJavQueryEditorOpen(true)
@@ -2673,15 +2689,9 @@ export default function App() {
               onLast: () => setIdolPage(idolLastPage),
               items: idolItems,
               directoryIds: javQueryDirectoryIds,
-              favoriteGroups: idolFavoriteGroups,
-              selectedFavoriteGroupId: idolFavoriteGroupId,
-              favoriteGroupsLoading: idolFavoriteGroupsLoading,
-              favoriteGroupsError: idolFavoriteGroupsError,
               config,
               onSelectIdol: handleSelectIdol,
-              onFavoriteGroupSelect: (groupId) => setIdolFavoriteGroupId(groupId),
               onOpenFavorites: handleOpenIdolFavoriteModal,
-              onOpenFavoriteManager: () => setIdolFavoriteManageOpen(true),
               waterfallMode: waterfallModes.idol,
               onWaterfallModeChange: (enabled) => setWaterfallMode('idol', enabled),
               onLoadMore: loadMoreJavIdols,
@@ -2914,8 +2924,12 @@ export default function App() {
         open={idolFavoriteManageOpen}
         groups={idolFavoriteGroups}
         selectedGroupId={idolFavoriteGroupId}
+        initialEditGroupId={idolFavoriteManageEditGroupId}
         loading={idolFavoriteGroupsLoading}
-        onClose={() => setIdolFavoriteManageOpen(false)}
+        onClose={() => {
+          setIdolFavoriteManageOpen(false)
+          setIdolFavoriteManageEditGroupId(null)
+        }}
         onCreateGroup={handleCreateIdolFavoriteGroup}
         onReorderGroups={handleReorderIdolFavoriteGroups}
         onRenameGroup={handleRenameIdolFavoriteGroup}
