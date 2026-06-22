@@ -2633,6 +2633,16 @@ export default function App() {
         isModifiedClick={isModifiedClick}
         javTab={javTab}
         onSwitchJavTab={handleSwitchJavTab}
+        idolFavoriteGroups={idolFavoriteGroups}
+        idolFavoriteGroupsLoading={idolFavoriteGroupsLoading}
+        idolFavoriteGroupsError={idolFavoriteGroupsError}
+        idolSelectedFavoriteGroupId={idolFavoriteGroupId}
+        buildIdolFavoriteGroupUrl={(groupId) =>
+          buildJavUrl({ page: 1, tab: 'idol', favoriteGroupId: groupId || null })
+        }
+        onOpenIdolFavoriteGroups={() => loadJavIdolFavoriteGroups({ force: true })}
+        onIdolFavoriteGroupSelect={(groupId) => setIdolFavoriteGroupId(groupId)}
+        onOpenIdolFavoriteManager={() => setIdolFavoriteManageOpen(true)}
         filterSummary={filterSummary}
         onOpenJavQueryEditor={() => {
           setJavQueryEditorOpen(true)
@@ -2673,15 +2683,9 @@ export default function App() {
               onLast: () => setIdolPage(idolLastPage),
               items: idolItems,
               directoryIds: javQueryDirectoryIds,
-              favoriteGroups: idolFavoriteGroups,
-              selectedFavoriteGroupId: idolFavoriteGroupId,
-              favoriteGroupsLoading: idolFavoriteGroupsLoading,
-              favoriteGroupsError: idolFavoriteGroupsError,
               config,
               onSelectIdol: handleSelectIdol,
-              onFavoriteGroupSelect: (groupId) => setIdolFavoriteGroupId(groupId),
               onOpenFavorites: handleOpenIdolFavoriteModal,
-              onOpenFavoriteManager: () => setIdolFavoriteManageOpen(true),
               waterfallMode: waterfallModes.idol,
               onWaterfallModeChange: (enabled) => setWaterfallMode('idol', enabled),
               onLoadMore: loadMoreJavIdols,
