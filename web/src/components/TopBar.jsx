@@ -729,7 +729,7 @@ function IdolFavoriteGroupMenu({
     <div
       role="dialog"
       aria-label={zh('女优收藏夹', 'Idol favorites')}
-      className="absolute left-1/2 top-full z-50 mt-5 flex max-h-[70vh] w-[34rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-col overflow-visible rounded border border-gray-200 bg-white text-left shadow-xl"
+      className="absolute left-1/2 top-full z-50 mt-2.5 flex max-h-[70vh] w-[34rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-col overflow-visible rounded border border-gray-200 bg-white text-left shadow-xl"
     >
       <span
         className="absolute left-1/2 top-0 h-0 w-0 -translate-x-1/2 -translate-y-full border-x-[10px] border-b-[10px] border-x-transparent border-b-gray-200"
