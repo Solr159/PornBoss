@@ -132,14 +132,14 @@ func ListJavFavoriteGroups(ctx context.Context, entityType string, directoryIDs 
 			Joins("LEFT JOIN (?) solo_idols ON solo_idols.jav_idol_id = jfm.entity_id", buildVisibleSoloIdolCoverQuery(ctx, directoryIDs, isEnglish))
 	case JavFavoriteEntityJav:
 		query = query.
-			Select("jfg.id, jfg.entity_type, jfg.name, jfg.sort_order, COUNT(DISTINCT CASE WHEN j.id IS NOT NULL AND "+activeLocationWhereSQL("vl", "d")+directoryFilterSQL("vl", directoryIDs)+" THEN j.id END) AS count").
+			Select("jfg.id, jfg.entity_type, jfg.name, jfg.sort_order, COUNT(DISTINCT CASE WHEN j.id IS NOT NULL AND vl.id IS NOT NULL AND d.id IS NOT NULL AND "+activeLocationWhereSQL("vl", "d")+directoryFilterSQL("vl", directoryIDs)+" THEN j.id END) AS count").
 			Joins("LEFT JOIN jav_favorite_map jfm ON jfm.jav_favorite_group_id = jfg.id AND jfm.entity_type = ?", entityType).
 			Joins("LEFT JOIN jav j ON j.id = jfm.entity_id").
 			Joins("LEFT JOIN video_location vl ON vl.jav_id = j.id").
 			Joins("LEFT JOIN directory d ON d.id = vl.directory_id")
 	case JavFavoriteEntityStudio:
 		query = query.
-			Select("jfg.id, jfg.entity_type, jfg.name, jfg.sort_order, COUNT(DISTINCT CASE WHEN js.id IS NOT NULL AND "+activeLocationWhereSQL("vl", "d")+directoryFilterSQL("vl", directoryIDs)+" THEN js.id END) AS count").
+			Select("jfg.id, jfg.entity_type, jfg.name, jfg.sort_order, COUNT(DISTINCT CASE WHEN js.id IS NOT NULL AND j.id IS NOT NULL AND vl.id IS NOT NULL AND d.id IS NOT NULL AND "+activeLocationWhereSQL("vl", "d")+directoryFilterSQL("vl", directoryIDs)+" THEN js.id END) AS count").
 			Joins("LEFT JOIN jav_favorite_map jfm ON jfm.jav_favorite_group_id = jfg.id AND jfm.entity_type = ?", entityType).
 			Joins("LEFT JOIN jav_studio js ON js.id = jfm.entity_id").
 			Joins("LEFT JOIN jav j ON j.studio_id = js.id").
@@ -149,7 +149,7 @@ func ListJavFavoriteGroups(ctx context.Context, entityType string, directoryIDs 
 		isEnglish := jav.CurrentMetadataLanguageIsEnglish()
 		seriesColumn := javSeriesColumn()
 		query = query.
-			Select("jfg.id, jfg.entity_type, jfg.name, jfg.sort_order, COUNT(DISTINCT CASE WHEN js.id IS NOT NULL AND "+activeLocationWhereSQL("vl", "d")+directoryFilterSQL("vl", directoryIDs)+" THEN js.id END) AS count").
+			Select("jfg.id, jfg.entity_type, jfg.name, jfg.sort_order, COUNT(DISTINCT CASE WHEN js.id IS NOT NULL AND j.id IS NOT NULL AND vl.id IS NOT NULL AND d.id IS NOT NULL AND "+activeLocationWhereSQL("vl", "d")+directoryFilterSQL("vl", directoryIDs)+" THEN js.id END) AS count").
 			Joins("LEFT JOIN jav_favorite_map jfm ON jfm.jav_favorite_group_id = jfg.id AND jfm.entity_type = ?", entityType).
 			Joins("LEFT JOIN jav_series js ON js.id = jfm.entity_id AND COALESCE(js.is_english, 0) = ?", isEnglish).
 			Joins("LEFT JOIN jav j ON j." + seriesColumn + " = js.id").
