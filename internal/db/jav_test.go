@@ -135,7 +135,7 @@ func TestListJavIdolOptionsIncludesIdolsWithoutWorks(t *testing.T) {
 	assertJavIdolSummaries(t, items, total, []string{"Has Work Idol", "No Work Idol"})
 }
 
-func TestDeleteJavIdolFavoriteGroupCascadesMapsOnNewConnection(t *testing.T) {
+func TestDeleteJavFavoriteGroupCascadesMapsOnNewConnection(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
@@ -163,10 +163,10 @@ func TestDeleteJavIdolFavoriteGroupCascadesMapsOnNewConnection(t *testing.T) {
 	idolA = idols[0]
 	idolB = idols[1]
 
-	rows := []models.JavIdolFavoriteMap{
-		{JavIdolFavoriteGroupID: group.ID, JavIdolID: idolA.ID},
-		{JavIdolFavoriteGroupID: group.ID, JavIdolID: idolB.ID},
-		{JavIdolFavoriteGroupID: otherGroup.ID, JavIdolID: idolA.ID},
+	rows := []models.JavFavoriteMap{
+		{JavFavoriteGroupID: group.ID, EntityType: JavFavoriteEntityIdol, EntityID: idolA.ID},
+		{JavFavoriteGroupID: group.ID, EntityType: JavFavoriteEntityIdol, EntityID: idolB.ID},
+		{JavFavoriteGroupID: otherGroup.ID, EntityType: JavFavoriteEntityIdol, EntityID: idolA.ID},
 	}
 	if err := db.Create(&rows).Error; err != nil {
 		t.Fatalf("create favorite maps: %v", err)
@@ -189,13 +189,13 @@ func TestDeleteJavIdolFavoriteGroupCascadesMapsOnNewConnection(t *testing.T) {
 		t.Fatalf("foreign_keys pragma = %d, want 1", foreignKeysEnabled)
 	}
 
-	if err := DeleteJavIdolFavoriteGroup(ctx, group.ID); err != nil {
-		t.Fatalf("DeleteJavIdolFavoriteGroup: %v", err)
+	if err := DeleteJavFavoriteGroup(ctx, JavFavoriteEntityIdol, group.ID); err != nil {
+		t.Fatalf("DeleteJavFavoriteGroup: %v", err)
 	}
 
 	var deletedGroupMaps int64
-	if err := db.Model(&models.JavIdolFavoriteMap{}).
-		Where("jav_idol_favorite_group_id = ?", group.ID).
+	if err := db.Model(&models.JavFavoriteMap{}).
+		Where("jav_favorite_group_id = ? AND entity_type = ?", group.ID, JavFavoriteEntityIdol).
 		Count(&deletedGroupMaps).Error; err != nil {
 		t.Fatalf("count deleted group maps: %v", err)
 	}
@@ -204,8 +204,8 @@ func TestDeleteJavIdolFavoriteGroupCascadesMapsOnNewConnection(t *testing.T) {
 	}
 
 	var otherGroupMaps int64
-	if err := db.Model(&models.JavIdolFavoriteMap{}).
-		Where("jav_idol_favorite_group_id = ?", otherGroup.ID).
+	if err := db.Model(&models.JavFavoriteMap{}).
+		Where("jav_favorite_group_id = ? AND entity_type = ?", otherGroup.ID, JavFavoriteEntityIdol).
 		Count(&otherGroupMaps).Error; err != nil {
 		t.Fatalf("count other group maps: %v", err)
 	}

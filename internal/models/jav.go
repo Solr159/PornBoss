@@ -71,7 +71,7 @@ type JavIdol struct {
 	CoverCropLeft float64    `json:"cover_crop_left" gorm:"not null;default:0.53"`
 }
 
-type JavIdolFavoriteGroup struct {
+type JavFavoriteGroup struct {
 	ID         int64     `json:"id" gorm:"primaryKey"`
 	EntityType string    `json:"entity_type" gorm:"not null;default:idol;uniqueIndex:idx_jav_favorite_group_type_name;index:idx_jav_favorite_group_type_sort,priority:1"`
 	Name       string    `json:"name" gorm:"uniqueIndex:idx_jav_favorite_group_type_name"`
@@ -80,11 +80,11 @@ type JavIdolFavoriteGroup struct {
 	SortOrder  int       `json:"sort_order" gorm:"not null;default:0;index:idx_jav_favorite_group_type_sort,priority:2"`
 }
 
-func (JavIdolFavoriteGroup) TableName() string {
+func (JavFavoriteGroup) TableName() string {
 	return "jav_favorite_group"
 }
 
-type JavFavoriteGroup = JavIdolFavoriteGroup
+type JavIdolFavoriteGroup = JavFavoriteGroup
 
 type JavFavoriteMap struct {
 	JavFavoriteGroupID int64            `gorm:"primaryKey;index:idx_jav_favorite_map_entity_type_entity_id_group_id,priority:3"`
@@ -111,16 +111,4 @@ type JavIdolMap struct {
 	JavIdolID int64     `gorm:"primaryKey;index:idx_jav_idol_map_jav_idol_id_jav_id,priority:1"`
 	JavIdol   JavIdol   `gorm:"foreignKey:JavIdolID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	CreatedAt time.Time `gorm:"autoCreateTime"`
-}
-
-type JavIdolFavoriteMap struct {
-	JavIdolFavoriteGroupID int64                `gorm:"primaryKey;column:jav_idol_favorite_group_id"`
-	JavIdolFavoriteGroup   JavIdolFavoriteGroup `gorm:"foreignKey:JavIdolFavoriteGroupID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	JavIdolID              int64                `gorm:"primaryKey;column:jav_idol_id"`
-	CreatedAt              time.Time            `gorm:"autoCreateTime"`
-	SortOrder              int                  `gorm:"not null;default:0"`
-}
-
-func (JavIdolFavoriteMap) TableName() string {
-	return "jav_idol_favorite_map"
 }
