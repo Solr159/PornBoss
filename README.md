@@ -79,8 +79,6 @@ curl -fsSL https://raw.githubusercontent.com/Solr159/JavBoss/main/scripts/instal
 
   - 如果 JAV 模式下始终没数据，中国大陆地区请确保梯子已打开外网访问通畅，然后再等待一段时间。
 
-</br>
-
 ## 如何升级版本
 
 #### 一键安装用户
@@ -92,8 +90,6 @@ curl -fsSL https://raw.githubusercontent.com/Solr159/JavBoss/main/scripts/instal
 下载并解压新版本后，将旧版本目录中的 `data/` 文件夹复制到新版本目录，然后启动新版本。
 
 （注意要先复制再启动。如果直接启动，程序会自动生成 `data/` 目录，你需要先退出程序，手动删除掉 `data/` 目录再复制）。
-
-</br>
 
 ## 手动下载老用户迁移一键安装
 
@@ -107,7 +103,6 @@ curl -fsSL https://raw.githubusercontent.com/Solr159/JavBoss/main/scripts/instal
 
 之后升级只需要重新执行一键安装命令。
 
-</br>
 
 ## 部分截图
 
