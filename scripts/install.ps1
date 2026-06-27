@@ -88,6 +88,31 @@ function Restore-ExistingConfig {
   Remove-Item -LiteralPath $SavedConfig -Force -ErrorAction SilentlyContinue
 }
 
+function Get-VersionFilePath {
+  param([string]$InstallDir)
+  return Join-Path $InstallDir ".javboss-version"
+}
+
+function Get-InstalledVersion {
+  param([string]$InstallDir)
+
+  $exe = Join-Path $InstallDir "javboss.exe"
+  $versionFile = Get-VersionFilePath -InstallDir $InstallDir
+  if ((Test-Path -LiteralPath $exe) -and (Test-Path -LiteralPath $versionFile)) {
+    $line = Get-Content -LiteralPath $versionFile -TotalCount 1
+    if ($line) {
+      return "$line".Trim()
+    }
+  }
+  return ""
+}
+
+function Set-InstalledVersion {
+  param([string]$InstallDir, [string]$Tag)
+
+  Set-Content -LiteralPath (Get-VersionFilePath -InstallDir $InstallDir) -Value $Tag -Encoding UTF8
+}
+
 function Copy-ReleaseFiles {
   param([string]$SourceDir, [string]$InstallDir)
 
@@ -214,6 +239,17 @@ $tag = Normalize-Tag -InputVersion $Version -Repository $Repo
 $fileName = "javboss-$tag-$platform.zip"
 $url = "https://github.com/$Repo/releases/download/$tag/$fileName"
 
+if ((Get-InstalledVersion -InstallDir $Dir) -eq $tag) {
+  Write-Log "JavBoss $tag is already installed; skipping download"
+  if (-not $NoStart) {
+    Write-Log "starting JavBoss"
+    Start-JavBoss -InstallDir $Dir
+  } else {
+    Write-Log "start later with: $(Join-Path $Dir "javboss.exe")"
+  }
+  return
+}
+
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("javboss-install-" + [System.Guid]::NewGuid().ToString())
 $zipPath = Join-Path $tempRoot $fileName
 $extractDir = Join-Path $tempRoot "extract"
@@ -234,6 +270,7 @@ try {
   Write-Log "installing to $Dir"
   Copy-ReleaseFiles -SourceDir $releaseDir.FullName -InstallDir $Dir
   New-JavBossShortcuts -InstallDir $Dir
+  Set-InstalledVersion -InstallDir $Dir -Tag $tag
 
   Write-Log "installed JavBoss $tag"
   if (-not $NoStart) {

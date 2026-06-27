@@ -161,6 +161,25 @@ default_install_dir() {
   esac
 }
 
+version_file_path() {
+  printf '%s/.javboss-version' "$1"
+}
+
+installed_version() {
+  local install_dir="$1"
+  local version_file
+  version_file="$(version_file_path "$install_dir")"
+  if [[ -f "$install_dir/javboss" && -f "$version_file" ]]; then
+    head -n 1 "$version_file" | tr -d '[:space:]'
+  fi
+}
+
+write_installed_version() {
+  local install_dir="$1"
+  local tag="$2"
+  printf '%s\n' "$tag" >"$(version_file_path "$install_dir")"
+}
+
 canonical_path() {
   local target="$1"
   local dir base
@@ -264,6 +283,17 @@ main() {
   filename="javboss-${tag}-${platform}.zip"
   url="https://github.com/${REPO}/releases/download/${tag}/${filename}"
 
+  if [[ "$(installed_version "$INSTALL_DIR")" == "$tag" ]]; then
+    log "JavBoss $tag is already installed; skipping download"
+    if [[ "$START_AFTER_INSTALL" == "1" ]]; then
+      log "starting JavBoss"
+      start_javboss "$INSTALL_DIR"
+    else
+      log "start later with: $INSTALL_DIR/javboss"
+    fi
+    return
+  fi
+
   TMP_DIR="$(mktemp -d)"
   trap cleanup EXIT
 
@@ -289,6 +319,7 @@ main() {
   fi
 
   create_command_link "$INSTALL_DIR"
+  write_installed_version "$INSTALL_DIR" "$tag"
 
   log "installed JavBoss $tag"
   if [[ "$START_AFTER_INSTALL" == "1" ]]; then
