@@ -15,8 +15,9 @@
   <a href="./README.md">中文</a> | <a href="./README.en.md">English</a>
 </p>
 
-<p align="center">
-  <a href="https://t.me/+4dje8gAi2dI2ZTE1"><img alt="Telegram Group" src="https://img.shields.io/badge/Telegram-%E5%AE%98%E6%96%B9%E4%BA%A4%E6%B5%81%E7%BE%A4-26A5E4?logo=telegram&logoColor=white"></a>
+<p>
+  <img alt="Telegram" src="https://cdn.simpleicons.org/telegram/26A5E4" width="18" height="18" align="absmiddle">
+  <a href="https://t.me/+4dje8gAi2dI2ZTE1">官方交流群</a>
 </p>
 
 
