@@ -152,23 +152,40 @@ function Assert-JavBossNotRunning {
   Fail "JavBoss is already running from $InstallDir (pid: $ids). Please exit JavBoss before installing or upgrading."
 }
 
-function New-StartMenuShortcut {
-  param([string]$InstallDir)
+function New-JavBossShortcut {
+  param([string]$ShortcutPath, [string]$InstallDir)
 
-  $programs = [Environment]::GetFolderPath("Programs")
-  if (-not $programs) {
+  if (-not $ShortcutPath) {
     return
   }
-  $shortcutPath = Join-Path $programs "JavBoss.lnk"
+
   $target = Join-Path $InstallDir "javboss.exe"
+  $shortcutDir = Split-Path -Parent $ShortcutPath
+  if ($shortcutDir) {
+    New-Item -ItemType Directory -Path $shortcutDir -Force | Out-Null
+  }
 
   $shell = New-Object -ComObject WScript.Shell
-  $shortcut = $shell.CreateShortcut($shortcutPath)
+  $shortcut = $shell.CreateShortcut($ShortcutPath)
   $shortcut.TargetPath = $target
   $shortcut.WorkingDirectory = $InstallDir
   $shortcut.IconLocation = "$target,0"
   $shortcut.Save()
-  Write-Log "shortcut installed: $shortcutPath"
+  Write-Log "shortcut installed: $ShortcutPath"
+}
+
+function New-JavBossShortcuts {
+  param([string]$InstallDir)
+
+  $programs = [Environment]::GetFolderPath("Programs")
+  if ($programs) {
+    New-JavBossShortcut -ShortcutPath (Join-Path $programs "JavBoss.lnk") -InstallDir $InstallDir
+  }
+
+  $desktop = [Environment]::GetFolderPath("Desktop")
+  if ($desktop) {
+    New-JavBossShortcut -ShortcutPath (Join-Path $desktop "JavBoss.lnk") -InstallDir $InstallDir
+  }
 }
 
 function Start-JavBoss {
@@ -216,7 +233,7 @@ try {
 
   Write-Log "installing to $Dir"
   Copy-ReleaseFiles -SourceDir $releaseDir.FullName -InstallDir $Dir
-  New-StartMenuShortcut -InstallDir $Dir
+  New-JavBossShortcuts -InstallDir $Dir
 
   Write-Log "installed JavBoss $tag"
   if (-not $NoStart) {
