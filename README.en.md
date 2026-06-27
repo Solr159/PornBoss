@@ -297,6 +297,14 @@ Start the backend:
 ./scripts/cli.sh dev backend
 ```
 
+Start the local backend with Docker runtime settings for container-mode debugging:
+
+```bash
+DOCKER_MODE=1 ./scripts/cli.sh dev backend
+```
+
+This enables `JAVBOSS_CONTAINER=1`, disables the API token, directory picker, desktop integration, and mpv playback, and uses ffmpeg for screenshots. Local debug needs `ffmpeg` available through `FFMPEG_PATH`, `internal/bin/ffmpeg`, or the system `PATH`. It does not add the `/host` prefix to frontend directory input or rewrite `127.0.0.1` proxies to `host.docker.internal` by default; use `DOCKER_MODE=1 JAVBOSS_HOST_PATH_PREFIX=1 ./scripts/cli.sh dev backend` when you need to test Docker host-path mapping, and add `JAVBOSS_PROXY_HOST_GATEWAY=1` when you need to test Docker proxy gateway mapping.
+
 Start the frontend:
 
 ```bash
