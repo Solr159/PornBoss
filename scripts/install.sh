@@ -284,13 +284,7 @@ main() {
   url="https://github.com/${REPO}/releases/download/${tag}/${filename}"
 
   if [[ "$(installed_version "$INSTALL_DIR")" == "$tag" ]]; then
-    log "JavBoss $tag is already installed; skipping download"
-    if [[ "$START_AFTER_INSTALL" == "1" ]]; then
-      log "starting JavBoss"
-      start_javboss "$INSTALL_DIR"
-    else
-      log "start later with: $INSTALL_DIR/javboss"
-    fi
+    log "JavBoss $tag is already installed; no update needed"
     return
   fi
 

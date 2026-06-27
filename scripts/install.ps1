@@ -240,13 +240,7 @@ $fileName = "javboss-$tag-$platform.zip"
 $url = "https://github.com/$Repo/releases/download/$tag/$fileName"
 
 if ((Get-InstalledVersion -InstallDir $Dir) -eq $tag) {
-  Write-Log "JavBoss $tag is already installed; skipping download"
-  if (-not $NoStart) {
-    Write-Log "starting JavBoss"
-    Start-JavBoss -InstallDir $Dir
-  } else {
-    Write-Log "start later with: $(Join-Path $Dir "javboss.exe")"
-  }
+  Write-Log "JavBoss $tag is already installed; no update needed"
   return
 }
 
