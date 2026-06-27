@@ -1,5 +1,5 @@
 $ErrorActionPreference = "Stop"
-$ProgressPreference = "Continue"
+$ProgressPreference = "SilentlyContinue"
 
 $Version = if ($env:JAVBOSS_VERSION) { $env:JAVBOSS_VERSION } else { "latest" }
 $Dir = $env:JAVBOSS_INSTALL_DIR
@@ -26,20 +26,6 @@ function Fail {
   param([string]$Message)
   Write-Error "[javboss] ERROR: $Message"
   exit 1
-}
-
-function Download-FileWithProgress {
-  param([string]$Url, [string]$OutFile)
-
-  if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
-    & curl.exe -L --fail --retry 3 --progress-bar -o $OutFile $Url
-    if ($LASTEXITCODE -ne 0) {
-      Fail "download failed: curl.exe exited with code $LASTEXITCODE"
-    }
-    return
-  }
-
-  Invoke-WebRequest -Uri $Url -OutFile $OutFile -Headers @{ "User-Agent" = "JavBoss-Installer" }
 }
 
 function Get-LatestTag {
@@ -272,7 +258,7 @@ try {
   New-Item -ItemType Directory -Path $extractDir -Force | Out-Null
 
   Write-Log "downloading $url"
-  Download-FileWithProgress -Url $url -OutFile $zipPath
+  Invoke-WebRequest -Uri $url -OutFile $zipPath -Headers @{ "User-Agent" = "JavBoss-Installer" }
 
   Write-Log "extracting release package"
   Expand-Archive -LiteralPath $zipPath -DestinationPath $extractDir -Force
