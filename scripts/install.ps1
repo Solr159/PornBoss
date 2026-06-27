@@ -1,10 +1,8 @@
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$Version = if ($env:JAVBOSS_VERSION) { $env:JAVBOSS_VERSION } else { "latest" }
-$Dir = $env:JAVBOSS_INSTALL_DIR
-$Repo = if ($env:JAVBOSS_REPO) { $env:JAVBOSS_REPO } else { "Solr159/JavBoss" }
-$NoStart = $env:JAVBOSS_NO_START -eq "1"
+$Repo = "Solr159/JavBoss"
+$Version = "v1.8.1"
 
 function Test-PrefersChinese {
   if ($env:JAVBOSS_LANG -like "zh*") {
@@ -26,34 +24,6 @@ function Fail {
   param([string]$Message)
   Write-Error "[javboss] ERROR: $Message"
   exit 1
-}
-
-function Get-LatestTag {
-  param([string]$Repository)
-  $uri = "https://api.github.com/repos/$Repository/releases/latest"
-  try {
-    $release = Invoke-RestMethod -Uri $uri -Headers @{ "User-Agent" = "JavBoss-Installer" }
-    if (-not $release.tag_name) {
-      Fail "failed to read latest release tag from GitHub"
-    }
-    return [string]$release.tag_name
-  } catch {
-    Fail "failed to read latest release tag from GitHub: $($_.Exception.Message)"
-  }
-}
-
-function Normalize-Tag {
-  param([string]$InputVersion, [string]$Repository)
-  if ([string]::IsNullOrWhiteSpace($InputVersion)) {
-    $InputVersion = "latest"
-  }
-  if ($InputVersion -eq "latest") {
-    return Get-LatestTag -Repository $Repository
-  }
-  if ($InputVersion -like "v*") {
-    return $InputVersion
-  }
-  return "v$InputVersion"
 }
 
 function Get-PlatformLabel {
@@ -224,18 +194,16 @@ function Start-JavBoss {
   }
 }
 
-if (-not $Dir) {
-  $baseDir = $env:LOCALAPPDATA
-  if (-not $baseDir) {
-    $baseDir = Join-Path $HOME "AppData\Local"
-  }
-  $Dir = Join-Path $baseDir "JavBoss"
+$baseDir = $env:LOCALAPPDATA
+if (-not $baseDir) {
+  $baseDir = Join-Path $HOME "AppData\Local"
 }
+$Dir = Join-Path $baseDir "JavBoss"
 $Dir = [System.IO.Path]::GetFullPath($Dir)
 Assert-JavBossNotRunning -InstallDir $Dir
 
 $platform = Get-PlatformLabel
-$tag = Normalize-Tag -InputVersion $Version -Repository $Repo
+$tag = $Version
 $fileName = "javboss-$tag-$platform.zip"
 $url = "https://github.com/$Repo/releases/download/$tag/$fileName"
 
@@ -267,12 +235,8 @@ try {
   Set-InstalledVersion -InstallDir $Dir -Tag $tag
 
   Write-Log "installed JavBoss $tag"
-  if (-not $NoStart) {
-    Write-Log "starting JavBoss"
-    Start-JavBoss -InstallDir $Dir
-  } else {
-    Write-Log "start later with: $(Join-Path $Dir "javboss.exe")"
-  }
+  Write-Log "starting JavBoss"
+  Start-JavBoss -InstallDir $Dir
 } finally {
   Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
