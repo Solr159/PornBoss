@@ -1,0 +1,59 @@
+name: docker
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Git branch or tag to build"
+        required: false
+        default: "main"
+      version:
+        description: "Docker image version tag"
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.branch || github.ref }}
+
+      - name: Resolve image name
+        id: image
+        run: |
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          echo "name=ghcr.io/${owner}/javboss" >> "$GITHUB_OUTPUT"
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ inputs.version }}
+            ${{ steps.image.outputs.name }}:latest
+          build-args: |
+            GOPROXY=https://goproxy.cn,direct
+            GOSUMDB=sum.golang.org
+            NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
