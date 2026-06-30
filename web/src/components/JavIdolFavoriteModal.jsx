@@ -3,6 +3,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import { Button, IconButton } from '@mui/material'
 import { zh } from '@/utils/i18n'
+import { getIdolDisplayName } from '@/utils/javIdol'
 
 export default function JavIdolFavoriteModal({
   open,
@@ -13,6 +14,8 @@ export default function JavIdolFavoriteModal({
   loading,
   saving,
   error,
+  javMetadataLanguage = 'zh',
+  preferChineseName = false,
   onClose,
   onCreateGroup,
   onSave,
@@ -43,7 +46,7 @@ export default function JavIdolFavoriteModal({
 
   const selectedSet = new Set(localSelectedIds)
   const entityLabel = favoriteEntityLabel(entityType)
-  const itemName = favoriteItemName(entityType, idol)
+  const itemName = favoriteItemName(entityType, idol, javMetadataLanguage, preferChineseName)
 
   const toggleGroup = (id, checked) => {
     const parsed = Number(id)
@@ -201,7 +204,10 @@ function favoriteEntityLabel(entityType) {
   }
 }
 
-function favoriteItemName(entityType, item) {
+function favoriteItemName(entityType, item, javMetadataLanguage, preferChineseName) {
+  if (entityType === 'idol') {
+    return getIdolDisplayName(item, javMetadataLanguage, preferChineseName)
+  }
   const name = String(item?.name || '').trim()
   if (name) return name
   if (entityType === 'jav') {

@@ -585,6 +585,41 @@ export async function fetchJavIdolOptions({ limit = 25, offset = 0, search = '' 
   return res.json()
 }
 
+export async function mergeJavIdols({ canonicalId, mergeIds = [], directoryIds = [] } = {}) {
+  const params = new URLSearchParams()
+  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
+  const query = params.toString()
+  const res = await apiFetch(`/jav/idols/merge${query ? `?${query}` : ''}`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({
+      canonical_id: canonicalId,
+      merge_ids: mergeIds,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('合并女优失败', 'Failed to merge idols'))
+  }
+  return res.json()
+}
+
+export async function updateJavIdol(id, payload, { directoryIds = [] } = {}) {
+  const params = new URLSearchParams()
+  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
+  const query = params.toString()
+  const res = await apiFetch(`/jav/idols/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
+    method: 'PATCH',
+    headers: jsonHeaders,
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || zh('保存女优信息失败', 'Failed to save idol info'))
+  }
+  return res.json()
+}
+
 const JAV_FAVORITE_ENTITY_ROUTES = {
   jav: 'jav',
   idol: 'idol',

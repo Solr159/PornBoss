@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -79,6 +80,106 @@ func resolveJavIdols(c *gin.Context) {
 		items = []dbpkg.JavIdolSummary{}
 	}
 	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+func mergeJavIdols(c *gin.Context) {
+	var req struct {
+		CanonicalID int64   `json:"canonical_id"`
+		MergeIDs    []int64 `json:"merge_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+	if req.CanonicalID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "canonical_id is required"})
+		return
+	}
+	if len(req.MergeIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "merge_ids required"})
+		return
+	}
+
+	directoryIDs := parseDirectoryIDs(c.Query("directory_ids"))
+	item, err := dbpkg.MergeJavIdols(c.Request.Context(), req.CanonicalID, req.MergeIDs, directoryIDs)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "idol not found"})
+			return
+		}
+		logging.Error("merge jav idols canonical=%d merge=%v: %v", req.CanonicalID, req.MergeIDs, err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	items := []dbpkg.JavIdolSummary{*item}
+	enrichJavIdolSummaries(c.Request.Context(), items, directoryIDs)
+	c.JSON(http.StatusOK, items[0])
+}
+
+func updateJavIdol(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	var req struct {
+		Name         string   `json:"name"`
+		RomanName    string   `json:"roman_name"`
+		JapaneseName string   `json:"japanese_name"`
+		ChineseName  string   `json:"chinese_name"`
+		HeightCM     *int     `json:"height_cm"`
+		BirthDate    *string  `json:"birth_date"`
+		Bust         *int     `json:"bust"`
+		Waist        *int     `json:"waist"`
+		Hips         *int     `json:"hips"`
+		Cup          *int     `json:"cup"`
+		Aliases      []string `json:"aliases"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+
+	var birthDate *time.Time
+	if req.BirthDate != nil {
+		raw := strings.TrimSpace(*req.BirthDate)
+		if raw != "" {
+			parsed, err := time.Parse("2006-01-02", raw)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "birth_date must be YYYY-MM-DD"})
+				return
+			}
+			birthDate = &parsed
+		}
+	}
+
+	directoryIDs := parseDirectoryIDs(c.Query("directory_ids"))
+	item, err := dbpkg.UpdateJavIdol(c.Request.Context(), id, dbpkg.JavIdolUpdateInput{
+		Name:         req.Name,
+		RomanName:    req.RomanName,
+		JapaneseName: req.JapaneseName,
+		ChineseName:  req.ChineseName,
+		HeightCM:     req.HeightCM,
+		BirthDate:    birthDate,
+		Bust:         req.Bust,
+		Waist:        req.Waist,
+		Hips:         req.Hips,
+		Cup:          req.Cup,
+		Aliases:      req.Aliases,
+	}, directoryIDs)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "idol not found"})
+			return
+		}
+		logging.Error("update jav idol id=%d: %v", id, err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	items := []dbpkg.JavIdolSummary{*item}
+	enrichJavIdolSummaries(c.Request.Context(), items, directoryIDs)
+	c.JSON(http.StatusOK, items[0])
 }
 
 func listJavIdolCoverOptions(c *gin.Context) {

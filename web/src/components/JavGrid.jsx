@@ -25,12 +25,13 @@ import {
   updateJavItem,
 } from '@/api'
 import JavIdolCoverModal from '@/components/JavIdolCoverModal'
-import { IdolCard, getIdolCardLayoutProps } from '@/components/JavIdolGrid'
+import { IdolCard, JavIdolEditModal, getIdolCardLayoutProps } from '@/components/JavIdolGrid'
 import { SeriesCard } from '@/components/JavSeriesView'
 import { StudioCard } from '@/components/JavStudioView'
 import VideoGrid from '@/components/VideoGrid'
 import { isUserJavTag } from '@/constants/jav'
 import { getJavDisplayTitle } from '@/utils/jav'
+import { getIdolDisplayName } from '@/utils/javIdol'
 import { directoryQueryIds, useStore, videoSelectionKey } from '@/store'
 import { zh } from '@/utils/i18n'
 
@@ -113,6 +114,9 @@ export default function JavGrid({
   const directoryIds = useStore(directoryQueryIds)
   const javMetadataLanguage = useStore((state) =>
     state.config?.jav_metadata_language === 'en' ? 'en' : 'zh'
+  )
+  const preferChineseName = useStore((state) =>
+    configFlag(state.config?.jav_idol_prefer_chinese_name)
   )
   const idolPreviewCacheRef = useRef(new Map())
   const idolPreviewInflightRef = useRef(new Map())
@@ -261,6 +265,7 @@ export default function JavGrid({
             onOpenCoverPreview={setCoverPreview}
             directoryIds={directoryIds}
             javMetadataLanguage={javMetadataLanguage}
+            preferChineseName={preferChineseName}
             titleMaxRows={titleMaxRows}
             idolTagMaxRows={idolTagMaxRows}
             tagMaxRows={tagMaxRows}
@@ -387,16 +392,35 @@ function mergeOptionsById(options, selectedOptions) {
   return Array.from(map.values())
 }
 
-function filterOptionsByName(options, search) {
+function configFlag(value, fallback = false) {
+  if (value == null || value === '') return fallback
+  return !['0', 'false', 'no', 'off'].includes(String(value).trim().toLowerCase())
+}
+
+function filterOptionsByName(options, search, getSearchText = (option) => option?.name) {
   const q = String(search || '')
     .trim()
     .toLowerCase()
   if (!q) return options
   return (options || []).filter((option) =>
-    String(option?.name || '')
+    String(getSearchText(option) || '')
       .toLowerCase()
       .includes(q)
   )
+}
+
+function buildIdolSearchText(idol, javMetadataLanguage, preferChineseName) {
+  const aliases = Array.isArray(idol?.aliases) ? idol.aliases : []
+  return [
+    getIdolDisplayName(idol, javMetadataLanguage, preferChineseName),
+    idol?.name,
+    idol?.roman_name,
+    idol?.japanese_name,
+    idol?.chinese_name,
+    ...aliases,
+  ]
+    .filter(Boolean)
+    .join(' ')
 }
 
 function includeSelectedOptions(options, allOptions, selectedIds) {
@@ -532,7 +556,15 @@ function editableJavTitle(item, javMetadataLanguage) {
   return String(javMetadataLanguage === 'en' ? item?.title_en || '' : item?.title || '')
 }
 
-function JavEditModal({ open, item, directoryIds, javMetadataLanguage, onClose, onSaved }) {
+function JavEditModal({
+  open,
+  item,
+  directoryIds,
+  javMetadataLanguage,
+  preferChineseName = false,
+  onClose,
+  onSaved,
+}) {
   const tagOptions = useStore((state) => state.javTagOptions || [])
   const loadJavTags = useStore((state) => state.loadJavTags)
   const [title, setTitle] = useState('')
@@ -603,11 +635,13 @@ function JavEditModal({ open, item, directoryIds, javMetadataLanguage, onClose, 
   const visibleIdolOptions = useMemo(
     () =>
       includeSelectedOptions(
-        filterOptionsByName(mergedIdolOptions, idolSearch),
+        filterOptionsByName(mergedIdolOptions, idolSearch, (idol) =>
+          buildIdolSearchText(idol, javMetadataLanguage, preferChineseName)
+        ),
         mergedIdolOptions,
         selectedIdolIds
       ),
-    [idolSearch, mergedIdolOptions, selectedIdolIds]
+    [idolSearch, javMetadataLanguage, mergedIdolOptions, preferChineseName, selectedIdolIds]
   )
   const visibleTagOptions = useMemo(
     () =>
@@ -925,7 +959,7 @@ function JavEditModal({ open, item, directoryIds, javMetadataLanguage, onClose, 
                 {selectedIdolOptions.map((idol) => (
                   <SelectedChip
                     key={idol.id}
-                    label={idol.name}
+                    label={getIdolDisplayName(idol, javMetadataLanguage, preferChineseName)}
                     disabled={saving}
                     onRemove={() => toggleIdol(idol.id, false)}
                   />
@@ -970,7 +1004,7 @@ function JavEditModal({ open, item, directoryIds, javMetadataLanguage, onClose, 
                         onClick={() => toggleIdol(idol.id, true)}
                         disabled={saving}
                       >
-                        {idol.name}
+                        {getIdolDisplayName(idol, javMetadataLanguage, preferChineseName)}
                       </button>
                     ))
                   )}
@@ -1146,6 +1180,8 @@ function TagCollapseToggleButton({
 function IdolTagList({
   idols,
   maxRows,
+  javMetadataLanguage,
+  preferChineseName = false,
   buildIdolFilterHref,
   onIdolClick,
   onFilterLinkClick,
@@ -1158,8 +1194,14 @@ function IdolTagList({
   const [visibleCount, setVisibleCount] = useState(idols.length)
   const rowLimit = normalizeIdolTagMaxRows(maxRows)
   const identity = useMemo(
-    () => (idols || []).map((idol) => idol?.id || idol?.name || '').join('|'),
-    [idols]
+    () =>
+      (idols || [])
+        .map(
+          (idol) =>
+            `${idol?.id || idol?.name || ''}:${getIdolDisplayName(idol, javMetadataLanguage, preferChineseName)}`
+        )
+        .join('|'),
+    [idols, javMetadataLanguage, preferChineseName]
   )
 
   useEffect(() => {
@@ -1245,7 +1287,7 @@ function IdolTagList({
             onBlur={onIdolHoverEnd}
             onClick={(event) => onFilterLinkClick(event, () => onIdolClick?.(idol))}
           >
-            {idol.name}
+            {getIdolDisplayName(idol, javMetadataLanguage, preferChineseName)}
           </a>
         ))}
         {showToggle ? (
@@ -1271,7 +1313,7 @@ function IdolTagList({
               data-idol-tag-measure
               className="rounded-full bg-purple-100 px-2 py-1 text-xs font-medium"
             >
-              {idol.name}
+              {getIdolDisplayName(idol, javMetadataLanguage, preferChineseName)}
             </span>
           ))}
           <span
@@ -1464,6 +1506,7 @@ function JavCard({
   onOpenCoverPreview,
   directoryIds,
   javMetadataLanguage,
+  preferChineseName = false,
   titleMaxRows,
   idolTagMaxRows,
   tagMaxRows,
@@ -1663,6 +1706,7 @@ function JavCard({
   const [previewSeries, setPreviewSeries] = useState(null)
   const [seriesHoverAnchorEl, setSeriesHoverAnchorEl] = useState(null)
   const [idolCoverEditorItem, setIdolCoverEditorItem] = useState(null)
+  const [idolEditorItem, setIdolEditorItem] = useState(null)
   const closeTimerRef = useRef(null)
   const activeIdolHoverIdRef = useRef(null)
   const activeStudioHoverIdRef = useRef(null)
@@ -1824,9 +1868,46 @@ function JavCard({
     setIdolCoverEditorItem(idol)
   }
 
+  const updateStoredIdol = (updated) => {
+    const updatedId = Number(updated?.id)
+    if (!Number.isFinite(updatedId) || updatedId <= 0) return
+    useStore.setState((state) => {
+      if (!Array.isArray(state.javItems)) return {}
+      return {
+        javItems: state.javItems.map((current) => {
+          if (!Array.isArray(current?.idols)) return current
+          let changed = false
+          const idols = current.idols.map((idol) => {
+            if (Number(idol?.id) !== updatedId) return idol
+            changed = true
+            return { ...idol, ...updated }
+          })
+          return changed ? { ...current, idols } : current
+        }),
+      }
+    })
+  }
+
+  const handleOpenIdolEditor = (idol) => {
+    clearHoverCloseTimer()
+    setIdolEditorItem(idol)
+  }
+
+  const handleIdolSaved = (updated) => {
+    const updatedId = Number(updated?.id)
+    if (!Number.isFinite(updatedId) || updatedId <= 0) return
+    updateStoredIdol(updated)
+    onIdolPreviewUpdated?.(updated)
+    setPreviewIdol((current) =>
+      current && Number(current.id) === updatedId ? { ...current, ...updated } : current
+    )
+    setIdolEditorItem(null)
+  }
+
   const handleIdolCoverSaved = (updated) => {
     const updatedId = Number(updated?.id)
     if (!Number.isFinite(updatedId) || updatedId <= 0) return
+    updateStoredIdol(updated)
     onIdolPreviewUpdated?.(updated)
     setPreviewIdol((current) =>
       current && Number(current.id) === updatedId ? { ...current, ...updated } : current
@@ -2128,6 +2209,8 @@ function JavCard({
               <IdolTagList
                 idols={item.idols}
                 maxRows={idolTagMaxRows}
+                javMetadataLanguage={javMetadataLanguage}
+                preferChineseName={preferChineseName}
                 buildIdolFilterHref={buildIdolFilterHref}
                 onIdolClick={onIdolClick}
                 onFilterLinkClick={handleFilterLinkClick}
@@ -2159,10 +2242,12 @@ function JavCard({
                       onSelectIdol={(idol) => onIdolClick?.(idol)}
                       onOpenFavorites={onOpenFavorites}
                       onOpenCoverEditor={handleOpenIdolCoverEditor}
+                      onOpenEditor={handleOpenIdolEditor}
                       href={buildIdolFilterHref(previewIdol)}
                       coverAspectPercent={coverAspectPercent}
                       showWorkCount={showIdolWorkCount}
                       javMetadataLanguage={javMetadataLanguage}
+                      preferChineseName={preferChineseName}
                     />
                   ) : null}
                 </div>
@@ -2173,8 +2258,23 @@ function JavCard({
                 item={idolCoverEditorItem}
                 directoryIds={directoryIds}
                 javMetadataLanguage={javMetadataLanguage}
+                preferChineseName={preferChineseName}
                 onClose={() => setIdolCoverEditorItem(null)}
                 onSaved={handleIdolCoverSaved}
+              />
+              <JavIdolEditModal
+                key={idolEditorItem?.id || 'closed'}
+                open={Boolean(idolEditorItem)}
+                item={idolEditorItem}
+                directoryIds={directoryIds}
+                javMetadataLanguage={javMetadataLanguage}
+                preferChineseName={preferChineseName}
+                onClose={() => setIdolEditorItem(null)}
+                onSaved={handleIdolSaved}
+                onMerged={() => {
+                  setIdolEditorItem(null)
+                  setPreviewIdol(null)
+                }}
               />
             </>
           )}
@@ -2235,6 +2335,7 @@ function JavCard({
         item={item}
         directoryIds={directoryIds}
         javMetadataLanguage={javMetadataLanguage}
+        preferChineseName={preferChineseName}
         onClose={() => setEditorOpen(false)}
         onSaved={handleEditorSaved}
       />

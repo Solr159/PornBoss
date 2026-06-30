@@ -20,6 +20,7 @@ function JavIdolRoute({
   onLoadMore,
   onNext,
   onOpenFavorites,
+  onMerged,
   onPrev,
   onSelectIdol,
   onWaterfallModeChange,
@@ -54,8 +55,10 @@ function JavIdolRoute({
       items={items}
       directoryIds={directoryIds}
       javMetadataLanguage={config?.jav_metadata_language === 'en' ? 'en' : 'zh'}
+      preferChineseName={configFlag(config?.jav_idol_prefer_chinese_name)}
       onSelectIdol={onSelectIdol}
       onOpenFavorites={onOpenFavorites}
+      onMerged={onMerged}
       waterfallMode={waterfallMode}
       onWaterfallModeChange={onWaterfallModeChange}
       onLoadMore={onLoadMore}
@@ -293,4 +296,9 @@ export default function JavRoute({ tab, ...props }) {
     )
   }
   return <JavListRoute {...props.list} buildJavUrl={props.buildJavUrl} />
+}
+
+function configFlag(value, fallback = false) {
+  if (value == null || value === '') return fallback
+  return !['0', 'false', 'no', 'off'].includes(String(value).trim().toLowerCase())
 }

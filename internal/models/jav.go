@@ -71,6 +71,15 @@ type JavIdol struct {
 	CoverCropLeft float64    `json:"cover_crop_left" gorm:"not null;default:0.53"`
 }
 
+type JavIdolAlias struct {
+	ID        int64     `json:"id" gorm:"primaryKey"`
+	JavIdolID int64     `json:"jav_idol_id" gorm:"not null;index"`
+	JavIdol   JavIdol   `json:"-" gorm:"foreignKey:JavIdolID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Alias     string    `json:"alias" gorm:"not null;uniqueIndex:idx_jav_idol_alias_alias_language"`
+	IsEnglish bool      `json:"is_english" gorm:"not null;default:0;uniqueIndex:idx_jav_idol_alias_alias_language"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type JavFavoriteGroup struct {
 	ID         int64     `json:"id" gorm:"primaryKey"`
 	EntityType string    `json:"entity_type" gorm:"not null;default:idol;uniqueIndex:idx_jav_favorite_group_type_name;index:idx_jav_favorite_group_type_sort,priority:1"`

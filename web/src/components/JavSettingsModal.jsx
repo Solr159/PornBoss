@@ -70,6 +70,8 @@ export default function JavSettingsModal({
   onJavSortChange,
   idolSortInput,
   onIdolSortChange,
+  javIdolPreferChineseNameInput = false,
+  onJavIdolPreferChineseNameChange,
   onSave,
 }) {
   if (!open) return null
@@ -188,6 +190,15 @@ export default function JavSettingsModal({
                 value={idolPageSizeInput}
                 onChange={(e) => onIdolPageSizeChange?.(e.target.value)}
                 className="w-24 rounded border px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3 text-sm font-medium text-gray-700">
+              <span>{zh('优先显示中文名', 'Prefer Chinese name')}</span>
+              <input
+                type="checkbox"
+                checked={Boolean(javIdolPreferChineseNameInput)}
+                onChange={(e) => onJavIdolPreferChineseNameChange?.(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
             </label>
             <div className="text-sm font-medium text-gray-700">

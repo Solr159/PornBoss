@@ -39,9 +39,11 @@ func pickDirectoryPlatform(ctx context.Context) (string, error) {
 	}
 	displayName := make([]uint16, windows.MAX_PATH)
 	bi := browseInfo{
+		hwndOwner:      foregroundWindow(),
 		pszDisplayName: &displayName[0],
 		lpszTitle:      title,
 		ulFlags:        bifReturnOnlyFSDirs | bifNewDialogStyle,
+		lpfn:           browseCallback,
 	}
 
 	pidl, _, _ := procSHBrowseForFolderW.Call(uintptr(unsafe.Pointer(&bi)))
@@ -65,7 +67,15 @@ func pickDirectoryPlatform(ctx context.Context) (string, error) {
 const (
 	bifReturnOnlyFSDirs = 0x0001
 	bifNewDialogStyle   = 0x0040
+
+	bffmInitialized = 1
+
+	swpNoSize     = 0x0001
+	swpNoMove     = 0x0002
+	swpShowWindow = 0x0040
 )
+
+var hwndTopmost = ^uintptr(0)
 
 type browseInfo struct {
 	hwndOwner      uintptr
@@ -81,7 +91,35 @@ type browseInfo struct {
 var (
 	modshell32               = windows.NewLazySystemDLL("shell32.dll")
 	modole32                 = windows.NewLazySystemDLL("ole32.dll")
+	moduser32                = windows.NewLazySystemDLL("user32.dll")
 	procSHBrowseForFolderW   = modshell32.NewProc("SHBrowseForFolderW")
 	procSHGetPathFromIDListW = modshell32.NewProc("SHGetPathFromIDListW")
 	procCoTaskMemFree        = modole32.NewProc("CoTaskMemFree")
+	procGetForegroundWindow  = moduser32.NewProc("GetForegroundWindow")
+	procSetForegroundWindow  = moduser32.NewProc("SetForegroundWindow")
+	procSetWindowPos         = moduser32.NewProc("SetWindowPos")
+
+	browseCallback = windows.NewCallback(browseForFolderCallback)
 )
+
+func foregroundWindow() uintptr {
+	hwnd, _, _ := procGetForegroundWindow.Call()
+	return hwnd
+}
+
+func browseForFolderCallback(hwnd uintptr, msg uint32, lParam uintptr, lpData uintptr) uintptr {
+	if msg != bffmInitialized || hwnd == 0 {
+		return 0
+	}
+	procSetWindowPos.Call(
+		hwnd,
+		hwndTopmost,
+		0,
+		0,
+		0,
+		0,
+		swpNoMove|swpNoSize|swpShowWindow,
+	)
+	procSetForegroundWindow.Call(hwnd)
+	return 0
+}

@@ -5,6 +5,7 @@ import EditRoundedIcon from '@mui/icons-material/EditRounded'
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded'
 import { Button, IconButton } from '@mui/material'
 import { zh } from '@/utils/i18n'
+import { getIdolDisplayName } from '@/utils/javIdol'
 
 export default function JavIdolFavoriteManageModal({
   open,
@@ -21,6 +22,8 @@ export default function JavIdolFavoriteManageModal({
   onLoadGroupIdols,
   onReorderGroupIdols,
   onRemoveGroupIdols,
+  javMetadataLanguage = 'zh',
+  preferChineseName = false,
 }) {
   const [localGroups, setLocalGroups] = useState([])
   const [editingGroup, setEditingGroup] = useState(null)
@@ -164,6 +167,8 @@ export default function JavIdolFavoriteManageModal({
         onReorderGroupIdols={onReorderGroupIdols}
         onRemoveGroupIdols={onRemoveGroupIdols}
         labels={labels}
+        javMetadataLanguage={javMetadataLanguage}
+        preferChineseName={preferChineseName}
       />
 
       <CreateGroupModal
@@ -274,6 +279,8 @@ function FavoriteGroupEditModal({
   onReorderGroupIdols,
   onRemoveGroupIdols,
   labels = favoriteManageLabels('idol'),
+  javMetadataLanguage = 'zh',
+  preferChineseName = false,
 }) {
   const [groupName, setGroupName] = useState('')
   const [idols, setIdols] = useState([])
@@ -464,6 +471,8 @@ function FavoriteGroupEditModal({
             onReorder={setIdols}
             onReorderCommit={commitIdolOrder}
             labels={labels}
+            javMetadataLanguage={javMetadataLanguage}
+            preferChineseName={preferChineseName}
           />
         </div>
 
@@ -493,6 +502,8 @@ function IdolOrderList({
   onReorder,
   onReorderCommit,
   labels = favoriteManageLabels('idol'),
+  javMetadataLanguage = 'zh',
+  preferChineseName = false,
 }) {
   if (!idols.length) {
     return (
@@ -506,7 +517,9 @@ function IdolOrderList({
       items={idols}
       onReorder={onReorder}
       onReorderCommit={onReorderCommit}
-      getLabel={(idol) => favoriteItemLabel(labels.entityType, idol)}
+      getLabel={(idol) =>
+        favoriteItemLabel(labels.entityType, idol, javMetadataLanguage, preferChineseName)
+      }
       getMeta={(idol) => labels.itemMeta(idol)}
       renderLeading={(idol) => (
         <input
@@ -788,7 +801,10 @@ function favoriteManageLabels(entityType) {
   }
 }
 
-function favoriteItemLabel(entityType, item) {
+function favoriteItemLabel(entityType, item, javMetadataLanguage, preferChineseName) {
+  if (entityType === 'idol') {
+    return getIdolDisplayName(item, javMetadataLanguage, preferChineseName)
+  }
   const name = String(item?.name || '').trim()
   if (name) return name
   if (entityType === 'jav') {
