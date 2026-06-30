@@ -26,6 +26,7 @@ import { zh } from '@/utils/i18n'
 const VIDEO_PAGE_SIZE = 25
 const JAV_PAGE_SIZE = 24
 const JAV_STUDIO_PAGE_SIZE = 24
+const JAV_SERIES_PAGE_SIZE = 25
 const JAV_GRID_COLUMNS_AUTO = 0
 const JAV_TITLE_MAX_ROWS_DEFAULT = 2
 const JAV_IDOL_TAG_MAX_ROWS_DEFAULT = 2
@@ -167,7 +168,7 @@ const studioListRequestKey = (state, directoryIds = directoryQueryIds(state)) =>
   [
     'studio',
     state.studioPage,
-    JAV_STUDIO_PAGE_SIZE,
+    state.studioPageSize,
     state.javSearchTerm || '',
     state.studioFavoriteGroupId || '',
     directoryIds.join(','),
@@ -177,7 +178,7 @@ const seriesListRequestKey = (state, directoryIds = directoryQueryIds(state)) =>
   [
     'series',
     state.seriesPage,
-    JAV_STUDIO_PAGE_SIZE,
+    state.seriesPageSize,
     state.javSearchTerm || '',
     state.seriesFavoriteGroupId || '',
     directoryIds.join(','),
@@ -262,6 +263,7 @@ export const useStore = create((set, get) => ({
   favoriteGroupsLoadingByType: {},
   favoriteGroupsErrorByType: {},
   studioPage: 1,
+  studioPageSize: JAV_STUDIO_PAGE_SIZE,
   studioFavoriteGroupId: null,
   studioItems: [],
   studioTotal: 0,
@@ -269,6 +271,7 @@ export const useStore = create((set, get) => ({
   studioLoadingMore: false,
   studioError: null,
   seriesPage: 1,
+  seriesPageSize: JAV_SERIES_PAGE_SIZE,
   seriesFavoriteGroupId: null,
   seriesItems: [],
   seriesTotal: 0,
@@ -278,6 +281,14 @@ export const useStore = create((set, get) => ({
   setIdolPageSize: (size) => {
     const next = Math.max(1, Math.floor(Number(size) || JAV_PAGE_SIZE))
     set({ idolPageSize: next, idolPage: 1, studioPage: 1, seriesPage: 1 })
+  },
+  setStudioPageSize: (size) => {
+    const next = Math.max(1, Math.floor(Number(size) || JAV_STUDIO_PAGE_SIZE))
+    set({ studioPageSize: next, studioPage: 1 })
+  },
+  setSeriesPageSize: (size) => {
+    const next = Math.max(1, Math.floor(Number(size) || JAV_SERIES_PAGE_SIZE))
+    set({ seriesPageSize: next, seriesPage: 1 })
   },
   setIdolSort: (sort) => {
     const normalized = normalizeIdolSort(sort)
@@ -605,6 +616,8 @@ export const useStore = create((set, get) => ({
           ? Math.min(javTagMaxRowsRaw, 12)
           : JAV_TAG_MAX_ROWS_DEFAULT
       const idolSize = clamp(cfg?.idol_page_size)
+      const studioSize = clamp(cfg?.studio_page_size)
+      const seriesSize = clamp(cfg?.series_page_size)
       const javSort = normalizeJavSort((cfg?.jav_sort || '').toLowerCase(), '')
       const idolSort = normalizeIdolSort((cfg?.idol_sort || '').toLowerCase(), '')
       if (videoSize && videoSize !== state.pageSize) {
@@ -639,6 +652,12 @@ export const useStore = create((set, get) => ({
       }
       if (idolSize && idolSize !== state.idolPageSize) {
         updates.idolPageSize = idolSize
+      }
+      if (studioSize && studioSize !== state.studioPageSize) {
+        updates.studioPageSize = studioSize
+      }
+      if (seriesSize && seriesSize !== state.seriesPageSize) {
+        updates.seriesPageSize = seriesSize
       }
       set(updates)
       return cfg
@@ -1033,7 +1052,7 @@ export const useStore = create((set, get) => ({
     }
   },
   loadJavStudios: async (options = {}) => {
-    const { studioPage, javSearchTerm, studioFavoriteGroupId } = get()
+    const { studioPage, studioPageSize, javSearchTerm, studioFavoriteGroupId } = get()
     const directoryIds = directoryQueryIds(get())
     const search = javSearchTerm || ''
     const key = studioListRequestKey(get(), directoryIds)
@@ -1045,8 +1064,8 @@ export const useStore = create((set, get) => ({
     set({ studioLoading: true, studioLoadingMore: false, studioError: null })
     try {
       const resp = await fetchJavStudios({
-        limit: JAV_STUDIO_PAGE_SIZE,
-        offset: (studioPage - 1) * JAV_STUDIO_PAGE_SIZE,
+        limit: studioPageSize,
+        offset: (studioPage - 1) * studioPageSize,
         search,
         directoryIds,
         favoriteGroupId: studioFavoriteGroupId,
@@ -1070,7 +1089,7 @@ export const useStore = create((set, get) => ({
     if (state.studioLoading || state.studioLoadingMore) return
     const loaded = Array.isArray(state.studioItems) ? state.studioItems.length : 0
     const total = state.studioTotal || 0
-    const baseOffset = (state.studioPage - 1) * JAV_STUDIO_PAGE_SIZE
+    const baseOffset = (state.studioPage - 1) * state.studioPageSize
     if (total > 0 && baseOffset + loaded >= total) return
 
     const directoryIds = directoryQueryIds(state)
@@ -1081,7 +1100,7 @@ export const useStore = create((set, get) => ({
     set({ studioLoadingMore: true, studioError: null })
     try {
       const resp = await fetchJavStudios({
-        limit: JAV_STUDIO_PAGE_SIZE,
+        limit: state.studioPageSize,
         offset: baseOffset + loaded,
         search,
         directoryIds,
@@ -1115,7 +1134,7 @@ export const useStore = create((set, get) => ({
     }
   },
   loadJavSeries: async (options = {}) => {
-    const { seriesPage, javSearchTerm, seriesFavoriteGroupId } = get()
+    const { seriesPage, seriesPageSize, javSearchTerm, seriesFavoriteGroupId } = get()
     const directoryIds = directoryQueryIds(get())
     const search = javSearchTerm || ''
     const key = seriesListRequestKey(get(), directoryIds)
@@ -1127,8 +1146,8 @@ export const useStore = create((set, get) => ({
     set({ seriesLoading: true, seriesLoadingMore: false, seriesError: null })
     try {
       const resp = await fetchJavSeries({
-        limit: JAV_STUDIO_PAGE_SIZE,
-        offset: (seriesPage - 1) * JAV_STUDIO_PAGE_SIZE,
+        limit: seriesPageSize,
+        offset: (seriesPage - 1) * seriesPageSize,
         search,
         directoryIds,
         favoriteGroupId: seriesFavoriteGroupId,
@@ -1152,7 +1171,7 @@ export const useStore = create((set, get) => ({
     if (state.seriesLoading || state.seriesLoadingMore) return
     const loaded = Array.isArray(state.seriesItems) ? state.seriesItems.length : 0
     const total = state.seriesTotal || 0
-    const baseOffset = (state.seriesPage - 1) * JAV_STUDIO_PAGE_SIZE
+    const baseOffset = (state.seriesPage - 1) * state.seriesPageSize
     if (total > 0 && baseOffset + loaded >= total) return
 
     const directoryIds = directoryQueryIds(state)
@@ -1163,7 +1182,7 @@ export const useStore = create((set, get) => ({
     set({ seriesLoadingMore: true, seriesError: null })
     try {
       const resp = await fetchJavSeries({
-        limit: JAV_STUDIO_PAGE_SIZE,
+        limit: state.seriesPageSize,
         offset: baseOffset + loaded,
         search,
         directoryIds,
