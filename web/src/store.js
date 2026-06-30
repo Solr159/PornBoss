@@ -153,16 +153,24 @@ const javListRequestKey = (state, directoryIds = directoryQueryIds(state)) => {
   ].join('|')
 }
 
-const idolListRequestKey = (state, directoryIds = directoryQueryIds(state)) =>
-  [
+const idolListRequestKey = (state, directoryIds = directoryQueryIds(state)) => {
+  const effectiveSort = effectiveIdolSort(state)
+  return [
     'idol',
     state.idolPage,
     state.idolPageSize,
     state.javSearchTerm || '',
-    state.idolSort,
+    effectiveSort,
     state.idolFavoriteGroupId || '',
     directoryIds.join(','),
   ].join('|')
+}
+
+const effectiveIdolSort = (state) => {
+  if (state.idolTempSort) return state.idolTempSort
+  if (state.idolFavoriteGroupId) return ''
+  return state.idolSort
+}
 
 const studioListRequestKey = (state, directoryIds = directoryQueryIds(state)) =>
   [
@@ -245,6 +253,7 @@ export const useStore = create((set, get) => ({
   idolPage: 1,
   idolPageSize: JAV_PAGE_SIZE,
   idolSort: 'work',
+  idolTempSort: '',
   idolFavoriteGroupId: null,
   idolItems: [],
   idolTotal: 0,
@@ -292,12 +301,16 @@ export const useStore = create((set, get) => ({
   },
   setIdolSort: (sort) => {
     const normalized = normalizeIdolSort(sort)
-    set({ idolSort: normalized, idolPage: 1 })
+    set({ idolSort: normalized, idolTempSort: '', idolPage: 1 })
+  },
+  setIdolTempSort: (sort) => {
+    const normalized = normalizeIdolSort(sort, '')
+    set({ idolTempSort: normalized })
   },
   setIdolFavoriteGroupId: (id) => {
     const parsed = Number(id)
     const next = Number.isFinite(parsed) && parsed > 0 ? parsed : null
-    set({ idolFavoriteGroupId: next, idolPage: 1 })
+    set({ idolFavoriteGroupId: next, idolTempSort: '', idolPage: 1 })
   },
   setIdolFavoriteGroups: (groups) => {
     set({ idolFavoriteGroups: Array.isArray(groups) ? groups : [] })
@@ -415,11 +428,14 @@ export const useStore = create((set, get) => ({
   clearJavRandom: () => set({ javTempSort: '', javRandomMode: false, javRandomSeed: null }),
   setViewMode: (mode) => {
     if (mode !== 'video' && mode !== 'jav') return
-    set({ viewMode: mode, ...(mode === 'jav' ? { videoTempSort: '' } : { javTempSort: '' }) })
+    set({
+      viewMode: mode,
+      ...(mode === 'jav' ? { videoTempSort: '' } : { javTempSort: '', idolTempSort: '' }),
+    })
   },
   setJavTab: (tab) => {
     if (tab !== 'list' && tab !== 'idol' && tab !== 'studio' && tab !== 'series') return
-    set({ javTab: tab, javTempSort: '' })
+    set({ javTab: tab, javTempSort: '', idolTempSort: '' })
   },
   setJavIdolIds: (idolIds) => {
     const clean = Array.from(
@@ -510,11 +526,18 @@ export const useStore = create((set, get) => ({
     const state = get()
     if (trimmed === state.javSearchTerm) {
       if (resetPage && state.javPage !== 1) {
-        set({ javTempSort: '', javPage: 1, idolPage: 1, studioPage: 1, seriesPage: 1 })
+        set({
+          javTempSort: '',
+          idolTempSort: '',
+          javPage: 1,
+          idolPage: 1,
+          studioPage: 1,
+          seriesPage: 1,
+        })
       }
       return
     }
-    const next = { javSearchTerm: trimmed, javTempSort: '' }
+    const next = { javSearchTerm: trimmed, javTempSort: '', idolTempSort: '' }
     if (resetPage) {
       next.javPage = 1
       next.idolPage = 1
@@ -907,7 +930,7 @@ export const useStore = create((set, get) => ({
     }
   },
   loadJavIdols: async (options = {}) => {
-    const { idolPage, idolPageSize, javSearchTerm, idolSort, idolFavoriteGroupId } = get()
+    const { idolPage, idolPageSize, javSearchTerm, idolFavoriteGroupId } = get()
     const directoryIds = directoryQueryIds(get())
     const search = javSearchTerm || ''
     const key = idolListRequestKey(get(), directoryIds)
@@ -922,7 +945,7 @@ export const useStore = create((set, get) => ({
         limit: idolPageSize,
         offset: (idolPage - 1) * idolPageSize,
         search,
-        sort: idolSort,
+        sort: effectiveIdolSort(get()),
         directoryIds,
         favoriteGroupId: idolFavoriteGroupId,
       })
@@ -959,7 +982,7 @@ export const useStore = create((set, get) => ({
         limit: state.idolPageSize,
         offset: baseOffset + loaded,
         search,
-        sort: state.idolSort,
+        sort: effectiveIdolSort(state),
         directoryIds,
         favoriteGroupId: state.idolFavoriteGroupId,
       })
@@ -1315,6 +1338,7 @@ export const useStore = create((set, get) => ({
       seriesPage: 1,
       videoTempSort: '',
       javTempSort: '',
+      idolTempSort: '',
       randomMode: false,
       randomSeed: null,
       javRandomMode: false,

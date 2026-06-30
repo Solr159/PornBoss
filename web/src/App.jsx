@@ -45,7 +45,7 @@ import VideoSettingsModal from '@/components/VideoSettingsModal'
 import VideoScrapeSettingsModal from '@/components/VideoScrapeSettingsModal'
 import VideoScreenshotsModal from '@/components/VideoScreenshotsModal'
 import VideoTagModal from '@/components/VideoTagModal'
-import { normalizeIdolSort, normalizeJavSort } from '@/constants/jav'
+import { IDOL_FAVORITE_ORDER_SORT, normalizeIdolSort, normalizeJavSort } from '@/constants/jav'
 import { normalizeVideoSort } from '@/constants/video'
 import useScrollRestoration from '@/hooks/useScrollRestoration'
 import useUrlStateSync from '@/hooks/useUrlStateSync'
@@ -162,6 +162,8 @@ export default function App() {
     javRandomSeed,
     idolSort,
     setJavTempSort,
+    idolTempSort,
+    setIdolTempSort,
     loadJavs,
     loadMoreJavs,
     javItems,
@@ -892,6 +894,12 @@ export default function App() {
       }
       if (parsed.view === 'jav') {
         const { jav } = parsed
+        const current = useStore.getState()
+        const sameIdolFavoriteGroup =
+          jav.tab === 'idol' &&
+          Number(jav.favoriteGroupId || 0) > 0 &&
+          current.javTab === 'idol' &&
+          Number(current.idolFavoriteGroupId || 0) === Number(jav.favoriteGroupId || 0)
         useStore.setState({
           viewMode: 'jav',
           videoTempSort: '',
@@ -915,6 +923,10 @@ export default function App() {
           seriesPage: jav.tab === 'series' ? jav.page : 1,
           seriesFavoriteGroupId: jav.tab === 'series' ? jav.favoriteGroupId : null,
           javTempSort: jav.tab !== 'list' || jav.random ? '' : jav.tempSort,
+          idolTempSort:
+            jav.tab === 'idol' && (!jav.favoriteGroupId || sameIdolFavoriteGroup || jav.tempSort)
+              ? jav.tempSort
+              : '',
         })
         setJavSearchInput(jav.search)
         if (jav.tab === 'list' && jav.random) {
@@ -928,6 +940,7 @@ export default function App() {
       useStore.setState({
         viewMode: 'video',
         javTempSort: '',
+        idolTempSort: '',
         videoTempSort: video.random ? '' : video.tempSort,
         randomMode: video.random,
         randomSeed: video.random ? video.seed : null,
@@ -972,6 +985,7 @@ export default function App() {
           javSoloOnly,
           javFavoriteGroupId,
           javTempSort,
+          idolTempSort,
           javRandomMode,
           javRandomSeed,
           idolPage,
@@ -991,6 +1005,7 @@ export default function App() {
       directoryFilterMode,
       enabledDirectoryIds,
       idolFavoriteGroupId,
+      idolTempSort,
       javFavoriteGroupId,
       idolPage,
       studioPage,
@@ -1179,7 +1194,13 @@ export default function App() {
         sp.set('favorite_group_id', String(favoriteGroupId))
       }
       const hasTempSortOverride = Object.prototype.hasOwnProperty.call(options, 'tempSort')
-      const tempSortVal = hasTempSortOverride ? normalizeJavSort(tempSortOverride, '') : javTempSort
+      const tempSortVal = hasTempSortOverride
+        ? tab === 'idol'
+          ? normalizeIdolSort(tempSortOverride, '')
+          : normalizeJavSort(tempSortOverride, '')
+        : tab === 'idol'
+          ? idolTempSort
+          : javTempSort
       const randomFlag = randomOverride ?? javRandomMode
       if (tab === 'list' && randomFlag) {
         sp.set('random', '1')
@@ -1188,7 +1209,7 @@ export default function App() {
           sp.set('seed', String(seedValue))
         }
       } else {
-        if (tab === 'list' && tempSortVal) {
+        if ((tab === 'list' || tab === 'idol') && tempSortVal) {
           sp.set('temp_sort', tempSortVal)
         }
         sp.delete('random')
@@ -1210,6 +1231,7 @@ export default function App() {
     [
       idolPage,
       idolFavoriteGroupId,
+      idolTempSort,
       javFavoriteGroupId,
       pathname,
       studioFavoriteGroupId,
@@ -1247,6 +1269,7 @@ export default function App() {
         videoTempSort: '',
         javTab: 'list',
         javTempSort: '',
+        idolTempSort: '',
         javRandomMode: false,
         javRandomSeed: null,
         javIdolIds: [],
@@ -1345,6 +1368,7 @@ export default function App() {
     javRandomMode,
     javRandomSeed,
     idolSort,
+    idolTempSort,
     idolPage,
     idolPageSize,
     idolFavoriteGroupId,
@@ -1575,6 +1599,7 @@ export default function App() {
       videoTempSort: '',
       javTab: 'list',
       javTempSort: '',
+      idolTempSort: '',
       javIdolIds: [],
       javTags: [],
       javStudioId: null,
@@ -1610,6 +1635,7 @@ export default function App() {
   const handleCancelJavFilterRandom = useCallback(() => {
     useStore.setState({
       javTempSort: '',
+      idolTempSort: '',
       javRandomMode: false,
       javRandomSeed: null,
       javPage: 1,
@@ -1767,6 +1793,7 @@ export default function App() {
       viewMode: 'jav',
       videoTempSort: '',
       javTempSort: '',
+      idolTempSort: '',
       javRandomMode: false,
       javRandomSeed: null,
       javIdolIds: [],
@@ -1871,6 +1898,7 @@ export default function App() {
         javSort: normalizedSort,
         javTempSort: '',
         idolSort: normalizedIdolSort,
+        idolTempSort: '',
         javPage: Math.min(prevJavPage, javLast),
         idolPage: Math.min(prevIdolPage, idolLast),
         studioPage: Math.min(prevStudioPage, studioLast),
@@ -2183,6 +2211,7 @@ export default function App() {
         javTab: 'list',
         videoTempSort: '',
         javTempSort: '',
+        idolTempSort: '',
         javRandomMode: false,
         javRandomSeed: null,
         javIdolIds: [],
@@ -2223,7 +2252,13 @@ export default function App() {
     const targetTab =
       javTab === 'idol' || javTab === 'studio' || javTab === 'series' ? javTab : 'list'
     saveScrollBeforeUrlStateChange()
-    useStore.setState({ viewMode: 'jav', videoTempSort: '', javTab: targetTab, javTempSort: '' })
+    useStore.setState({
+      viewMode: 'jav',
+      videoTempSort: '',
+      javTab: targetTab,
+      javTempSort: '',
+      idolTempSort: '',
+    })
     forceReloadJavByTab(targetTab)
   }
 
@@ -2237,6 +2272,7 @@ export default function App() {
     const updates = {
       javTab: nextTab,
       javTempSort: '',
+      idolTempSort: '',
       javIdolIds: [],
       javTags: [],
       javStudioId: null,
@@ -2280,6 +2316,7 @@ export default function App() {
       videoTempSort: '',
       javTab: 'list',
       javTempSort: '',
+      idolTempSort: '',
       javRandomMode: false,
       javRandomSeed: null,
       javIdolIds: [id],
@@ -2561,6 +2598,7 @@ export default function App() {
         videoTempSort: '',
         javTab: 'list',
         javTempSort: '',
+        idolTempSort: '',
         javRandomMode: false,
         javRandomSeed: null,
         javIdolIds: [id],
@@ -2590,6 +2628,7 @@ export default function App() {
       videoTempSort: '',
       javTab: 'list',
       javTempSort: '',
+      idolTempSort: '',
       javRandomMode: false,
       javRandomSeed: null,
       javIdolIds: [],
@@ -2617,6 +2656,7 @@ export default function App() {
       videoTempSort: '',
       javTab: 'list',
       javTempSort: '',
+      idolTempSort: '',
       javRandomMode: false,
       javRandomSeed: null,
       javIdolIds: [],
@@ -2679,6 +2719,7 @@ export default function App() {
         videoTempSort: '',
         javTab: 'list',
         javTempSort: '',
+        idolTempSort: '',
         javRandomMode: false,
         javRandomSeed: null,
         javSearchTerm: nextSearch,
@@ -2884,6 +2925,7 @@ export default function App() {
             tab: javTab,
             favoriteGroupId: groupId || null,
             random: false,
+            tempSort: '',
           })
         }
         onOpenIdolFavoriteGroups={() =>
@@ -2934,6 +2976,9 @@ export default function App() {
               hasPrev: idolHasPrev,
               hasNext: idolHasNext,
               loading: idolLoading,
+              idolTempSort,
+              idolGlobalSort: idolFavoriteGroupId ? IDOL_FAVORITE_ORDER_SORT : idolSort,
+              setIdolTempSort,
               onFirst: () => setIdolPage(1),
               onPrev: () => idolHasPrev && setIdolPage(idolPage - 1),
               onGoToPage: (p) => setIdolPage(p),
@@ -3461,6 +3506,7 @@ export default function App() {
           useStore.setState({
             config: cfg,
             javTempSort: '',
+            idolTempSort: '',
             javTags: [],
             javPage: 1,
             javRandomMode: false,
