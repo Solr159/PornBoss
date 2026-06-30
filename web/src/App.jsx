@@ -52,6 +52,7 @@ import useUrlStateSync from '@/hooks/useUrlStateSync'
 import JavRoute from '@/routes/JavRoute'
 import VideoRoute from '@/routes/VideoRoute'
 import { isChineseLocale, zh } from '@/utils/i18n'
+import { getIdolDisplayName } from '@/utils/javIdol'
 import { directoryQueryIds, useStore, videoSelectionKey } from '@/store'
 
 const JAV_STUDIO_PAGE_SIZE = 24
@@ -311,6 +312,9 @@ export default function App() {
   const [idolPageSizeInput, setIdolPageSizeInput] = useState(idolPageSize)
   const [javSortInput, setJavSortInput] = useState(javSort)
   const [idolSortInput, setIdolSortInput] = useState(idolSort)
+  const [javIdolPreferChineseNameInput, setJavIdolPreferChineseNameInput] = useState(
+    configFlag(config?.jav_idol_prefer_chinese_name)
+  )
   const [javResolvedIdols, setJavResolvedIdols] = useState({})
   const [toastMessage, setToastMessage] = useState('')
 
@@ -1630,8 +1634,15 @@ export default function App() {
       const parts = []
       if (javTab === 'list') {
         const idolNames = javIdolIds
-          .map((id) => javIdolOptionMap.get(Number(id))?.name)
+          .map((id) => javIdolOptionMap.get(Number(id)))
           .filter(Boolean)
+          .map((idol) =>
+            getIdolDisplayName(
+              idol,
+              config?.jav_metadata_language === 'en' ? 'en' : 'zh',
+              configFlag(config?.jav_idol_prefer_chinese_name)
+            )
+          )
         const idolsLabel = formatList(idolNames)
         if (idolsLabel) parts.push(zh(`女优: ${idolsLabel}`, `Idols: ${idolsLabel}`))
         const tagNames = javTags.map((id) => javTagNameMap.get(id)).filter(Boolean)
@@ -1679,6 +1690,8 @@ export default function App() {
     return parts.length ? parts.join(isChineseLocale() ? '；' : '; ') : ''
   }, [
     isJavMode,
+    config?.jav_idol_prefer_chinese_name,
+    config?.jav_metadata_language,
     javTab,
     javIdolIds,
     javIdolOptionMap,
@@ -1823,6 +1836,7 @@ export default function App() {
         idol_page_size: idolSize,
         jav_sort: normalizedSort,
         idol_sort: normalizedIdolSort,
+        jav_idol_prefer_chinese_name: Boolean(javIdolPreferChineseNameInput),
       })
       const prevJavPage = javPage
       const prevIdolPage = idolPage
@@ -1874,9 +1888,11 @@ export default function App() {
       setIdolPageSizeInput(idolPageSize)
       setJavSortInput(javSort)
       setIdolSortInput(idolSort)
+      setJavIdolPreferChineseNameInput(configFlag(config?.jav_idol_prefer_chinese_name))
     }
   }, [
     javSettingsOpen,
+    config?.jav_idol_prefer_chinese_name,
     javPageSize,
     javGridColumns,
     javTitleMaxRows,
@@ -2909,6 +2925,10 @@ export default function App() {
               config,
               onSelectIdol: handleSelectIdol,
               onOpenFavorites: handleOpenIdolFavoriteModal,
+              onMerged: () => {
+                loadJavIdols({ force: true })
+                loadJavFavoriteGroups('idol', { force: true })
+              },
               waterfallMode: waterfallModes.idol,
               onWaterfallModeChange: (enabled) => setWaterfallMode('idol', enabled),
               onLoadMore: loadMoreJavIdols,
@@ -3057,6 +3077,8 @@ export default function App() {
         seriesName={javSeriesName}
         soloOnly={javSoloOnly}
         directoryIds={javQueryDirectoryIds}
+        javMetadataLanguage={config?.jav_metadata_language === 'en' ? 'en' : 'zh'}
+        preferChineseName={configFlag(config?.jav_idol_prefer_chinese_name)}
       />
 
       <VideoSettingsModal
@@ -3120,6 +3142,8 @@ export default function App() {
         onJavSortChange={setJavSortInput}
         idolSortInput={idolSortInput}
         onIdolSortChange={setIdolSortInput}
+        javIdolPreferChineseNameInput={javIdolPreferChineseNameInput}
+        onJavIdolPreferChineseNameChange={setJavIdolPreferChineseNameInput}
         onSave={handleSaveJavSettings}
       />
 
@@ -3164,6 +3188,8 @@ export default function App() {
         onClose={handleCloseIdolFavoriteModal}
         onCreateGroup={(name) => handleCreateFavoriteGroup(name, favoriteModalEntityType)}
         onSave={handleSaveIdolFavoriteGroups}
+        javMetadataLanguage={config?.jav_metadata_language === 'en' ? 'en' : 'zh'}
+        preferChineseName={configFlag(config?.jav_idol_prefer_chinese_name)}
       />
 
       <JavIdolFavoriteManageModal
@@ -3192,6 +3218,8 @@ export default function App() {
         onLoadGroupIdols={handleLoadIdolFavoriteGroupIdols}
         onReorderGroupIdols={handleReorderIdolFavoriteGroupIdols}
         onRemoveGroupIdols={handleRemoveIdolFavoriteGroupIdols}
+        javMetadataLanguage={config?.jav_metadata_language === 'en' ? 'en' : 'zh'}
+        preferChineseName={configFlag(config?.jav_idol_prefer_chinese_name)}
       />
 
       <JavVideoPickerModal

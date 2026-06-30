@@ -76,6 +76,8 @@ func RegisterRoutes(router *gin.Engine) {
 	router.GET("/jav/idols/options", listJavIdolOptions)
 	router.GET("/jav/idols/resolve", resolveJavIdols)
 	router.GET("/jav/idols/javdb-url", getJavIdolJavDBURL)
+	router.POST("/jav/idols/merge", mergeJavIdols)
+	router.PATCH("/jav/idols/:id", updateJavIdol)
 	router.GET("/jav/idols/:id/cover-options", listJavIdolCoverOptions)
 	router.PUT("/jav/idols/:id/cover", updateJavIdolCover)
 	router.GET("/jav/idols/:id", getJavIdol)

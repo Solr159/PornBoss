@@ -2556,6 +2556,284 @@ func TestListJavIdolsSortByRecentDirections(t *testing.T) {
 	}
 }
 
+func TestMergeJavIdolsMovesRelationshipsAndAliases(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+
+	dir := models.Directory{Path: "/tmp/media"}
+	if err := db.Create(&dir).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+
+	canonical := models.JavIdol{Name: "Main Idol"}
+	source := models.JavIdol{Name: "Alias Idol", RomanName: "Alias Roman", CoverCropLeft: 0.21}
+	if err := db.Create(&canonical).Error; err != nil {
+		t.Fatalf("create canonical idol: %v", err)
+	}
+	if err := db.Create(&source).Error; err != nil {
+		t.Fatalf("create source idol: %v", err)
+	}
+
+	canonicalJav := models.Jav{Code: "MRG-001", Title: "Canonical Work", FetchedAt: now}
+	sourceJav := models.Jav{Code: "MRG-002", Title: "Source Work", FetchedAt: now}
+	if err := db.Create(&canonicalJav).Error; err != nil {
+		t.Fatalf("create canonical jav: %v", err)
+	}
+	if err := db.Create(&sourceJav).Error; err != nil {
+		t.Fatalf("create source jav: %v", err)
+	}
+	source.CoverJavID = &sourceJav.ID
+	if err := db.Save(&source).Error; err != nil {
+		t.Fatalf("save source cover: %v", err)
+	}
+
+	if err := db.Create(&[]models.JavIdolMap{
+		{JavID: canonicalJav.ID, JavIdolID: canonical.ID},
+		{JavID: sourceJav.ID, JavIdolID: source.ID},
+	}).Error; err != nil {
+		t.Fatalf("create idol maps: %v", err)
+	}
+	group := models.JavFavoriteGroup{Name: "Favorites", EntityType: JavFavoriteEntityIdol}
+	if err := db.Create(&group).Error; err != nil {
+		t.Fatalf("create favorite group: %v", err)
+	}
+	if err := db.Create(&models.JavFavoriteMap{
+		JavFavoriteGroupID: group.ID,
+		EntityType:         JavFavoriteEntityIdol,
+		EntityID:           source.ID,
+		SortOrder:          7,
+	}).Error; err != nil {
+		t.Fatalf("create favorite map: %v", err)
+	}
+
+	videos := []models.Video{
+		{DirectoryID: dir.ID, Path: "mrg-001.mp4", Filename: "mrg-001.mp4", Fingerprint: "fp-mrg-001", JavID: &canonicalJav.ID, ModifiedAt: now},
+		{DirectoryID: dir.ID, Path: "mrg-002.mp4", Filename: "mrg-002.mp4", Fingerprint: "fp-mrg-002", JavID: &sourceJav.ID, ModifiedAt: now},
+	}
+	if err := db.Create(&videos).Error; err != nil {
+		t.Fatalf("create videos: %v", err)
+	}
+	createVideoLocationsForVideos(t, db, videos...)
+
+	updated, err := MergeJavIdols(ctx, canonical.ID, []int64{source.ID}, nil)
+	if err != nil {
+		t.Fatalf("MergeJavIdols: %v", err)
+	}
+	if updated.ID != canonical.ID {
+		t.Fatalf("merged idol id = %d, want %d", updated.ID, canonical.ID)
+	}
+	if updated.WorkCount != 2 {
+		t.Fatalf("merged work count = %d, want 2", updated.WorkCount)
+	}
+	if updated.CoverJavID == nil || *updated.CoverJavID != sourceJav.ID {
+		t.Fatalf("merged cover jav id = %v, want %d", updated.CoverJavID, sourceJav.ID)
+	}
+
+	var sourceCount int64
+	if err := db.Model(&models.JavIdol{}).Where("id = ?", source.ID).Count(&sourceCount).Error; err != nil {
+		t.Fatalf("count source idol: %v", err)
+	}
+	if sourceCount != 0 {
+		t.Fatalf("source idol still exists")
+	}
+	assertJavIdolMaps(t, db, "MRG-002", map[string]bool{"Main Idol": false})
+
+	var alias models.JavIdolAlias
+	if err := db.Where("jav_idol_id = ? AND alias = ?", canonical.ID, "Alias Idol").First(&alias).Error; err != nil {
+		t.Fatalf("find alias: %v", err)
+	}
+	var romanAliasCount int64
+	if err := db.Model(&models.JavIdolAlias{}).
+		Where("jav_idol_id = ? AND alias = ?", canonical.ID, "Alias Roman").
+		Count(&romanAliasCount).Error; err != nil {
+		t.Fatalf("count roman alias: %v", err)
+	}
+	if romanAliasCount != 0 {
+		t.Fatalf("roman name was added as alias")
+	}
+	var favorite models.JavFavoriteMap
+	if err := db.Where("entity_type = ? AND entity_id = ?", JavFavoriteEntityIdol, canonical.ID).First(&favorite).Error; err != nil {
+		t.Fatalf("find moved favorite: %v", err)
+	}
+}
+
+func TestMergeJavIdolsOnlyUsesSourceNameAsAlias(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+	prevLang := jav.CurrentMetadataLanguage()
+	t.Cleanup(func() {
+		jav.SetMetadataLanguage(string(prevLang))
+	})
+	jav.SetMetadataLanguage("en")
+
+	dir := models.Directory{Path: "/tmp/media"}
+	if err := db.Create(&dir).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+	canonical := models.JavIdol{Name: "Main Idol", IsEnglish: true}
+	source := models.JavIdol{
+		Name:         "Alias Idol",
+		JapaneseName: "合并女优",
+		ChineseName:  "合并中文名",
+		IsEnglish:    true,
+	}
+	if err := db.Create(&canonical).Error; err != nil {
+		t.Fatalf("create canonical idol: %v", err)
+	}
+	if err := db.Create(&source).Error; err != nil {
+		t.Fatalf("create source idol: %v", err)
+	}
+	sourceJav := models.Jav{Code: "EN-MRG-001", Title: "Source Work", FetchedAt: now}
+	if err := db.Create(&sourceJav).Error; err != nil {
+		t.Fatalf("create source jav: %v", err)
+	}
+	if err := db.Create(&models.JavIdolMap{JavID: sourceJav.ID, JavIdolID: source.ID}).Error; err != nil {
+		t.Fatalf("create source idol map: %v", err)
+	}
+	video := models.Video{DirectoryID: dir.ID, Path: "en-mrg-001.mp4", Filename: "en-mrg-001.mp4", Fingerprint: "fp-en-mrg-001", JavID: &sourceJav.ID, ModifiedAt: now}
+	if err := db.Create(&video).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	createVideoLocationsForVideos(t, db, video)
+
+	if _, err := MergeJavIdols(ctx, canonical.ID, []int64{source.ID}, nil); err != nil {
+		t.Fatalf("MergeJavIdols: %v", err)
+	}
+
+	var nameAlias models.JavIdolAlias
+	if err := db.Where("jav_idol_id = ? AND alias = ?", canonical.ID, "Alias Idol").First(&nameAlias).Error; err != nil {
+		t.Fatalf("find name alias: %v", err)
+	}
+	var japaneseAliasCount int64
+	if err := db.Model(&models.JavIdolAlias{}).
+		Where("jav_idol_id = ? AND alias = ?", canonical.ID, "合并女优").
+		Count(&japaneseAliasCount).Error; err != nil {
+		t.Fatalf("count japanese alias: %v", err)
+	}
+	if japaneseAliasCount != 0 {
+		t.Fatalf("japanese name was added as alias")
+	}
+	var chineseAliasCount int64
+	if err := db.Model(&models.JavIdolAlias{}).
+		Where("jav_idol_id = ? AND alias = ?", canonical.ID, "合并中文名").
+		Count(&chineseAliasCount).Error; err != nil {
+		t.Fatalf("count chinese alias: %v", err)
+	}
+	if chineseAliasCount != 0 {
+		t.Fatalf("chinese name was added as alias")
+	}
+}
+
+func TestSaveJavInfoUsesIdolAliasInsteadOfCreatingDuplicate(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	idol := models.JavIdol{Name: "Main Idol"}
+	if err := db.Create(&idol).Error; err != nil {
+		t.Fatalf("create idol: %v", err)
+	}
+	if err := db.Create(&models.JavIdolAlias{JavIdolID: idol.ID, Alias: "Alias Idol"}).Error; err != nil {
+		t.Fatalf("create alias: %v", err)
+	}
+
+	_, err := SaveJavInfo(ctx, &jav.JavInfo{
+		Code:     "ALS-001",
+		Title:    "Alias Work",
+		Actors:   []string{"Alias Idol"},
+		Provider: jav.ProviderJavBus,
+	})
+	if err != nil {
+		t.Fatalf("SaveJavInfo: %v", err)
+	}
+
+	var count int64
+	if err := db.Model(&models.JavIdol{}).Count(&count).Error; err != nil {
+		t.Fatalf("count idols: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("idol count = %d, want 1", count)
+	}
+	assertJavIdolMaps(t, db, "ALS-001", map[string]bool{"Main Idol": false})
+}
+
+func TestUpdateJavIdolUpdatesProfileAndAliases(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+	birth := time.Date(1998, 4, 3, 0, 0, 0, 0, time.UTC)
+
+	dir := models.Directory{Path: "/tmp/media"}
+	if err := db.Create(&dir).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+	idol := models.JavIdol{Name: "Old Idol", HeightCM: intPtr(160)}
+	if err := db.Create(&idol).Error; err != nil {
+		t.Fatalf("create idol: %v", err)
+	}
+	if err := db.Create(&models.JavIdolAlias{JavIdolID: idol.ID, Alias: "Old Alias"}).Error; err != nil {
+		t.Fatalf("create alias: %v", err)
+	}
+	javRec := models.Jav{Code: "EDT-001", Title: "Edit Work", FetchedAt: now}
+	if err := db.Create(&javRec).Error; err != nil {
+		t.Fatalf("create jav: %v", err)
+	}
+	if err := db.Create(&models.JavIdolMap{JavID: javRec.ID, JavIdolID: idol.ID}).Error; err != nil {
+		t.Fatalf("create idol map: %v", err)
+	}
+	video := models.Video{DirectoryID: dir.ID, Path: "edt-001.mp4", Filename: "edt-001.mp4", Fingerprint: "fp-edt-001", JavID: &javRec.ID, ModifiedAt: now}
+	if err := db.Create(&video).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	createVideoLocationsForVideos(t, db, video)
+
+	updated, err := UpdateJavIdol(ctx, idol.ID, JavIdolUpdateInput{
+		Name:         "New Idol",
+		RomanName:    "New Roman",
+		JapaneseName: "新しい女優",
+		ChineseName:  "新女优",
+		HeightCM:     nil,
+		BirthDate:    &birth,
+		Bust:         intPtr(88),
+		Waist:        intPtr(57),
+		Hips:         intPtr(86),
+		Cup:          intPtr(5),
+		Aliases:      []string{"New Alias", "New Idol", "New Alias"},
+	}, nil)
+	if err != nil {
+		t.Fatalf("UpdateJavIdol: %v", err)
+	}
+	if updated.Name != "New Idol" || updated.RomanName != "New Roman" || updated.HeightCM != nil {
+		t.Fatalf("unexpected updated idol: %#v", updated)
+	}
+	if updated.BirthDate == nil || !updated.BirthDate.Equal(birth) {
+		t.Fatalf("birth date = %v, want %v", updated.BirthDate, birth)
+	}
+	if len(updated.Aliases) != 1 || updated.Aliases[0] != "New Alias" {
+		t.Fatalf("aliases = %#v, want New Alias", updated.Aliases)
+	}
+
+	var oldAliasCount int64
+	if err := db.Model(&models.JavIdolAlias{}).Where("alias = ?", "Old Alias").Count(&oldAliasCount).Error; err != nil {
+		t.Fatalf("count old alias: %v", err)
+	}
+	if oldAliasCount != 0 {
+		t.Fatalf("old alias still exists")
+	}
+
+	_, err = SaveJavInfo(ctx, &jav.JavInfo{
+		Code:     "EDT-002",
+		Title:    "Alias Scraped Work",
+		Actors:   []string{"New Alias"},
+		Provider: jav.ProviderJavBus,
+	})
+	if err != nil {
+		t.Fatalf("SaveJavInfo alias: %v", err)
+	}
+	assertJavIdolMaps(t, db, "EDT-002", map[string]bool{"New Idol": false})
+}
+
 func openTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -2579,6 +2857,10 @@ func openTestDB(t *testing.T) *gorm.DB {
 }
 
 func int64Ptr(v int64) *int64 {
+	return &v
+}
+
+func intPtr(v int) *int {
 	return &v
 }
 

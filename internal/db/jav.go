@@ -47,6 +47,21 @@ type JavUpdateInput struct {
 	DurationMin *int
 }
 
+// JavIdolUpdateInput contains user-editable JAV idol profile fields.
+type JavIdolUpdateInput struct {
+	Name         string
+	RomanName    string
+	JapaneseName string
+	ChineseName  string
+	HeightCM     *int
+	BirthDate    *time.Time
+	Bust         *int
+	Waist        *int
+	Hips         *int
+	Cup          *int
+	Aliases      []string
+}
+
 // JavMetadataScanItem contains a JAV row that needs studio or series metadata.
 type JavMetadataScanItem struct {
 	ID         int64  `gorm:"column:id"`
@@ -1008,6 +1023,7 @@ func ListSeriesCoverCodes(ctx context.Context, seriesID int64, directoryIDs []in
 type JavIdolSummary struct {
 	ID            int64      `json:"id"`
 	Name          string     `json:"name"`
+	Aliases       []string   `json:"aliases,omitempty" gorm:"-"`
 	RomanName     string     `json:"roman_name"`
 	JapaneseName  string     `json:"japanese_name"`
 	ChineseName   string     `json:"chinese_name"`
@@ -1039,8 +1055,17 @@ func applyJavIdolSearch(q *gorm.DB, search string) *gorm.DB {
 		return q
 	}
 	like := fmt.Sprintf("%%%s%%", search)
+	if jav.CurrentMetadataLanguageIsEnglish() {
+		return q.Where(
+			"ji.name LIKE ? OR ji.japanese_name LIKE ? OR ji.chinese_name LIKE ? OR EXISTS (SELECT 1 FROM jav_idol_alias jia WHERE jia.jav_idol_id = ji.id AND COALESCE(jia.is_english, 0) = COALESCE(ji.is_english, 0) AND jia.alias LIKE ?)",
+			like,
+			like,
+			like,
+			like,
+		)
+	}
 	return q.Where(
-		"ji.name LIKE ? OR ji.japanese_name LIKE ? OR ji.roman_name LIKE ? OR ji.chinese_name LIKE ?",
+		"ji.name LIKE ? OR ji.roman_name LIKE ? OR ji.chinese_name LIKE ? OR EXISTS (SELECT 1 FROM jav_idol_alias jia WHERE jia.jav_idol_id = ji.id AND COALESCE(jia.is_english, 0) = COALESCE(ji.is_english, 0) AND jia.alias LIKE ?)",
 		like,
 		like,
 		like,
@@ -1116,7 +1141,11 @@ func GetJavIdolSummary(ctx context.Context, idolID int64, directoryIDs []int64) 
 	if tx.RowsAffected == 0 {
 		return nil, gorm.ErrRecordNotFound
 	}
-	return &item, nil
+	items := []JavIdolSummary{item}
+	if err := attachJavIdolAliases(ctx, items); err != nil {
+		return nil, err
+	}
+	return &items[0], nil
 }
 
 // ResolveJavIdols returns lightweight idol labels for URL/filter display.
@@ -1135,6 +1164,9 @@ func ResolveJavIdols(ctx context.Context, ids []int64) ([]JavIdolSummary, error)
 		Order("ji.name").
 		Scan(&items).Error; err != nil {
 		return nil, fmt.Errorf("resolve jav idols: %w", err)
+	}
+	if err := attachJavIdolAliases(ctx, items); err != nil {
+		return nil, err
 	}
 	return items, nil
 }
@@ -1166,6 +1198,9 @@ func ListJavIdolOptions(ctx context.Context, search string, limit, offset int) (
 		Offset(offset).
 		Scan(&items).Error; err != nil {
 		return nil, 0, fmt.Errorf("list jav idol options: %w", err)
+	}
+	if err := attachJavIdolAliases(ctx, items); err != nil {
+		return nil, 0, err
 	}
 
 	return items, total, nil
@@ -1265,8 +1300,196 @@ func ListJavIdols(ctx context.Context, search, sort string, limit, offset int, d
 		Scan(&items).Error; err != nil {
 		return nil, 0, fmt.Errorf("list jav idols: %w", err)
 	}
+	if err := attachJavIdolAliases(ctx, items); err != nil {
+		return nil, 0, err
+	}
 
 	return items, total, nil
+}
+
+func attachJavIdolAliases(ctx context.Context, items []JavIdolSummary) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(items))
+	indexByID := make(map[int64]int, len(items))
+	for i, item := range items {
+		if item.ID > 0 {
+			ids = append(ids, item.ID)
+			indexByID[item.ID] = i
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	var rows []struct {
+		JavIdolID int64  `gorm:"column:jav_idol_id"`
+		Alias     string `gorm:"column:alias"`
+	}
+	if err := common.DB.WithContext(ctx).
+		Model(&models.JavIdolAlias{}).
+		Select("jav_idol_id, alias").
+		Where("jav_idol_id IN ?", ids).
+		Order("alias ASC").
+		Scan(&rows).Error; err != nil {
+		return fmt.Errorf("load jav idol aliases: %w", err)
+	}
+	for _, row := range rows {
+		index, ok := indexByID[row.JavIdolID]
+		if !ok {
+			continue
+		}
+		alias := strings.TrimSpace(row.Alias)
+		if alias != "" {
+			items[index].Aliases = append(items[index].Aliases, alias)
+		}
+	}
+	return nil
+}
+
+// UpdateJavIdol updates editable idol profile fields and replaces aliases.
+func UpdateJavIdol(ctx context.Context, idolID int64, input JavIdolUpdateInput, directoryIDs []int64) (*JavIdolSummary, error) {
+	if idolID <= 0 {
+		return nil, errors.New("idol id must be positive")
+	}
+	input.Name = strings.TrimSpace(input.Name)
+	if input.Name == "" {
+		return nil, errors.New("idol name cannot be empty")
+	}
+
+	if err := common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing models.JavIdol
+		if err := tx.Where("id = ?", idolID).First(&existing).Error; err != nil {
+			return fmt.Errorf("find jav idol: %w", err)
+		}
+
+		var duplicateNameCount int64
+		if err := tx.Model(&models.JavIdol{}).
+			Where("id <> ? AND name = ? AND COALESCE(is_english, 0) = ?", idolID, input.Name, existing.IsEnglish).
+			Count(&duplicateNameCount).Error; err != nil {
+			return fmt.Errorf("check jav idol name: %w", err)
+		}
+		if duplicateNameCount > 0 {
+			return errors.New("idol name already exists")
+		}
+
+		ownNames := []string{input.Name, input.ChineseName}
+		if existing.IsEnglish {
+			ownNames = append(ownNames, input.JapaneseName)
+		} else {
+			ownNames = append(ownNames, input.RomanName)
+		}
+		aliases := normalizeJavIdolAliases(input.Aliases, existing.IsEnglish, ownNames...)
+		if err := validateJavIdolAliasesTx(tx, idolID, existing.IsEnglish, aliases); err != nil {
+			return err
+		}
+
+		updates := map[string]any{
+			"name":          input.Name,
+			"roman_name":    strings.TrimSpace(input.RomanName),
+			"japanese_name": strings.TrimSpace(input.JapaneseName),
+			"chinese_name":  strings.TrimSpace(input.ChineseName),
+			"height_cm":     input.HeightCM,
+			"birth_date":    input.BirthDate,
+			"bust":          input.Bust,
+			"waist":         input.Waist,
+			"hips":          input.Hips,
+			"cup":           input.Cup,
+		}
+		if err := tx.Model(&models.JavIdol{}).Where("id = ?", idolID).Updates(updates).Error; err != nil {
+			return fmt.Errorf("update jav idol: %w", err)
+		}
+		if err := replaceJavIdolAliasesTx(tx, idolID, existing.IsEnglish, aliases); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return GetJavIdolSummary(ctx, idolID, directoryIDs)
+}
+
+func normalizeJavIdolAliases(values []string, isEnglish bool, ownNames ...string) []string {
+	excluded := make(map[string]bool, len(ownNames))
+	for _, ownName := range ownNames {
+		ownName = strings.TrimSpace(ownName)
+		if ownName != "" {
+			excluded[javIdolAliasKey(ownName, isEnglish)] = true
+		}
+	}
+	seen := map[string]bool{}
+	aliases := make([]string, 0, len(values))
+	for _, value := range values {
+		alias := strings.TrimSpace(value)
+		if alias == "" {
+			continue
+		}
+		key := javIdolAliasKey(alias, isEnglish)
+		if excluded[key] || seen[key] {
+			continue
+		}
+		seen[key] = true
+		aliases = append(aliases, alias)
+	}
+	return aliases
+}
+
+func javIdolAliasKey(value string, isEnglish bool) string {
+	value = strings.TrimSpace(value)
+	if isEnglish {
+		return strings.ToLower(value)
+	}
+	return value
+}
+
+func validateJavIdolAliasesTx(tx *gorm.DB, idolID int64, isEnglish bool, aliases []string) error {
+	if len(aliases) == 0 {
+		return nil
+	}
+	var nameConflict int64
+	if err := tx.Model(&models.JavIdol{}).
+		Where("id <> ? AND COALESCE(is_english, 0) = ? AND name IN ?", idolID, isEnglish, aliases).
+		Count(&nameConflict).Error; err != nil {
+		return fmt.Errorf("check jav idol alias names: %w", err)
+	}
+	if nameConflict > 0 {
+		return errors.New("idol alias conflicts with another idol name")
+	}
+
+	var aliasConflict int64
+	if err := tx.Model(&models.JavIdolAlias{}).
+		Where("jav_idol_id <> ? AND COALESCE(is_english, 0) = ? AND alias IN ?", idolID, isEnglish, aliases).
+		Count(&aliasConflict).Error; err != nil {
+		return fmt.Errorf("check jav idol aliases: %w", err)
+	}
+	if aliasConflict > 0 {
+		return errors.New("idol alias already exists")
+	}
+	return nil
+}
+
+func replaceJavIdolAliasesTx(tx *gorm.DB, idolID int64, isEnglish bool, aliases []string) error {
+	if err := tx.Where("jav_idol_id = ?", idolID).Delete(&models.JavIdolAlias{}).Error; err != nil {
+		return fmt.Errorf("delete jav idol aliases: %w", err)
+	}
+	if len(aliases) == 0 {
+		return nil
+	}
+	now := time.Now()
+	rows := make([]models.JavIdolAlias, 0, len(aliases))
+	for _, alias := range aliases {
+		rows = append(rows, models.JavIdolAlias{
+			JavIdolID: idolID,
+			Alias:     alias,
+			IsEnglish: isEnglish,
+			CreatedAt: now,
+		})
+	}
+	if err := tx.Create(&rows).Error; err != nil {
+		return fmt.Errorf("create jav idol aliases: %w", err)
+	}
+	return nil
 }
 
 // ListIdolCoverCodes returns a prioritized list of codes for an idol, preferring solo works first.
@@ -2196,13 +2419,227 @@ func ensureJavIdolsTx(tx *gorm.DB, names []string, isEnglish bool) ([]models.Jav
 	}
 	var idols []models.JavIdol
 	for _, name := range unique {
-		idol := models.JavIdol{Name: name, IsEnglish: isEnglish}
-		if err := tx.Where("name = ? AND is_english = ?", name, isEnglish).FirstOrCreate(&idol).Error; err != nil {
+		idol, err := findOrCreateJavIdolByNameOrAliasTx(tx, name, isEnglish)
+		if err != nil {
 			return nil, fmt.Errorf("ensure jav idol %q: %w", name, err)
 		}
 		idols = append(idols, idol)
 	}
 	return idols, nil
+}
+
+func findOrCreateJavIdolByNameOrAliasTx(tx *gorm.DB, name string, isEnglish bool) (models.JavIdol, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return models.JavIdol{}, errors.New("jav idol name cannot be empty")
+	}
+	var idol models.JavIdol
+	err := tx.Where("name = ? AND is_english = ?", name, isEnglish).First(&idol).Error
+	if err == nil {
+		return idol, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return models.JavIdol{}, err
+	}
+	err = tx.
+		Table("jav_idol_alias jia").
+		Select("ji.*").
+		Joins("JOIN jav_idol ji ON ji.id = jia.jav_idol_id").
+		Where("jia.alias = ? AND COALESCE(jia.is_english, 0) = ?", name, isEnglish).
+		Where("COALESCE(ji.is_english, 0) = ?", isEnglish).
+		Limit(1).
+		Scan(&idol).Error
+	if err != nil {
+		return models.JavIdol{}, err
+	}
+	if idol.ID > 0 {
+		return idol, nil
+	}
+	idol = models.JavIdol{Name: name, IsEnglish: isEnglish}
+	if err := tx.Create(&idol).Error; err != nil {
+		return models.JavIdol{}, err
+	}
+	return idol, nil
+}
+
+// MergeJavIdols physically moves source idol relationships onto canonicalID and records source names as aliases.
+func MergeJavIdols(ctx context.Context, canonicalID int64, sourceIDs []int64, directoryIDs []int64) (*JavIdolSummary, error) {
+	if canonicalID <= 0 {
+		return nil, errors.New("canonical_id must be positive")
+	}
+	cleanSourceIDs := make([]int64, 0, len(sourceIDs))
+	seen := map[int64]bool{}
+	for _, id := range uniqueInt64s(sourceIDs) {
+		if id <= 0 || id == canonicalID || seen[id] {
+			continue
+		}
+		seen[id] = true
+		cleanSourceIDs = append(cleanSourceIDs, id)
+	}
+	if len(cleanSourceIDs) == 0 {
+		return nil, errors.New("merge_ids required")
+	}
+
+	if err := common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var canonical models.JavIdol
+		if err := tx.Where("id = ?", canonicalID).First(&canonical).Error; err != nil {
+			return fmt.Errorf("find canonical jav idol: %w", err)
+		}
+
+		var sources []models.JavIdol
+		if err := tx.Where("id IN ?", cleanSourceIDs).Find(&sources).Error; err != nil {
+			return fmt.Errorf("find source jav idols: %w", err)
+		}
+		if len(sources) != len(cleanSourceIDs) {
+			return gorm.ErrRecordNotFound
+		}
+		for _, source := range sources {
+			if source.IsEnglish != canonical.IsEnglish {
+				return errors.New("cannot merge idols from different metadata languages")
+			}
+		}
+
+		if err := moveJavIdolAliasesTx(tx, canonical, sources); err != nil {
+			return err
+		}
+		if err := moveJavIdolMapsTx(tx, canonicalID, cleanSourceIDs); err != nil {
+			return err
+		}
+		if err := moveJavIdolFavoriteMapsTx(tx, canonicalID, cleanSourceIDs); err != nil {
+			return err
+		}
+		if err := inheritJavIdolCoverTx(tx, canonical, sources); err != nil {
+			return err
+		}
+		if err := tx.Where("id IN ?", cleanSourceIDs).Delete(&models.JavIdol{}).Error; err != nil {
+			return fmt.Errorf("delete merged jav idols: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return GetJavIdolSummary(ctx, canonicalID, directoryIDs)
+}
+
+func moveJavIdolAliasesTx(tx *gorm.DB, canonical models.JavIdol, sources []models.JavIdol) error {
+	sourceIDs := make([]int64, 0, len(sources))
+	for _, source := range sources {
+		sourceIDs = append(sourceIDs, source.ID)
+	}
+	if len(sourceIDs) > 0 {
+		if err := tx.Exec(
+			`DELETE FROM jav_idol_alias
+			WHERE jav_idol_id IN ?
+			AND EXISTS (
+				SELECT 1
+				FROM jav_idol_alias canonical_alias
+				WHERE canonical_alias.jav_idol_id = ?
+				AND canonical_alias.alias = jav_idol_alias.alias
+				AND COALESCE(canonical_alias.is_english, 0) = COALESCE(jav_idol_alias.is_english, 0)
+			)`,
+			sourceIDs,
+			canonical.ID,
+		).Error; err != nil {
+			return fmt.Errorf("delete duplicate jav idol aliases: %w", err)
+		}
+		if err := tx.Model(&models.JavIdolAlias{}).
+			Where("jav_idol_id IN ?", sourceIDs).
+			Update("jav_idol_id", canonical.ID).Error; err != nil {
+			return fmt.Errorf("move jav idol aliases: %w", err)
+		}
+	}
+
+	aliases := make([]models.JavIdolAlias, 0, len(sources)*4)
+	seen := map[string]bool{}
+	addAlias := func(value string) {
+		alias := strings.TrimSpace(value)
+		if alias == "" || alias == canonical.Name || alias == canonical.RomanName || alias == canonical.JapaneseName || alias == canonical.ChineseName {
+			return
+		}
+		key := strings.ToLower(alias)
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		aliases = append(aliases, models.JavIdolAlias{
+			JavIdolID: canonical.ID,
+			Alias:     alias,
+			IsEnglish: canonical.IsEnglish,
+			CreatedAt: time.Now(),
+		})
+	}
+	for _, source := range sources {
+		addAlias(source.Name)
+	}
+	if len(aliases) == 0 {
+		return nil
+	}
+	if err := tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "alias"}, {Name: "is_english"}},
+		DoNothing: true,
+	}).Create(&aliases).Error; err != nil {
+		return fmt.Errorf("create jav idol aliases: %w", err)
+	}
+	return nil
+}
+
+func moveJavIdolMapsTx(tx *gorm.DB, canonicalID int64, sourceIDs []int64) error {
+	if err := tx.Exec(
+		`INSERT OR IGNORE INTO jav_idol_map (jav_id, jav_idol_id, created_at)
+		SELECT jav_id, ?, MIN(created_at)
+		FROM jav_idol_map
+		WHERE jav_idol_id IN ?
+		GROUP BY jav_id`,
+		canonicalID,
+		sourceIDs,
+	).Error; err != nil {
+		return fmt.Errorf("move jav idol maps: %w", err)
+	}
+	if err := tx.Where("jav_idol_id IN ?", sourceIDs).Delete(&models.JavIdolMap{}).Error; err != nil {
+		return fmt.Errorf("delete source jav idol maps: %w", err)
+	}
+	return nil
+}
+
+func moveJavIdolFavoriteMapsTx(tx *gorm.DB, canonicalID int64, sourceIDs []int64) error {
+	if err := tx.Exec(
+		`INSERT OR IGNORE INTO jav_favorite_map (jav_favorite_group_id, entity_type, entity_id, created_at, sort_order)
+		SELECT jav_favorite_group_id, entity_type, ?, MIN(created_at), MIN(sort_order)
+		FROM jav_favorite_map
+		WHERE entity_type = ? AND entity_id IN ?
+		GROUP BY jav_favorite_group_id, entity_type`,
+		canonicalID,
+		JavFavoriteEntityIdol,
+		sourceIDs,
+	).Error; err != nil {
+		return fmt.Errorf("move jav idol favorite maps: %w", err)
+	}
+	if err := tx.Where("entity_type = ? AND entity_id IN ?", JavFavoriteEntityIdol, sourceIDs).Delete(&models.JavFavoriteMap{}).Error; err != nil {
+		return fmt.Errorf("delete source jav idol favorite maps: %w", err)
+	}
+	return nil
+}
+
+func inheritJavIdolCoverTx(tx *gorm.DB, canonical models.JavIdol, sources []models.JavIdol) error {
+	if canonical.CoverJavID != nil {
+		return nil
+	}
+	for _, source := range sources {
+		if source.CoverJavID == nil {
+			continue
+		}
+		if err := tx.Model(&models.JavIdol{}).
+			Where("id = ?", canonical.ID).
+			Updates(map[string]any{
+				"cover_jav_id":    source.CoverJavID,
+				"cover_crop_left": source.CoverCropLeft,
+			}).Error; err != nil {
+			return fmt.Errorf("inherit jav idol cover: %w", err)
+		}
+		return nil
+	}
+	return nil
 }
 
 func replaceJavIdolsForLanguageTx(tx *gorm.DB, javID int64, idolIDs []int64, isEnglish bool) error {

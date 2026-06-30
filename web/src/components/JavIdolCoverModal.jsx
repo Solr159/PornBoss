@@ -6,6 +6,7 @@ import SaveRoundedIcon from '@mui/icons-material/SaveRounded'
 import { fetchJavIdolCoverOptions, updateJavIdolCover } from '@/api'
 import { getJavDisplayTitle } from '@/utils/jav'
 import { zh } from '@/utils/i18n'
+import { getIdolDisplayName } from '@/utils/javIdol'
 
 export const IDOL_COVER_VISIBLE_RATIO = 0.47
 export const IDOL_COVER_DEFAULT_CROP_LEFT = 1 - IDOL_COVER_VISIBLE_RATIO
@@ -53,6 +54,7 @@ export default function JavIdolCoverModal({
   item,
   directoryIds = [],
   javMetadataLanguage = 'zh',
+  preferChineseName = false,
   onClose,
   onSaved,
 }) {
@@ -185,7 +187,7 @@ export default function JavIdolCoverModal({
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <div className="min-w-0">
             <div className="truncate text-base font-semibold text-slate-950">
-              {item?.name || zh('女优封面', 'Idol cover')}
+              {getIdolDisplayName(item, javMetadataLanguage, preferChineseName)}
             </div>
             <div className="text-xs text-slate-500">{zh('封面', 'Cover')}</div>
           </div>

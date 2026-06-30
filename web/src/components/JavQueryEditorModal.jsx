@@ -5,6 +5,7 @@ import SearchIcon from '@mui/icons-material/Search'
 
 import { fetchJavIdols, fetchJavSeries, fetchJavStudios } from '@/api'
 import { zh } from '@/utils/i18n'
+import { getIdolDisplayName } from '@/utils/javIdol'
 
 const JAV_FILTER_FETCH_LIMIT = 500
 
@@ -12,6 +13,20 @@ const cleanIds = (ids) =>
   Array.from(
     new Set((ids || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))
   )
+
+function buildIdolSearchText(idol, javMetadataLanguage, preferChineseName) {
+  const aliases = Array.isArray(idol?.aliases) ? idol.aliases : []
+  return [
+    getIdolDisplayName(idol, javMetadataLanguage, preferChineseName),
+    idol?.name,
+    idol?.roman_name,
+    idol?.japanese_name,
+    idol?.chinese_name,
+    ...aliases,
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
 
 const fetchAllJavIdols = async ({ directoryIds = [] } = {}) => {
   const all = []
@@ -79,6 +94,23 @@ const fetchAllJavSeries = async ({ directoryIds = [] } = {}) => {
   return all
 }
 
+function SelectedIdolChip({ idol, javMetadataLanguage, preferChineseName, onRemove }) {
+  const displayName = getIdolDisplayName(idol, javMetadataLanguage, preferChineseName)
+  return (
+    <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+      <span className="truncate">{displayName}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-blue-100"
+        aria-label={zh(`删除女优 ${displayName}`, `Remove idol ${displayName}`)}
+      >
+        <CloseOutlinedIcon fontSize="inherit" />
+      </button>
+    </span>
+  )
+}
+
 export default function JavQueryEditorModal({
   open,
   onClose,
@@ -94,6 +126,8 @@ export default function JavQueryEditorModal({
   seriesName = '',
   soloOnly = false,
   directoryIds = [],
+  javMetadataLanguage = 'zh',
+  preferChineseName = false,
 }) {
   const studioInputRef = useRef(null)
   const seriesInputRef = useRef(null)
@@ -292,7 +326,7 @@ export default function JavQueryEditorModal({
     return Array.from(merged.values())
       .filter((idol) => {
         if (!query) return true
-        return String(idol?.name || '')
+        return buildIdolSearchText(idol, javMetadataLanguage, preferChineseName)
           .toLowerCase()
           .includes(query)
       })
@@ -300,9 +334,11 @@ export default function JavQueryEditorModal({
         const countA = Number.isFinite(a?.work_count) ? a.work_count : 0
         const countB = Number.isFinite(b?.work_count) ? b.work_count : 0
         if (countB !== countA) return countB - countA
-        return String(a?.name || '').localeCompare(String(b?.name || ''))
+        return getIdolDisplayName(a, javMetadataLanguage, preferChineseName).localeCompare(
+          getIdolDisplayName(b, javMetadataLanguage, preferChineseName)
+        )
       })
-  }, [idolMap, idolOptions, idolSearch])
+  }, [idolMap, idolOptions, idolSearch, javMetadataLanguage, preferChineseName])
 
   const filteredStudios = useMemo(() => {
     const query = studioSearch.trim().toLowerCase()
@@ -471,20 +507,13 @@ export default function JavQueryEditorModal({
             {selectedIdols.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {selectedIdols.map((idol) => (
-                  <span
+                  <SelectedIdolChip
                     key={idol.id}
-                    className="inline-flex max-w-full items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700"
-                  >
-                    <span className="truncate">{idol.name}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeIdol(idol.id)}
-                      className="inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-blue-100"
-                      aria-label={zh(`删除女优 ${idol.name}`, `Remove idol ${idol.name}`)}
-                    >
-                      <CloseOutlinedIcon fontSize="inherit" />
-                    </button>
-                  </span>
+                    idol={idol}
+                    javMetadataLanguage={javMetadataLanguage}
+                    preferChineseName={preferChineseName}
+                    onRemove={() => removeIdol(idol.id)}
+                  />
                 ))}
               </div>
             ) : null}
@@ -529,7 +558,7 @@ export default function JavQueryEditorModal({
                             aria-hidden="true"
                           />
                           <span className="min-w-0 flex-1 truncate text-slate-800">
-                            {idol.name}
+                            {getIdolDisplayName(idol, javMetadataLanguage, preferChineseName)}
                           </span>
                           {Number.isFinite(idol?.work_count) ? (
                             <span className="shrink-0 text-xs text-slate-400">

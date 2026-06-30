@@ -14,6 +14,7 @@ export default function JavIdolView({
   buildIdolUrl,
   directoryIds = [],
   javMetadataLanguage,
+  preferChineseName = false,
   onFirst,
   onPrev,
   onGoToPage,
@@ -22,6 +23,7 @@ export default function JavIdolView({
   items,
   onSelectIdol,
   onOpenFavorites,
+  onMerged,
   waterfallMode,
   onWaterfallModeChange,
   onLoadMore,
@@ -63,9 +65,11 @@ export default function JavIdolView({
           items={items}
           onSelectIdol={onSelectIdol}
           onOpenFavorites={onOpenFavorites}
+          onMerged={onMerged}
           buildIdolUrl={buildIdolUrl}
           directoryIds={directoryIds}
           javMetadataLanguage={javMetadataLanguage}
+          preferChineseName={preferChineseName}
         />
       )}
       <WaterfallLoader
