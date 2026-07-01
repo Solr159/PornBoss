@@ -171,27 +171,62 @@ copy_release_files() {
 create_command_link() {
   local install_dir="$1"
   local link_dir="$HOME/.local/bin"
-  mkdir -p "$link_dir"
+  
+  # 优化 1：解决 ~/.local/bin 创建时的权限不足问题
+  if [[ ! -d "$link_dir" ]]; then
+    if ! mkdir -p "$link_dir" 2>/dev/null; then
+      log "Creating $link_dir requires administrator privileges..."
+      sudo mkdir -p "$link_dir"
+      sudo chown -R "$(whoami)" "$HOME/.local"
+    fi
+  fi
+
   ln -sf "$install_dir/javboss" "$link_dir/javboss"
   log "command installed: $link_dir/javboss"
+}
+
+setup_path_env() {
+  local link_dir="$HOME/.local/bin"
+  
+  # 优化 3：如果不在 PATH 中，自动帮用户写入 shell 配置文件
   case ":$PATH:" in
     *":$link_dir:"*) ;;
-    *) log "add $link_dir to PATH if the javboss command is not found" ;;
+    *)
+      local shell_rc=""
+      if [[ "${SHELL:-}" == *"zsh"* ]]; then
+        shell_rc="$HOME/.zshrc"
+      elif [[ "${SHELL:-}" == *"bash"* ]]; then
+        if [[ "$(uname -s)" == "Darwin" ]]; then
+          shell_rc="$HOME/.bash_profile"
+        else
+          shell_rc="$HOME/.bashrc"
+        fi
+      fi
+
+      if [[ -n "$shell_rc" ]]; then
+        log "Adding $link_dir to PATH in $shell_rc"
+        printf '\n# JavBoss PATH\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "$shell_rc"
+        if prefers_chinese; then
+          log "已自动将路径写入 $shell_rc，新开终端窗口后即可在任意地方直接输入 'javboss' 启动。"
+        else
+          log "PATH updated. Please restart your terminal or run 'source $shell_rc' to use 'javboss' command anywhere."
+        fi
+      else
+        log "add $link_dir to PATH if the javboss command is not found"
+      fi
+      ;;
   esac
 }
 
 start_javboss() {
   local install_dir="$1"
-  if [[ "$(uname -s)" == "Darwin" && -f "$install_dir/javboss.command" ]]; then
-    if open "$install_dir/javboss.command" >/dev/null 2>&1; then
-      return
-    fi
-  fi
+  
+  # 优化 2：移除 open 命令，直接在当前终端前台用 exec 启动，保持会话复用
   if [[ -e /dev/tty ]] && { : </dev/tty; } 2>/dev/null; then
-    "$install_dir/javboss" </dev/tty
-    return
+    exec "$install_dir/javboss" </dev/tty
+  else
+    exec "$install_dir/javboss"
   fi
-  "$install_dir/javboss"
 }
 
 main() {
@@ -208,6 +243,8 @@ main() {
 
   if [[ "$(installed_version "$INSTALL_DIR")" == "$tag" ]]; then
     log "JavBoss $tag is already installed; no update needed"
+    # 如果已经安装，也直接原地启动
+    start_javboss "$INSTALL_DIR"
     return
   fi
 
@@ -236,6 +273,7 @@ main() {
   fi
 
   create_command_link "$INSTALL_DIR"
+  setup_path_env
   write_installed_version "$INSTALL_DIR" "$tag"
 
   log "installed JavBoss $tag"
